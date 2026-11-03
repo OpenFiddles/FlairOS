@@ -1,3 +1,17 @@
 Hey Textile, Im back! Now, I don't see updates, to the OS, make more generic drivers and work on the OS, the part we can see, we need to be able to make and upload .bmp files for boot screen and more, use BOOT_LOGO.bmp name in resources/images/ (which I will upload *.bmp files later) for boot_logo, icon_menubar.bmp for the menu bar like MacOS, I'm working towards a more MacOS like, and github and gitlab should do both building, except github actually release the images (.iso, .bin, .img) for different architects. Like ARM. When you are doing updates, create a MR or PR and comment all the updates you are doing, just like when you are talking to chat to me via messages or others.
 
 Also, update TODO.txt too, always comment back on work items, and commits.
+
+---
+Textile status (branch bmp-boot-logo, MR open for review)
+
+Done in this change:
+- include/bmp.h: header-only BMP check. Accepts 24-bit and 32-bit BMP (uncompressed, plus 32-bit BI_BITFIELDS). Returns width, height, row stride and pixel offset. Nothing includes it yet, so the kernel build does not change.
+- resources/images/README.txt: lists the file names the OS will look for. The .bmp files are still yours to upload.
+
+Not started:
+- Drawing BOOT_LOGO.bmp and icon_menubar.bmp. Needs a graphics mode, which the build does not have yet.
+- Generic drivers.
+- GitHub release images (.iso, .bin, .img per architecture, ARM included).
+
+Next: wire the BMP loader into boot once a graphics mode exists, then the menu bar icon.
