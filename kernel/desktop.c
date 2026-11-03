@@ -1,15 +1,33 @@
+/*
+FILE PATH: kernel/desktop.c
+CONTRIBUTOR (Optional): Textile
+PURPOSE: FlareOS desktop in the 80x25 text buffer. Draws a macOS-style menu bar on row 0,
+a centred dock on the last row, and windows with traffic-light buttons (close, minimize,
+zoom), centred titles and a one-cell drop shadow. Keyboard, mouse, terminal and piano
+input work as before.
+*/
+
 #include "kernel.h"
 
-#define TASK_ROW (VGA_ROWS - 1)
+#define MENU_ROW 0
+#define DOCK_ROW (VGA_ROWS - 1)
 #define BG_CHAR 0xB0
 #define BG_ATTR 0x13
 #define BODY_ATTR 0x70
-#define TITLE_ON 0x1F
-#define TITLE_OFF 0x87
-#define TASK_ATTR 0x70
 #define MENU_ATTR 0x70
-#define BTN_OPEN 0x87
-#define BTN_TOP 0x1F
+#define DOCK_BG_ATTR 0x08
+#define DOCK_IDLE_ATTR 0x70
+#define DOCK_OPEN_ATTR 0x78
+#define DOCK_TOP_ATTR 0x1F
+#define TITLE_FOCUS 0x70
+#define TITLE_BLUR 0x78
+#define LIGHT_CLOSE 0x74
+#define LIGHT_MIN 0x7E
+#define LIGHT_ZOOM 0x72
+#define LIGHT_BLUR 0x78
+#define DOT_CHAR 0x07
+#define SHADOW_CHAR 0xB2
+#define SHADOW_ATTR 0x08
 #define ICON_ATTR 0x70
 #define KEY_ATTR 0x4F
 #define PIANO_KEYS 8
@@ -17,10 +35,13 @@
 #define FRAME_TICKS 2
 #define CURSOR_ATTR 0x0F
 #define FILES_ROW 10
+#define DOCK_ITEM_W 9
+#define DOCK_GAP 1
+#define DOCK_ITEMS 5
+#define DOCK_X0 ((VGA_COLS - (DOCK_ITEMS * DOCK_ITEM_W + (DOCK_ITEMS - 1) * DOCK_GAP)) / 2)
 #define EXPLORER_STAGE ((const u8 *)0x30000)
 #define EXPLORER_STAGE_LEN 4608
 #define APP_STACK_TOP 0x28000u
-#define MENU_W 16
 
 int airp_load(const u8 *file, u32 len, u32 *entry);
 void enter_user(u32 entry, u32 user_esp);
@@ -29,18 +50,22 @@ enum { WIN_HELLO, WIN_PIANO, WIN_CLOCK, WIN_TERM, WIN_COUNT };
 
 struct window {
     int open;
+    int minimized;
+    int zoomed;
     i32 x, y, w, h;
+    i32 sx, sy, sw, sh;
     const char *title;
 };
 
 static struct window wins[WIN_COUNT] = {
-    {0, 22, 3, 38, 9, "Hello"},
-    {0, 12, 12, 40, 7, "Piano"},
-    {0, 60, 4, 18, 5, "Clock"},
-    {0, 4, 2, 60, 17, "Terminal"},
+    { .x = 22, .y = 3, .w = 38, .h = 9, .title = "Hello" },
+    { .x = 12, .y = 12, .w = 40, .h = 7, .title = "Piano" },
+    { .x = 60, .y = 4, .w = 18, .h = 5, .title = "Clock" },
+    { .x = 4, .y = 2, .w = 60, .h = 17, .title = "Terminal" },
 };
 
 static const char *const icon_label[WIN_COUNT] = {"Hello", "Piano", "Clock", "Term"};
+static const char *const dock_label[DOCK_ITEMS] = {"Hello", "Piano", "Clock", "Term", "Files"};
 static const char *const log_name[WIN_COUNT] = {"hello", "piano", "clock", "terminal"};
 static const i32 icon_row[WIN_COUNT] = {2, 4, 6, 8};
 static const char piano_keys[PIANO_KEYS + 1] = "asdfghjk";
@@ -54,7 +79,6 @@ static i32 drag_dx, drag_dy;
 static u8 prev_buttons;
 static int piano_last = -1;
 static int piano_flash;
-static int menu_open;
 
 static void cell(int r, int c, u8 ch, u8 attr) {
     if (r < 0 || r >= VGA_ROWS || c < 0 || c >= VGA_COLS)
@@ -112,8 +136,6 @@ static void log_point(const char *tag, i32 a, i32 b) {
     serial_str(buf);
 }
 
-static int btn_col(int i) { return 8 + i * 10; }
-
 static void raise_win(int k) {
     int i = 0;
     while (i < WIN_COUNT && z[i] != k) i++;
@@ -122,8 +144,10 @@ static void raise_win(int k) {
 }
 
 static int top_win(void) {
-    for (int i = WIN_COUNT - 1; i >= 0; i--)
-        if (wins[z[i]].open) return z[i];
+    for (int i = WIN_COUNT - 1; i >= 0; i--) {
+        int k = z[i];
+        if (wins[k].open && !wins[k].minimized) return k;
+    }
     return -1;
 }
 
@@ -134,17 +158,63 @@ static int win_contains(const struct window *w, i32 mx, i32 my) {
 static int window_at(i32 mx, i32 my) {
     for (int i = WIN_COUNT - 1; i >= 0; i--) {
         int k = z[i];
-        if (wins[k].open && win_contains(&wins[k], mx, my)) return k;
+        if (wins[k].open && !wins[k].minimized && win_contains(&wins[k], mx, my)) return k;
     }
     return -1;
 }
 
 static void open_win(int k) {
     wins[k].open = 1;
+    wins[k].minimized = 0;
     raise_win(k);
     serial_str("desktop: open ");
     serial_str(log_name[k]);
     serial_str("\n");
+}
+
+static void minimize_win(int k) {
+    wins[k].minimized = 1;
+    serial_str("desktop: minimize ");
+    serial_str(log_name[k]);
+    serial_str("\n");
+}
+
+static void close_win(int k) {
+    struct window *w = &wins[k];
+    if (w->zoomed) {
+        w->x = w->sx;
+        w->y = w->sy;
+        w->w = w->sw;
+        w->h = w->sh;
+        w->zoomed = 0;
+    }
+    w->open = 0;
+    w->minimized = 0;
+    serial_str("desktop: close ");
+    serial_str(log_name[k]);
+    serial_str("\n");
+}
+
+static void zoom_win(int k) {
+    struct window *w = &wins[k];
+    if (w->zoomed) {
+        w->x = w->sx;
+        w->y = w->sy;
+        w->w = w->sw;
+        w->h = w->sh;
+        w->zoomed = 0;
+    } else {
+        w->sx = w->x;
+        w->sy = w->y;
+        w->sw = w->w;
+        w->sh = w->h;
+        w->x = 0;
+        w->y = 1;
+        w->w = VGA_COLS;
+        w->h = DOCK_ROW - 1;
+        w->zoomed = 1;
+    }
+    raise_win(k);
 }
 
 static void piano_play(int i) {
@@ -196,7 +266,7 @@ static void draw_content(int k) {
     if (k == WIN_HELLO) {
         text(w->y + 2, w->x + 2, "Welcome to FlareOS.", BODY_ATTR, w->w - 4);
         text(w->y + 3, w->x + 2, "Click an icon on the left", BODY_ATTR, w->w - 4);
-        text(w->y + 4, w->x + 2, "or a button on the taskbar.", BODY_ATTR, w->w - 4);
+        text(w->y + 4, w->x + 2, "or an icon in the dock.", BODY_ATTR, w->w - 4);
         text(w->y + 6, w->x + 2, "Ctrl+Alt+D opens developer mode.", BODY_ATTR, w->w - 4);
         text(w->y + 7, w->x + 2, "Arrow keys move the pointer.", BODY_ATTR, w->w - 4);
     } else if (k == WIN_PIANO) {
@@ -230,66 +300,55 @@ static void draw_content(int k) {
 
 static void draw_window(int k) {
     const struct window *w = &wins[k];
-    u8 ta = (top_win() == k) ? TITLE_ON : TITLE_OFF;
-    fill(w->y + 1, w->x, w->h - 1, w->w, ' ', BODY_ATTR);
+    int focus = (top_win() == k);
+    u8 ta = focus ? TITLE_FOCUS : TITLE_BLUR;
+    int len = 0;
+    int avail = w->w - 10;
+    int c;
+    while (w->title[len]) len++;
+    if (len > avail) len = avail;
+    if (len < 0) len = 0;
+    c = w->x + (w->w - len) / 2;
+    fill(w->y + 1, w->x + 1, w->h, w->w, SHADOW_CHAR, SHADOW_ATTR);
     fill(w->y, w->x, 1, w->w, ' ', ta);
-    text(w->y, w->x + 1, wins[k].title, ta, w->w - 6);
-    text(w->y, w->x + w->w - 4, "[x]", ta, 3);
+    fill(w->y + 1, w->x, w->h - 1, w->w, ' ', BODY_ATTR);
+    cell(w->y, w->x + 2, DOT_CHAR, focus ? LIGHT_CLOSE : LIGHT_BLUR);
+    cell(w->y, w->x + 4, DOT_CHAR, focus ? LIGHT_MIN : LIGHT_BLUR);
+    cell(w->y, w->x + 6, DOT_CHAR, focus ? LIGHT_ZOOM : LIGHT_BLUR);
+    text(w->y, c, w->title, ta, len);
     draw_content(k);
 }
 
-static void draw_taskbar(void) {
-    u8 t[6];
+static void draw_dock(void) {
     int top = top_win();
-    fill(TASK_ROW, 0, 1, VGA_COLS, ' ', TASK_ATTR);
-    text(TASK_ROW, 1, "FlareOS", TASK_ATTR, 7);
-    for (int i = 0; i < WIN_COUNT; i++) {
-        u8 a = !wins[i].open ? TASK_ATTR : (top == i ? BTN_TOP : BTN_OPEN);
-        fill(TASK_ROW, btn_col(i), 1, 9, ' ', a);
-        text(TASK_ROW, btn_col(i) + 1, icon_label[i], a, 7);
+    fill(DOCK_ROW, 0, 1, VGA_COLS, ' ', DOCK_BG_ATTR);
+    for (int i = 0; i < DOCK_ITEMS; i++) {
+        int x = DOCK_X0 + i * (DOCK_ITEM_W + DOCK_GAP);
+        u8 a = DOCK_IDLE_ATTR;
+        int shown = i < WIN_COUNT && wins[i].open && !wins[i].minimized;
+        if (i < WIN_COUNT && wins[i].open)
+            a = DOCK_OPEN_ATTR;
+        if (i == top)
+            a = DOCK_TOP_ATTR;
+        fill(DOCK_ROW, x, 1, DOCK_ITEM_W, ' ', a);
+        if (shown)
+            cell(DOCK_ROW, x + 1, DOT_CHAR, a);
+        text(DOCK_ROW, x + 2, dock_label[i], a, DOCK_ITEM_W - 3);
     }
-    text(TASK_ROW, VGA_COLS - 30, "Ctrl+Alt+D: dev", TASK_ATTR, 15);
-    rtc_now(t);
-    draw_hms(TASK_ROW, VGA_COLS - 9, TASK_ATTR, t);
 }
 
 static void draw_menubar(void) {
     u8 t[6];
-    int top = top_win();
-    fill(0, 0, 1, VGA_COLS, ' ', MENU_ATTR);
-    text(0, 1, "FlareOS", MENU_ATTR, 7);
-    if (top >= 0)
-        text(0, 10, wins[top].title, MENU_ATTR, 20);
+    fill(MENU_ROW, 0, 1, VGA_COLS, ' ', MENU_ATTR);
+    text(MENU_ROW, 1, "FlareOS", MENU_ATTR, 7);
+    text(MENU_ROW, 10, "File", MENU_ATTR, 4);
+    text(MENU_ROW, 16, "Edit", MENU_ATTR, 4);
+    text(MENU_ROW, 22, "View", MENU_ATTR, 4);
+    text(MENU_ROW, 28, "Window", MENU_ATTR, 6);
+    text(MENU_ROW, 37, "Help", MENU_ATTR, 4);
+    text(MENU_ROW, VGA_COLS - 24, "Ctrl+Alt+D: dev", MENU_ATTR, 15);
     rtc_now(t);
-    draw_hms(0, VGA_COLS - 9, MENU_ATTR, t);
-}
-
-static void draw_menu(void) {
-    fill(1, 1, 2, MENU_W, ' ', BODY_ATTR);
-    text(1, 2, "About FlareOS", BODY_ATTR, MENU_W - 2);
-    text(2, 2, "Quit window", BODY_ATTR, MENU_W - 2);
-}
-
-static int menu_click(i32 mx, i32 my) {
-    if (menu_open) {
-        menu_open = 0;
-        if (mx >= 1 && mx < 1 + MENU_W && my == 1) {
-            serial_str("desktop: menu about\n");
-            open_win(WIN_HELLO);
-        } else if (mx >= 1 && mx < 1 + MENU_W && my == 2) {
-            int t = top_win();
-            serial_str("desktop: menu quit\n");
-            if (t >= 0)
-                wins[t].open = 0;
-        }
-        return 1;
-    }
-    if (my == 0) {
-        if (mx >= 1 && mx <= 7)
-            menu_open = 1;
-        return 1;
-    }
-    return 0;
+    draw_hms(MENU_ROW, VGA_COLS - 9, MENU_ATTR, t);
 }
 
 static void draw_cursor(void) {
@@ -299,7 +358,7 @@ static void draw_cursor(void) {
 }
 
 static void draw_frame(void) {
-    fill(0, 0, TASK_ROW, VGA_COLS, BG_CHAR, BG_ATTR);
+    fill(0, 0, VGA_ROWS, VGA_COLS, BG_CHAR, BG_ATTR);
     for (int i = 0; i < WIN_COUNT; i++) {
         fill(icon_row[i], 2, 1, 9, ' ', ICON_ATTR);
         text(icon_row[i], 3, icon_label[i], ICON_ATTR, 7);
@@ -307,11 +366,10 @@ static void draw_frame(void) {
     fill(FILES_ROW, 2, 1, 9, ' ', ICON_ATTR);
     text(FILES_ROW, 3, "Files", ICON_ATTR, 7);
     for (int i = 0; i < WIN_COUNT; i++)
-        if (wins[z[i]].open) draw_window(z[i]);
-    draw_taskbar();
+        if (wins[z[i]].open && !wins[z[i]].minimized)
+            draw_window(z[i]);
+    draw_dock();
     draw_menubar();
-    if (menu_open)
-        draw_menu();
     draw_cursor();
     for (int i = 0; i < VGA_ROWS * VGA_COLS; i++)
         VGA_MEM[i] = back[i];
@@ -319,26 +377,37 @@ static void draw_frame(void) {
 
 static void click(i32 mx, i32 my) {
     log_point("desktop: click", mx, my);
-    if (menu_click(mx, my))
+    if (my == MENU_ROW)
         return;
-    if (my == TASK_ROW) {
-        for (int i = 0; i < WIN_COUNT; i++)
-            if (mx >= btn_col(i) && mx < btn_col(i) + 9) { open_win(i); return; }
+    if (my == DOCK_ROW) {
+        for (int i = 0; i < DOCK_ITEMS; i++) {
+            int x = DOCK_X0 + i * (DOCK_ITEM_W + DOCK_GAP);
+            if (mx >= x && mx < x + DOCK_ITEM_W) {
+                if (i < WIN_COUNT)
+                    open_win(i);
+                else
+                    launch_explorer();
+                return;
+            }
+        }
         return;
     }
     int k = window_at(mx, my);
     if (k >= 0) {
         struct window *w = &wins[k];
-        if (my == w->y && mx >= w->x + w->w - 4 && mx <= w->x + w->w - 2) {
-            w->open = 0; return;
-        }
-        raise_win(k);
         if (my == w->y) {
-            drag_win = k;
-            drag_dx = mx - w->x;
-            drag_dy = my - w->y;
+            if (mx == w->x + 2) { close_win(k); return; }
+            if (mx == w->x + 4) { minimize_win(k); return; }
+            if (mx == w->x + 6) { zoom_win(k); return; }
+            raise_win(k);
+            if (!w->zoomed) {
+                drag_win = k;
+                drag_dx = mx - w->x;
+                drag_dy = my - w->y;
+            }
             return;
         }
+        raise_win(k);
         if (k == WIN_PIANO && my == w->y + 3) {
             i32 rx = mx - (w->x + 2);
             if (rx >= 0 && rx % 4 == 0 && rx / 4 < PIANO_KEYS)
@@ -359,7 +428,7 @@ static void handle_mouse(void) {
     else if (drag_win >= 0) {
         struct window *w = &wins[drag_win];
         w->x = clampi(mx - drag_dx, 0, VGA_COLS - w->w);
-        w->y = clampi(my - drag_dy, 0, TASK_ROW - w->h);
+        w->y = clampi(my - drag_dy, 1, DOCK_ROW - w->h);
     }
     prev_buttons = b;
 }
@@ -381,10 +450,6 @@ static void term_key(int c) {
 }
 
 static void handle_key(int c) {
-    if (c == 27 && menu_open) {
-        menu_open = 0;
-        return;
-    }
     if (top_win() == WIN_TERM) {
         term_key(c);
         return;
