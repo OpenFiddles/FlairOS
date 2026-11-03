@@ -1,13 +1,108 @@
-# You can override the included template(s) by including variable overrides
-# SAST customization: https://docs.gitlab.com/user/application_security/sast/#available-cicd-variables
-# Secret Detection customization: https://docs.gitlab.com/user/application_security/secret_detection/pipeline/configure/
-# Dependency Scanning customization: https://docs.gitlab.com/user/application_security/dependency_scanning/dependency_scanning_sbom/#customizing-analyzer-behavior
-# Container Scanning customization: https://docs.gitlab.com/user/application_security/container_scanning/#customizing-analyzer-behavior
-# Note that environment variables can be set in several places
-# See https://docs.gitlab.com/ci/variables/#cicd-variable-precedence
-stages:
-- test
-sast:
-  stage: test
 include:
-- template: Security/SAST.gitlab-ci.yml
+  - template: Security/SAST.gitlab-ci.yml
+
+stages:
+  - build
+  - test
+  - pages
+  - release
+
+build-linux:
+  stage: build
+  image: ubuntu:24.04
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq bison flex libfl-dev gcc make > /dev/null
+  script:
+    - ./scripts/compile-interpreter.sh
+    - mkdir -p dist/linux && cp bin/mixie-interpreter dist/linux/mixie-interpreter
+  artifacts:
+    paths:
+      - dist/linux/
+    expire_in: 1 week
+
+build-windows:
+  stage: build
+  image: ubuntu:24.04
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq bison flex make gcc-mingw-w64-x86-64 > /dev/null
+  script:
+    - CC=x86_64-w64-mingw32-gcc OUT=dist/windows/mixie-interpreter.exe FLEX_LIBS= ./scripts/compile-interpreter.sh
+  artifacts:
+    paths:
+      - dist/windows/
+    expire_in: 1 week
+
+build-wasm:
+  stage: build
+  image: emscripten/emsdk:latest
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq bison flex > /dev/null
+  script:
+    - FLEX_LIBS= ./scripts/compile-interpreter.sh > /dev/null
+    - mkdir -p web
+    - emcc -O2 -Iinterpreter_projet -o web/mixie.js -sMODULARIZE=1 -sEXPORT_NAME=createMixie -sINVOKE_RUN=0 -sFORCE_FILESYSTEM=1 -sEXPORTED_RUNTIME_METHODS=callMain,FS -sALLOW_MEMORY_GROWTH=1 interpreter_projet/parser.tab.c interpreter_projet/lex.yy.c interpreter_projet/image_parser.tab.c interpreter_projet/image_lex.yy.c interpreter_projet/main.c
+    - cp playground/index.html web/
+  artifacts:
+    paths:
+      - web/
+    expire_in: 1 week
+
+build-macos:
+  stage: build
+  tags:
+    - macos
+  when: manual
+  allow_failure: true
+  script:
+    - brew install bison flex
+    - export PATH="$(brew --prefix bison)/bin:$(brew --prefix flex)/bin:$PATH"
+    - CC=clang FLEX_LIBS= OUT=dist/macos/mixie-interpreter ./scripts/compile-interpreter.sh
+  artifacts:
+    paths:
+      - dist/macos/
+    expire_in: 1 week
+
+test-linux:
+  stage: test
+  image: ubuntu:24.04
+  needs:
+    - build-linux
+  script:
+    - chmod +x dist/linux/mixie-interpreter
+    - printf 'print "Hello, World!";\n' | dist/linux/mixie-interpreter 2>/dev/null | grep -qx 'Hello, World!'
+
+pages:
+  stage: pages
+  image: alpine:3.20
+  needs:
+    - build-wasm
+  script:
+    - mkdir -p public && cp -r web/. public/
+  artifacts:
+    paths:
+      - public
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+release:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  needs:
+    - build-linux
+    - build-windows
+    - build-wasm
+  rules:
+    - if: $CI_COMMIT_TAG
+  script:
+    - echo "Releasing $CI_COMMIT_TAG"
+  release:
+    tag_name: $CI_COMMIT_TAG
+    description: "MixieLang $CI_COMMIT_TAG"
+    assets:
+      links:
+        - name: "Linux x86_64 interpreter"
+          url: "$CI_PROJECT_URL/-/jobs/artifacts/$CI_COMMIT_TAG/raw/dist/linux/mixie-interpreter?job=build-linux"
+        - name: "Windows interpreter (.exe)"
+          url: "$CI_PROJECT_URL/-/jobs/artifacts/$CI_COMMIT_TAG/raw/dist/windows/mixie-interpreter.exe?job=build-windows"
+        - name: "WebAssembly build"
+          url: "$CI_PROJECT_URL/-/jobs/artifacts/$CI_COMMIT_TAG/raw/web/mixie.wasm?job=build-wasm"
