@@ -1,6 +1,5 @@
 image: node:22-bookworm
 
-# Speeds up subsequent runs by storing the npm cache across pipeline steps
 cache:
   key: "$CI_COMMIT_REF_SLUG"
   paths:
@@ -18,10 +17,7 @@ pages:
     - cp web/index.html public/index.html
     - cp build/textile.img public/textile.img
     - xorriso -as mkisofs -quiet -b textile.img -o public/textile.iso public/textile.img
-
-    # Leverages local caching and turns off unnecessary logs completely
     - (cd /tmp/v86 && npm install --no-audit --no-fund --cache $CI_PROJECT_DIR/.npm v86@0.5.472 > /dev/null)
-
     - cp /tmp/v86/node_modules/v86/build/libv86.js /tmp/v86/node_modules/v86/build/v86.wasm public/v86/
     - cp /usr/share/seabios/bios-256k.bin public/v86/seabios.bin
     - cp /usr/share/seabios/vgabios-stdvga.bin public/v86/vgabios.bin
@@ -29,7 +25,6 @@ pages:
     paths:
       - public
 
-# Builds the explorer app as an .airp file. Allowed to fail so a bad app never blocks Pages.
 airp-explorer:
   stage: test
   allow_failure: true
@@ -49,7 +44,6 @@ airp-explorer:
     paths:
       - build/airp/explorer.airp
 
-# Confirms the build accepts i386 and refuses x86-64 and ARM until their boot layers exist.
 arch-guard:
   stage: test
   script:
@@ -58,3 +52,15 @@ arch-guard:
     - make -n ARCH=i386 > /dev/null
     - if make -n ARCH=x86_64 > /dev/null 2>&1; then echo "x86_64 must be refused until it has a boot layer"; exit 1; fi
     - if make -n ARCH=arm > /dev/null 2>&1; then echo "arm must be refused until it has a boot layer"; exit 1; fi
+
+build-branch:
+  stage: test
+  rules:
+    - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
+  script:
+    - apt-get update -qq
+    - DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nasm gcc-multilib binutils make python3 > /dev/null
+    - make ARCH=i386
+  artifacts:
+    paths:
+      - build/textile.img
