@@ -7,6 +7,7 @@
 #define TITLE_ON 0x1F
 #define TITLE_OFF 0x87
 #define TASK_ATTR 0x70
+#define MENU_ATTR 0x70
 #define BTN_OPEN 0x87
 #define BTN_TOP 0x1F
 #define ICON_ATTR 0x70
@@ -250,6 +251,17 @@ static void draw_taskbar(void) {
     draw_hms(TASK_ROW, VGA_COLS - 9, TASK_ATTR, t);
 }
 
+static void draw_menubar(void) {
+    u8 t[6];
+    int top = top_win();
+    fill(0, 0, 1, VGA_COLS, ' ', MENU_ATTR);
+    text(0, 1, "FlareOS", MENU_ATTR, 7);
+    if (top >= 0)
+        text(0, 10, wins[top].title, MENU_ATTR, 20);
+    rtc_now(t);
+    draw_hms(0, VGA_COLS - 9, MENU_ATTR, t);
+}
+
 static void draw_cursor(void) {
     i32 r = (i32)cursor_y, c = (i32)cursor_x;
     if (r < 0 || r >= VGA_ROWS || c < 0 || c >= VGA_COLS) return;
@@ -258,7 +270,6 @@ static void draw_cursor(void) {
 
 static void draw_frame(void) {
     fill(0, 0, TASK_ROW, VGA_COLS, BG_CHAR, BG_ATTR);
-    text(0, 2, "FlareOS home", 0x1E, 12);
     for (int i = 0; i < WIN_COUNT; i++) {
         fill(icon_row[i], 2, 1, 9, ' ', ICON_ATTR);
         text(icon_row[i], 3, icon_label[i], ICON_ATTR, 7);
@@ -268,6 +279,7 @@ static void draw_frame(void) {
     for (int i = 0; i < WIN_COUNT; i++)
         if (wins[z[i]].open) draw_window(z[i]);
     draw_taskbar();
+    draw_menubar();
     draw_cursor();
     for (int i = 0; i < VGA_ROWS * VGA_COLS; i++)
         VGA_MEM[i] = back[i];
