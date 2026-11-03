@@ -20,6 +20,7 @@
 #define EXPLORER_STAGE ((const u8 *)0x30000)
 #define EXPLORER_STAGE_LEN 4608
 #define APP_STACK_TOP 0x28000u
+#define MENU_W 16
 
 int airp_load(const u8 *file, u32 len, u32 *entry);
 void enter_user(u32 entry, u32 user_esp);
@@ -53,6 +54,7 @@ static i32 drag_dx, drag_dy;
 static u8 prev_buttons;
 static int piano_last = -1;
 static int piano_flash;
+static int menu_open;
 
 static void cell(int r, int c, u8 ch, u8 attr) {
     if (r < 0 || r >= VGA_ROWS || c < 0 || c >= VGA_COLS)
@@ -262,6 +264,34 @@ static void draw_menubar(void) {
     draw_hms(0, VGA_COLS - 9, MENU_ATTR, t);
 }
 
+static void draw_menu(void) {
+    fill(1, 1, 2, MENU_W, ' ', BODY_ATTR);
+    text(1, 2, "About FlareOS", BODY_ATTR, MENU_W - 2);
+    text(2, 2, "Quit window", BODY_ATTR, MENU_W - 2);
+}
+
+static int menu_click(i32 mx, i32 my) {
+    if (menu_open) {
+        menu_open = 0;
+        if (mx >= 1 && mx < 1 + MENU_W && my == 1) {
+            serial_str("desktop: menu about\n");
+            open_win(WIN_HELLO);
+        } else if (mx >= 1 && mx < 1 + MENU_W && my == 2) {
+            int t = top_win();
+            serial_str("desktop: menu quit\n");
+            if (t >= 0)
+                wins[t].open = 0;
+        }
+        return 1;
+    }
+    if (my == 0) {
+        if (mx >= 1 && mx <= 7)
+            menu_open = 1;
+        return 1;
+    }
+    return 0;
+}
+
 static void draw_cursor(void) {
     i32 r = (i32)cursor_y, c = (i32)cursor_x;
     if (r < 0 || r >= VGA_ROWS || c < 0 || c >= VGA_COLS) return;
@@ -280,6 +310,8 @@ static void draw_frame(void) {
         if (wins[z[i]].open) draw_window(z[i]);
     draw_taskbar();
     draw_menubar();
+    if (menu_open)
+        draw_menu();
     draw_cursor();
     for (int i = 0; i < VGA_ROWS * VGA_COLS; i++)
         VGA_MEM[i] = back[i];
@@ -287,6 +319,8 @@ static void draw_frame(void) {
 
 static void click(i32 mx, i32 my) {
     log_point("desktop: click", mx, my);
+    if (menu_click(mx, my))
+        return;
     if (my == TASK_ROW) {
         for (int i = 0; i < WIN_COUNT; i++)
             if (mx >= btn_col(i) && mx < btn_col(i) + 9) { open_win(i); return; }
@@ -347,6 +381,10 @@ static void term_key(int c) {
 }
 
 static void handle_key(int c) {
+    if (c == 27 && menu_open) {
+        menu_open = 0;
+        return;
+    }
     if (top_win() == WIN_TERM) {
         term_key(c);
         return;
