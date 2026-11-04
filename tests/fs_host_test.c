@@ -1,7 +1,7 @@
 /*
 FILE PATH: tests/fs_host_test.c
 CONTRIBUTOR (Optional): Textile
-PURPOSE: Host-side checks for the FlareOS RAM filesystem. Compiles kernel/fs.c directly and drives it through fs_dispatch: open, read, write, seek, delete, list, rename, exists and free slots.
+PURPOSE: Host-side checks for the FlareOS filesystem. Compiles kernel/fs.c directly and drives it through fs_dispatch: open, read, write, seek, delete, list, rename, exists and free slots. The ATA driver is stubbed as not ready, so these checks cover the RAM path only.
 */
 
 #include <stdio.h>
@@ -9,6 +9,12 @@ PURPOSE: Host-side checks for the FlareOS RAM filesystem. Compiles kernel/fs.c d
 #define putc fsk_test_putc
 #define puts fsk_test_puts
 #include "../kernel/fs.c"
+
+/* This host build has no disk: report the ATA driver as not ready so fs.c stays in RAM. */
+int ata_is_ready(void) { return 0; }
+u32 ata_sector_count(void) { return 0; }
+int ata_read_sector(u32 lba, void *buf) { (void)lba; (void)buf; return -1; }
+int ata_write_sector(u32 lba, const void *buf) { (void)lba; (void)buf; return -1; }
 
 static int failures;
 
