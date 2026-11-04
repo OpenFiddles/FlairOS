@@ -1,21 +1,56 @@
 /*
 FILE PATH: tests/fs_host_test.c
 CONTRIBUTOR (Optional): Textile
-PURPOSE: Host-side checks for the FlareOS RAM filesystem. Compiles kernel/fs.c directly and drives it through fs_dispatch: open, read, write, seek, delete, list, rename, exists and free slots. The ATA driver is stubbed as not ready, so these checks cover the RAM path only.
+PURPOSE: Host-side checks for the FlareOS filesystem. Compiles kernel/fs.c directly and drives it through fs_dispatch. An in-memory fake ATA disk stands in for drivers/drv_ata.c, so the checks cover RAM behaviour, write-through to disk, reload after reboot, the no-disk fallback and rollback when a disk write fails.
 */
 
 #include <stdio.h>
 #include <string.h>
 #define putc fsk_test_putc
 #define puts fsk_test_puts
-#include "../include/drv_ata.h"
-
-int ata_is_ready(void) { return 0; }
-u32 ata_sector_count(void) { return 0; }
-int ata_read_sector(u32 lba, void *buf) { (void)lba; (void)buf; return -1; }
-int ata_write_sector(u32 lba, const void *buf) { (void)lba; (void)buf; return -1; }
-
 #include "../kernel/fs.c"
+
+#define FAKE_SECTORS 256
+
+static u8 fake_disk[FAKE_SECTORS][ATA_SECTOR_SIZE];
+static int fake_ready = 1;
+static int fake_fail_writes;
+
+int ata_is_ready(void) {
+    return fake_ready;
+}
+
+u32 ata_sector_count(void) {
+    return FAKE_SECTORS;
+}
+
+int ata_read_sector(u32 lba, void *buf) {
+    if (!fake_ready || lba >= FAKE_SECTORS)
+        return -1;
+    memcpy(buf, fake_disk[lba], ATA_SECTOR_SIZE);
+    return 0;
+}
+
+int ata_write_sector(u32 lba, const void *buf) {
+    if (!fake_ready || fake_fail_writes || lba >= FAKE_SECTORS)
+        return -1;
+    memcpy(fake_disk[lba], buf, ATA_SECTOR_SIZE);
+    return 0;
+}
+
+static void seed_disk(void) {
+    memset(fake_disk, 0, sizeof fake_disk);
+    fake_disk[FSK_DIR_LBA][0] = 0x31;
+    fake_disk[FSK_DIR_LBA][1] = 0x53;
+    fake_disk[FSK_DIR_LBA][2] = 0x46;
+    fake_disk[FSK_DIR_LBA][3] = 0x41;
+}
+
+static void fake_reboot(void) {
+    memset(fsk_files, 0, sizeof fsk_files);
+    memset(fsk_handles, 0, sizeof fsk_handles);
+    fsk_loaded = 0;
+}
 
 static int failures;
 
@@ -47,6 +82,8 @@ static u32 addr(const void *p) {
 int main(void) {
     char buf[32], big[600], name[8];
     u32 h, n, ok;
+
+    seed_disk();
 
     h = sys(SYS_FS_OPEN, addr("notes"), FS_WRITE, 0);
     check(h != FS_FAIL, "open notes for write");
@@ -124,6 +161,38 @@ int main(void) {
     sys(SYS_FS_CLOSE, h, 0, 0);
     check(sys(SYS_FS_RENAME, addr("f3"), addr("other"), 0) == 0, "rename works after close");
     check(sys(SYS_FS_EXISTS, addr("other"), 0, 0) == 1, "other exists after rename");
+
+    check(sys(SYS_FS_DELETE, addr("newfile"), 0, 0) == 0, "delete newfile to free a slot");
+    h = sys(SYS_FS_OPEN, addr("keep"), FS_WRITE, 0);
+    check(h != FS_FAIL && sys(SYS_FS_WRITE, h, addr("persist me"), 10) == 10, "write keep to the disk");
+    sys(SYS_FS_CLOSE, h, 0, 0);
+
+    fake_reboot();
+    h = sys(SYS_FS_OPEN, addr("keep"), FS_READ, 0);
+    memset(buf, 0, sizeof buf);
+    n = h != FS_FAIL ? sys(SYS_FS_READ, h, addr(buf), 31) : 0;
+    check(n == 10 && strcmp(buf, "persist me") == 0, "keep survives a reboot from disk");
+    sys(SYS_FS_CLOSE, h, 0, 0);
+
+    fake_ready = 0;
+    fake_reboot();
+    check(sys(SYS_FS_OPEN, addr("keep"), FS_READ, 0) == FS_FAIL, "no disk: keep is not loaded");
+    h = sys(SYS_FS_OPEN, addr("ram"), FS_WRITE, 0);
+    check(h != FS_FAIL && sys(SYS_FS_WRITE, h, addr("ram only"), 8) == 8, "no disk: RAM write works");
+    sys(SYS_FS_CLOSE, h, 0, 0);
+    fake_ready = 1;
+
+    fake_reboot();
+    check(sys(SYS_FS_EXISTS, addr("keep"), 0, 0) == 1, "disk back: keep is loaded again");
+    check(sys(SYS_FS_EXISTS, addr("ram"), 0, 0) == 0, "disk back: RAM-only file is gone");
+
+    fake_fail_writes = 1;
+    check(sys(SYS_FS_OPEN, addr("nope"), FS_WRITE, 0) == FS_FAIL, "create fails when the disk write fails");
+    check(sys(SYS_FS_EXISTS, addr("nope"), 0, 0) == 0, "failed create is rolled back");
+    h = sys(SYS_FS_OPEN, addr("keep"), FS_APPEND, 0);
+    check(h != FS_FAIL && sys(SYS_FS_WRITE, h, addr("!"), 1) == FS_FAIL, "failed disk write returns an error");
+    sys(SYS_FS_CLOSE, h, 0, 0);
+    fake_fail_writes = 0;
 
     printf("%s: %d failure(s)\n", failures ? "FAILED" : "OK", failures);
     return failures ? 1 : 0;
