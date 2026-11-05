@@ -1,4 +1,4 @@
-# FlareOS app SDK (v1.1)
+# FlareOS app SDK (v1.2)
 
 Apps are flat x86 binaries. They run in ring 3 and call the kernel with `int 0x80`. The header is `sdk/flareos.h`.
 
@@ -44,6 +44,10 @@ Apps are flat x86 binaries. They run in ring 3 and call the kernel with `int 0x8
 | `flare_fs_exists(name)` | 1 if the file exists, else 0 (new in 1.1) |
 | `flare_fs_list(index, name_out)` | Name and size of the file at `index`; `name_out` needs 13 bytes |
 | `flare_fs_slots()` | Unused file slots out of 8 (new in 1.1) |
+| `flare_fs_truncate(h, size)` | Shrink an open write or append file to `size` bytes; fails if `size` is larger than the file (new in 1.2) |
+| `flare_fs_stat(name)` | File size without opening it; fails if the file does not exist (new in 1.2) |
+| `flare_fs_load(name, buf, max)` | Read a whole file in one call; returns the bytes copied (new in 1.2) |
+| `flare_fs_save(name, buf, len)` | Replace a file's contents in one call, creating it if needed; returns the bytes written (new in 1.2) |
 
 ## Limits
 
@@ -57,4 +61,4 @@ Apps are flat x86 binaries. They run in ring 3 and call the kernel with `int 0x8
 
 ## Checks
 
-`make fs-test` runs the filesystem checks on the host. The CI pipeline builds the kernel and the SDK example, but does not run the smoke test.
+`make fs-test` runs the filesystem checks on the host. The GitLab pipeline runs `fs-test`, builds the i386 image and boots it in QEMU (`make test`) in the `qemu-smoke` job. The boot test does not call the new truncate and stat syscalls yet.
