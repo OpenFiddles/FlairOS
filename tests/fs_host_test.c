@@ -1,7 +1,7 @@
 /*
 FILE PATH: tests/fs_host_test.c
 CONTRIBUTOR (Optional): Textile
-PURPOSE: Host-side checks for the FlareOS RAM filesystem. Compiles kernel/fs.c directly and drives it through fs_dispatch: open, read, write, seek, delete, list, rename, exists and free slots.
+PURPOSE: Host-side checks for the FlareOS RAM filesystem. Compiles kernel/fs.c directly and drives it through fs_dispatch: open, read, write, seek, delete, list, rename, exists, free slots, truncate and stat.
 */
 
 #include <stdio.h>
@@ -117,6 +117,23 @@ int main(void) {
     sys(SYS_FS_CLOSE, h, 0, 0);
     check(sys(SYS_FS_RENAME, addr("f3"), addr("other"), 0) == 0, "rename works after close");
     check(sys(SYS_FS_EXISTS, addr("other"), 0, 0) == 1, "other exists after rename");
+
+    sys(SYS_FS_DELETE, addr("other"), 0, 0);
+    h = sys(SYS_FS_OPEN, addr("tsz"), FS_WRITE, 0);
+    check(h != FS_FAIL, "open tsz for write");
+    check(sys(SYS_FS_WRITE, h, addr("abcdef"), 6) == 6, "write abcdef");
+    check(sys(SYS_FS_TRUNCATE, h, 3, 0) == 3, "truncate to 3");
+    check(sys(SYS_FS_SIZE, h, 0, 0) == 3, "size is 3 after truncate");
+    check(sys(SYS_FS_TRUNCATE, h, 5, 0) == FS_FAIL, "truncate cannot grow a file");
+    sys(SYS_FS_CLOSE, h, 0, 0);
+    h = sys(SYS_FS_OPEN, addr("tsz"), FS_READ, 0);
+    check(sys(SYS_FS_TRUNCATE, h, 1, 0) == FS_FAIL, "truncate on a read handle fails");
+    memset(buf, 0, sizeof buf);
+    check(sys(SYS_FS_READ, h, addr(buf), sizeof buf - 1) == 3 && strcmp(buf, "abc") == 0, "read abc after truncate");
+    sys(SYS_FS_CLOSE, h, 0, 0);
+    check(sys(SYS_FS_STAT, addr("tsz"), 0, 0) == 3, "stat reports size 3");
+    check(sys(SYS_FS_STAT, addr("nosuch"), 0, 0) == FS_FAIL, "stat of a missing file fails");
+    check(sys(SYS_FS_DELETE, addr("tsz"), 0, 0) == 0, "delete tsz");
 
     printf("%s: %d failure(s)\n", failures ? "FAILED" : "OK", failures);
     return failures ? 1 : 0;
