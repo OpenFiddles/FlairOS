@@ -24,6 +24,8 @@ PURPOSE: FlareOS RAM filesystem syscall numbers, limits and the int 0x80 wrapper
 #define SYS_FS_RENAME 31 /* ebx = old name, ecx = new name; returns 0 or FS_FAIL. Fails if the new name is taken or the old file has an open handle */
 #define SYS_FS_EXISTS 32 /* ebx = name; returns 1 if the file exists, otherwise 0 */
 #define SYS_FS_SLOTS  33 /* returns the number of unused file slots (out of FS_FILES) */
+#define SYS_FS_TRUNCATE 34 /* ebx = handle (write or append), ecx = new size, at most the current size; returns the new size or FS_FAIL */
+#define SYS_FS_STAT     35 /* ebx = name; returns the file size or FS_FAIL, without opening the file */
 
 #define FS_READ 0
 #define FS_WRITE 1
@@ -82,6 +84,14 @@ static inline unsigned int fs_exists(const char *name) {
 
 static inline unsigned int fs_slots(void) {
     return fs_sys(SYS_FS_SLOTS, 0, 0, 0);
+}
+
+static inline unsigned int fs_truncate(unsigned int h, unsigned int size) {
+    return fs_sys(SYS_FS_TRUNCATE, h, size, 0);
+}
+
+static inline unsigned int fs_stat(const char *name) {
+    return fs_sys(SYS_FS_STAT, (unsigned int)(unsigned long)name, 0, 0);
 }
 
 #endif
