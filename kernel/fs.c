@@ -1,7 +1,7 @@
 /*
 FILE PATH: kernel/fs.c
 CONTRIBUTOR (Optional): Textile
-PURPOSE: RAM-backed flat filesystem for FlareOS: 8 files of up to 512 bytes, 4 open handles, and the dispatcher for syscalls 21-33. Contents are lost on reboot.
+PURPOSE: RAM-backed flat filesystem for FlareOS: 8 files of up to 512 bytes, 4 open handles, and the dispatcher for syscalls 21-35. Contents are lost on reboot.
 */
 
 #include "kernel.h"
@@ -244,6 +244,33 @@ static u32 fsk_slots(void) {
     return n;
 }
 
+static u32 fsk_truncate(u32 h, u32 size) {
+    struct fs_handle *s = fsk_get(h);
+    struct fs_file *f;
+
+    if (!s || s->mode == FS_READ)
+        return FS_FAIL;
+    f = &fsk_files[s->file];
+    if (size > f->size)
+        return FS_FAIL;
+    f->size = size;
+    if (s->pos > size)
+        s->pos = size;
+    return size;
+}
+
+static u32 fsk_stat(u32 name_ptr) {
+    char name[FS_NAME_MAX + 1];
+    int file;
+
+    if (!fsk_copy_name(name, name_ptr))
+        return FS_FAIL;
+    file = fsk_find(name);
+    if (file < 0)
+        return FS_FAIL;
+    return fsk_files[file].size;
+}
+
 int fs_dispatch(struct saved_regs *r) {
     switch (r->eax) {
     case SYS_FS_OPEN:
@@ -278,6 +305,12 @@ int fs_dispatch(struct saved_regs *r) {
         return 1;
     case SYS_FS_SLOTS:
         r->eax = fsk_slots();
+        return 1;
+    case SYS_FS_TRUNCATE:
+        r->eax = fsk_truncate(r->ebx, r->ecx);
+        return 1;
+    case SYS_FS_STAT:
+        r->eax = fsk_stat(r->ebx);
         return 1;
     default:
         return 0;
