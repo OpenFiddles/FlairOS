@@ -68,3 +68,20 @@ build-branch:
     - make ARCH=i386
     - test -s build/textile.img
     - make fs-test
+
+# Boots the aarch64 hello stub under QEMU virt. Runs only on arm-port.
+arm-qemu-hello:
+  stage: test
+  rules:
+    - if: $CI_COMMIT_BRANCH == "arm-port"
+  script:
+    - apt-get update -qq
+    - DEBIAN_FRONTEND=noninteractive apt-get install -y -qq gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu make qemu-system-arm > /dev/null
+    - make -C arch/aarch64 CROSS=aarch64-linux-gnu-
+    - timeout 20 qemu-system-aarch64 -M virt -cpu cortex-a72 -m 128M -nographic -nic none -kernel arch/aarch64/hello.elf > arm-boot.log 2>&1 || true
+    - cat arm-boot.log
+    - grep -q "AirOS ARM: hello" arm-boot.log
+  artifacts:
+    when: always
+    paths:
+      - arm-boot.log
