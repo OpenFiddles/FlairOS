@@ -68,3 +68,16 @@ build-branch:
     - make ARCH=i386
     - test -s build/textile.img
     - make fs-test
+
+# Boots the i386 image in QEMU and runs the smoke test, so a kernel that no longer boots fails the branch.
+qemu-smoke:
+  stage: test
+  timeout: 20 minutes
+  script:
+    - apt-get update -qq
+    - DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nasm gcc-multilib binutils make qemu-system-x86 python3 > /dev/null
+    - qemu-system-i386 --version | head -1
+    - make ARCH=i386
+    - test -s build/textile.img
+    - make fs-test
+    - make test
