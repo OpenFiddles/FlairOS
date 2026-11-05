@@ -2,7 +2,7 @@
 #define FLAREOS_SDK_H
 
 /*
- * FlareOS app SDK, version 1.1.
+ * FlareOS app SDK, version 1.2.
  * Apps are flat binaries linked at FLARE_APP_BASE (userland/app.ld), capped at
  * FLARE_APP_MAX_BYTES, running in ring 3. They call the kernel with int 0x80.
  * The FLARE_SYS_* numbers must match kernel/textile.h and include/fs.h.
@@ -53,6 +53,8 @@ typedef int flare_i32;
 #define FLARE_SYS_FS_RENAME 31u
 #define FLARE_SYS_FS_EXISTS 32u
 #define FLARE_SYS_FS_SLOTS 33u
+#define FLARE_SYS_FS_TRUNCATE 34u
+#define FLARE_SYS_FS_STAT 35u
 
 #define FLARE_FS_READ 0u
 #define FLARE_FS_WRITE 1u
@@ -187,6 +189,38 @@ static inline flare_u32 flare_fs_exists(const char *name) {
 /* Returns how many of the 8 file slots are unused. */
 static inline flare_u32 flare_fs_slots(void) {
     return flare_call(FLARE_SYS_FS_SLOTS, 0, 0, 0);
+}
+
+/* Shrinks an open write or append handle's file to size bytes. Returns the new size, or FLARE_FS_FAIL. */
+static inline flare_u32 flare_fs_truncate(flare_u32 h, flare_u32 size) {
+    return flare_call(FLARE_SYS_FS_TRUNCATE, h, size, 0);
+}
+
+/* Returns a file's size without opening it, or FLARE_FS_FAIL if it does not exist. */
+static inline flare_u32 flare_fs_stat(const char *name) {
+    return flare_call(FLARE_SYS_FS_STAT, (flare_u32)(unsigned long)name, 0, 0);
+}
+
+/* Copies a whole file into buf (up to max bytes). Returns the bytes copied, or FLARE_FS_FAIL. */
+static inline flare_u32 flare_fs_load(const char *name, void *buf, flare_u32 max) {
+    flare_u32 h, n;
+    h = flare_fs_open(name, FLARE_FS_READ);
+    if (h == FLARE_FS_FAIL)
+        return FLARE_FS_FAIL;
+    n = flare_fs_read(h, buf, max);
+    flare_fs_close(h);
+    return n;
+}
+
+/* Replaces a file's contents with len bytes from buf, creating it if needed. Returns the bytes written, or FLARE_FS_FAIL. */
+static inline flare_u32 flare_fs_save(const char *name, const void *buf, flare_u32 len) {
+    flare_u32 h, n;
+    h = flare_fs_open(name, FLARE_FS_WRITE);
+    if (h == FLARE_FS_FAIL)
+        return FLARE_FS_FAIL;
+    n = flare_fs_write(h, buf, len);
+    flare_fs_close(h);
+    return n;
 }
 
 #define FLARE_APP() \
