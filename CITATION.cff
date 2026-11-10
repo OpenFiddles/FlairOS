@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+message: "If you use or reference FlairOS, please cite it as below."
+authors:
+  - family-names: "Adams Jr"
+    given-names: "Ronreacus"
+title: "FlairOS"
+version: "0.2.0"
+date-released: 2026-11-10
+url: "https://github.com/OpenFiddles/airos"
