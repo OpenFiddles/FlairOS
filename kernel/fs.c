@@ -1,11 +1,17 @@
 /*
 FILE PATH: kernel/fs.c
 CONTRIBUTOR (Optional): Textile
-PURPOSE: RAM-backed flat filesystem for FlareOS: 8 files of up to 512 bytes, 4 open handles, and the dispatcher for syscalls 21-33. Contents are lost on reboot.
+PURPOSE: Flat filesystem for FlareOS: 8 files of up to 512 bytes, 4 open handles, syscalls 21-33. Files live in RAM. When the primary ATA disk is ready and already carries this filesystem's magic at LBA 128, files are written through to it: file slot N at LBA 129+N. A blank or foreign disk is never written; files stay in RAM and are lost on reboot.
 */
 
 #include "kernel.h"
 #include "../include/fs.h"
+#include "../include/drv_ata.h"
+
+#define FSK_DIR_LBA 128u
+#define FSK_MAGIC 0x41465331u
+#define FSK_HDR 8
+#define FSK_ENTRY (FS_NAME_MAX + 6)
 
 struct fs_file {
     u8 used;
@@ -23,6 +29,102 @@ struct fs_handle {
 
 static struct fs_file fsk_files[FS_FILES];
 static struct fs_handle fsk_handles[FS_HANDLES];
+static u8 fsk_io[ATA_SECTOR_SIZE] __attribute__((aligned(4)));
+static int fsk_loaded;
+static int fsk_disk;
+
+static u32 fsk_file_lba(int i) {
+    return FSK_DIR_LBA + 1 + (u32)i;
+}
+
+static int fsk_disk_fits(void) {
+    return FS_FILE_MAX <= ATA_SECTOR_SIZE &&
+           FSK_HDR + FS_FILES * FSK_ENTRY <= ATA_SECTOR_SIZE &&
+           ata_sector_count() > FSK_DIR_LBA + FS_FILES;
+}
+
+static void fsk_put32(int at, u32 v) {
+    fsk_io[at] = (u8)v;
+    fsk_io[at + 1] = (u8)(v >> 8);
+    fsk_io[at + 2] = (u8)(v >> 16);
+    fsk_io[at + 3] = (u8)(v >> 24);
+}
+
+static u32 fsk_get32(int at) {
+    return (u32)fsk_io[at] | ((u32)fsk_io[at + 1] << 8) |
+           ((u32)fsk_io[at + 2] << 16) | ((u32)fsk_io[at + 3] << 24);
+}
+
+static int fsk_dir_write(void) {
+    int i, k, at;
+
+    for (i = 0; i < ATA_SECTOR_SIZE; i++)
+        fsk_io[i] = 0;
+    fsk_put32(0, FSK_MAGIC);
+    for (i = 0; i < FS_FILES; i++) {
+        at = FSK_HDR + i * FSK_ENTRY;
+        fsk_io[at] = fsk_files[i].used ? 1 : 0;
+        for (k = 0; k <= FS_NAME_MAX; k++)
+            fsk_io[at + 1 + k] = (u8)fsk_files[i].name[k];
+        fsk_put32(at + FS_NAME_MAX + 2, fsk_files[i].size);
+    }
+    return ata_write_sector(FSK_DIR_LBA, fsk_io);
+}
+
+static int fsk_file_write(int i) {
+    int k;
+
+    for (k = 0; k < ATA_SECTOR_SIZE; k++)
+        fsk_io[k] = k < FS_FILE_MAX ? fsk_files[i].data[k] : 0;
+    return ata_write_sector(fsk_file_lba(i), fsk_io);
+}
+
+static int fsk_commit(int i) {
+    if (!fsk_disk)
+        return 0;
+    if (i >= 0 && fsk_file_write(i) != 0)
+        return -1;
+    return fsk_dir_write();
+}
+
+static void fsk_load(void) {
+    int i, k, at;
+
+    fsk_loaded = 1;
+    fsk_disk = 0;
+    if (!ata_is_ready() || !fsk_disk_fits())
+        return;
+    if (ata_read_sector(FSK_DIR_LBA, fsk_io) != 0)
+        return;
+    if (fsk_get32(0) != FSK_MAGIC)
+        return;
+    fsk_disk = 1;
+    for (i = 0; i < FS_FILES; i++) {
+        at = FSK_HDR + i * FSK_ENTRY;
+        fsk_files[i].used = fsk_io[at] == 1;
+        for (k = 0; k < FS_NAME_MAX; k++)
+            fsk_files[i].name[k] = (char)fsk_io[at + 1 + k];
+        fsk_files[i].name[FS_NAME_MAX] = 0;
+        fsk_files[i].size = fsk_get32(at + FS_NAME_MAX + 2);
+        if (fsk_files[i].size > FS_FILE_MAX)
+            fsk_files[i].size = FS_FILE_MAX;
+    }
+    for (i = 0; i < FS_FILES; i++) {
+        if (!fsk_files[i].used)
+            continue;
+        if (ata_read_sector(fsk_file_lba(i), fsk_io) != 0) {
+            fsk_files[i].used = 0;
+            continue;
+        }
+        for (k = 0; k < FS_FILE_MAX; k++)
+            fsk_files[i].data[k] = fsk_io[k];
+    }
+}
+
+static void fsk_ensure(void) {
+    if (!fsk_loaded)
+        fsk_load();
+}
 
 static int fsk_copy_name(char *dst, u32 src) {
     const char *s = (const char *)src;
@@ -85,7 +187,7 @@ static struct fs_handle *fsk_get(u32 h) {
 
 static u32 fsk_open(u32 name_ptr, u32 mode) {
     char name[FS_NAME_MAX + 1];
-    int file, slot, i;
+    int file, slot, created = 0, changed = 0;
 
     if (mode > FS_APPEND || !fsk_copy_name(name, name_ptr))
         return FS_FAIL;
@@ -103,15 +205,20 @@ static u32 fsk_open(u32 name_ptr, u32 mode) {
             return FS_FAIL;
         fsk_files[file].used = 1;
         fsk_files[file].size = 0;
-        i = 0;
-        while (name[i]) {
+        for (int i = 0; i <= FS_NAME_MAX; i++)
             fsk_files[file].name[i] = name[i];
-            i++;
-        }
-        fsk_files[file].name[i] = 0;
+        created = 1;
+        changed = 1;
     }
-    if (mode == FS_WRITE)
+    if (mode == FS_WRITE && fsk_files[file].size != 0) {
         fsk_files[file].size = 0;
+        changed = 1;
+    }
+    if (changed && fsk_commit(-1) != 0) {
+        if (created)
+            fsk_files[file].used = 0;
+        return FS_FAIL;
+    }
     fsk_handles[slot].used = 1;
     fsk_handles[slot].mode = (u8)mode;
     fsk_handles[slot].file = (u8)file;
@@ -152,6 +259,8 @@ static u32 fsk_write(u32 h, u32 buf, u32 count) {
     s->pos += n;
     if (s->pos > f->size)
         f->size = s->pos;
+    if (n != 0 && fsk_commit(s->file) != 0)
+        return FS_FAIL;
     return n;
 }
 
@@ -174,6 +283,8 @@ static u32 fsk_delete(u32 name_ptr) {
         return FS_FAIL;
     fsk_files[file].used = 0;
     fsk_files[file].size = 0;
+    if (fsk_commit(-1) != 0)
+        return FS_FAIL;
     return 0;
 }
 
@@ -225,6 +336,8 @@ static u32 fsk_rename(u32 old_ptr, u32 new_ptr) {
     for (i = 0; new_name[i]; i++)
         fsk_files[file].name[i] = new_name[i];
     fsk_files[file].name[i] = 0;
+    if (fsk_commit(-1) != 0)
+        return FS_FAIL;
     return 0;
 }
 
@@ -245,6 +358,7 @@ static u32 fsk_slots(void) {
 }
 
 int fs_dispatch(struct saved_regs *r) {
+    fsk_ensure();
     switch (r->eax) {
     case SYS_FS_OPEN:
         r->eax = fsk_open(r->ebx, r->ecx);
