@@ -5,6 +5,7 @@
    change. */
 
 #include "../include/pmm.h"
+#include "../include/vm.h"
 
 #define E820_COUNT_ADDR   0x5000u
 #define E820_ENTRIES_ADDR 0x5010u
@@ -101,6 +102,8 @@ void pmm_init(void) {
     serial_dec(managed_count >> 8);
     serial_str(" MB managed\n");
     serial_str(pmm_selftest() ? "pmm: selftest passed\n" : "pmm: selftest FAILED\n");
+    /* Paging comes up after the PMM because its page tables are PMM frames. */
+    vm_init();
 }
 
 unsigned int pmm_alloc_frame(void) {
