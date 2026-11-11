@@ -126,8 +126,8 @@ $(BUILD)/kernel.elf: $(OBJS) kernel/link.ld
 
 $(BUILD)/kernel.bin: $(BUILD)/kernel.elf
 	$(OBJCOPY) -O binary $< $@
-	test `stat -c %s $@` -le 49152
-	truncate -s 49152 $@
+	test `stat -c %s $@` -le 131072
+	truncate -s 131072 $@
 
 # --- User Space App Objects ---
 $(BUILD)/app.o: userland/app.c kernel/textile.h | $(BUILD)
@@ -141,10 +141,10 @@ $(BUILD)/app.elf: $(BUILD)/app.o $(BUILD)/rt.o userland/app.ld
 
 $(BUILD)/app.bin: $(BUILD)/app.elf
 	$(OBJCOPY) -O binary $< $@
-	test `stat -c %s $@` -le 4096
-	truncate -s 4096 $@
+	test `stat -c %s $@` -le 65536
+	truncate -s 65536 $@
 
-# --- Explorer as .airp (stage 1 loads it from LBA 109 to 0x30000) ---
+# --- Explorer as .airp (stage 1 loads it from LBA 389 to 0x50000) ---
 $(BUILD)/explorer.o: userland/explorer.c include/axi.h include/fs.h kernel/textile.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
@@ -153,7 +153,7 @@ $(BUILD)/explorer.elf: $(BUILD)/explorer.o $(BUILD)/rt.o userland/app.ld
 
 $(BUILD)/explorer.bin: $(BUILD)/explorer.elf
 	$(OBJCOPY) -O binary $< $@
-	test `stat -c %s $@` -le 4096
+	test `stat -c %s $@` -le 65536
 
 $(BUILD)/explorer.airp: $(BUILD)/explorer.bin tools/airpack.py
 	python3 tools/airpack.py $(BUILD)/explorer.bin $@ explorer
@@ -163,9 +163,9 @@ $(BUILD)/textile.img: $(BUILD)/stage1.bin $(BUILD)/stage2.bin $(BUILD)/kernel.bi
 	dd if=/dev/zero of=$@ bs=512 count=2880 status=none
 	dd if=$(BUILD)/stage1.bin of=$@ bs=512 count=1 conv=notrunc status=none
 	dd if=$(BUILD)/stage2.bin of=$@ bs=512 seek=1 count=4 conv=notrunc status=none
-	dd if=$(BUILD)/kernel.bin of=$@ bs=512 seek=5 count=96 conv=notrunc status=none
-	dd if=$(BUILD)/app.bin of=$@ bs=512 seek=101 count=8 conv=notrunc status=none
-	dd if=$(BUILD)/explorer.airp of=$@ bs=512 seek=109 count=9 conv=notrunc status=none
+	dd if=$(BUILD)/kernel.bin of=$@ bs=512 seek=5 count=256 conv=notrunc status=none
+	dd if=$(BUILD)/app.bin of=$@ bs=512 seek=261 count=128 conv=notrunc status=none
+	dd if=$(BUILD)/explorer.airp of=$@ bs=512 seek=389 count=9 conv=notrunc status=none
 
 # --- Window API demo: same image layout, app slot holds userland/win_app.c ---
 $(BUILD)/win_app.o: userland/win_app.c include/axi.h kernel/textile.h | $(BUILD)
@@ -183,8 +183,8 @@ $(BUILD)/win-demo.img: $(BUILD)/stage1.bin $(BUILD)/stage2.bin $(BUILD)/kernel.b
 	dd if=/dev/zero of=$@ bs=512 count=2880 status=none
 	dd if=$(BUILD)/stage1.bin of=$@ bs=512 count=1 conv=notrunc status=none
 	dd if=$(BUILD)/stage2.bin of=$@ bs=512 seek=1 count=4 conv=notrunc status=none
-	dd if=$(BUILD)/kernel.bin of=$@ bs=512 seek=5 count=96 conv=notrunc status=none
-	dd if=$(BUILD)/win_app.bin of=$@ bs=512 seek=101 count=8 conv=notrunc status=none
+	dd if=$(BUILD)/kernel.bin of=$@ bs=512 seek=5 count=256 conv=notrunc status=none
+	dd if=$(BUILD)/win_app.bin of=$@ bs=512 seek=261 count=128 conv=notrunc status=none
 
 run: $(BUILD)/textile.img
 	$(QEMU) -fda $(BUILD)/textile.img -serial stdio -no-reboot
@@ -209,7 +209,7 @@ $(BUILD)/hello.elf: $(BUILD)/hello.o $(BUILD)/rt.o userland/app.ld
 
 $(BUILD)/hello.bin: $(BUILD)/hello.elf
 	$(OBJCOPY) -O binary $< $@
-	test `stat -c %s $@` -le 4096
+	test `stat -c %s $@` -le 65536
 
 sdk-example: $(BUILD)/hello.bin
 

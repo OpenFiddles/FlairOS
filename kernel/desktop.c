@@ -16,9 +16,9 @@
 #define FRAME_TICKS 2
 #define CURSOR_ATTR 0x0F
 #define FILES_ROW 10
-#define EXPLORER_STAGE ((const u8 *)0x30000)
+#define EXPLORER_STAGE ((const u8 *)0x50000)
 #define EXPLORER_STAGE_LEN 4608
-#define APP_STACK_TOP 0x28000u
+#define APP_STACK_TOP 0x5F000u
 
 int airp_load(const u8 *file, u32 len, u32 *entry);
 void enter_user(u32 entry, u32 user_esp);

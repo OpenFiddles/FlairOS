@@ -1,6 +1,6 @@
 /* Physical frame allocator. Frames are 4 KiB and cover 1 MiB to 256 MiB.
    Stage 2 leaves the BIOS E820 map at 0x5000. The two bitmaps sit at fixed
-   low addresses so they stay out of kernel .bss and the app slot at 0x20000.
+   low addresses so they stay out of kernel .bss and the app slot at 0x40000.
    Lives in drivers/ so the existing driver rule builds it without a Makefile
    change. */
 

@@ -5,7 +5,7 @@
    TX_APP_MAGIC and the address of app_main. Syscalls use int 0x80:
    eax = number, ebx/ecx/edx = arguments, return value in eax. */
 #define TX_APP_MAGIC 0x54505041u
-#define TX_APP_BASE 0x20000u
+#define TX_APP_BASE 0x40000u
 
 enum tx_syscall {
     SYS_PUTC = 1,

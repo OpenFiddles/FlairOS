@@ -1,12 +1,12 @@
 ; Stage 1 boot sector: loads Stage 2 (LBA 1..4) to 0x0000:0x9000,
-; the kernel (LBA 5..100) to 0x10000, the app (LBA 101..108) to 0x20000,
-; and explorer.airp (LBA 109..117) to 0x30000.
+; the kernel (LBA 5..260) to 0x10000, the app (LBA 261..388) to 0x40000,
+; and explorer.airp (LBA 389..397) to 0x50000.
 [BITS 16]
 [ORG 0x7C00]
 
 STAGE2_SECTORS equ 4
-KERNEL_SECTORS equ 96
-APP_SECTORS    equ 8
+KERNEL_SECTORS equ 256
+APP_SECTORS    equ 128
 EXPLORER_SECTORS equ 9
 
 start:
@@ -37,17 +37,17 @@ start:
     mov word [remaining], KERNEL_SECTORS
     call load_range
 
-    ; Load App to 0x2000:0x0000 (Physical 0x20000)
-    mov ax, 0x2000
+    ; Load App to 0x4000:0x0000 (Physical 0x40000)
+    mov ax, 0x4000
     mov es, ax
     mov word [offset], 0
     mov word [remaining], APP_SECTORS
     call load_range
 
-    ; Load explorer.airp to 0x3000:0x0000 (Physical 0x30000)
-    mov ax, 0x3000
+    ; Load explorer.airp to 0x5000:0x0000 (Physical 0x50000)
+    mov ax, 0x5000
     mov es, ax
-    mov word [lba], 109
+    mov word [lba], 389
     mov word [offset], 0
     mov word [remaining], EXPLORER_SECTORS
     call load_range

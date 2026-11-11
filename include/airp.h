@@ -10,7 +10,7 @@
 #define AIRP_VERSION      1
 #define AIRP_API_LEVEL    1            /* window API 14-20, filesystem API 21-26 */
 #define AIRP_NAME_MAX     12           /* name is NUL padded, at most 11 characters */
-#define AIRP_IMAGE_MAX    4096         /* one app slot on disk (8 sectors) */
+#define AIRP_IMAGE_MAX    65536         /* one app slot on disk (128 sectors) */
 
 struct airp_header {
     unsigned int magic;

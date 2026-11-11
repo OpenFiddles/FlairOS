@@ -285,7 +285,7 @@ struct tss {
 } __attribute__((packed));
 
 #define GDT_KDATA 0x10
-#define USER_STACK_TOP 0x28000u
+#define USER_STACK_TOP 0x5F000u
 
 static struct gdt_entry gdt[6];
 static struct gdt_ptr gdt_desc;

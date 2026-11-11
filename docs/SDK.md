@@ -8,7 +8,7 @@ Apps are flat x86 binaries. They run in ring 3 and call the kernel with `int 0x8
 2. Write `void app_main(void)`.
 3. Put `FLARE_APP();` once at file level. It places the header the kernel reads.
 
-`examples/hello/hello.c` is a working example. `make sdk-example` builds it to `build/hello.bin` and fails if it is over 4096 bytes.
+`examples/hello/hello.c` is a working example. `make sdk-example` builds it to `build/hello.bin` and fails if it is over 65536 bytes.
 
 ## API
 
@@ -47,7 +47,7 @@ Apps are flat x86 binaries. They run in ring 3 and call the kernel with `int 0x8
 
 ## Limits
 
-- 4096 bytes per app.
+- 65536 bytes per app.
 - Names are up to 12 characters. A file holds up to 512 bytes. There are 8 files and 4 open handles.
 - One open handle per file at a time.
 - Files live in RAM and are lost on reboot. No disk driver exists yet.

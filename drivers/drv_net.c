@@ -2,6 +2,10 @@
 #include "../include/drv_pic.h"
 #include "../include/hw.h"
 
+/* putc and put_hexn live in kernel/kernel.c; declared here for clang, which rejects implicit declarations. */
+void putc(char c);
+void put_hexn(unsigned int value, int digits);
+
 /*
  * FlareOS network driver.
  *

@@ -2,7 +2,7 @@ ENTRY(app_main)
 
 SECTIONS
 {
-    . = 0x20000;
+    . = 0x40000;
     .head : { *(.head) }
     .text : { *(.text .text.*) }
     .rodata : { *(.rodata .rodata.*) }
