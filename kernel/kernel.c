@@ -1,6 +1,8 @@
 /* FlareOS kernel: VGA console, COM1 mirror, PIC, PIT, PS/2 keyboard, CMOS clock, NE2000 NIC, tween engine, PC speaker, int 0x80 syscall gate and a flat app loaded at TX_APP_BASE. */
 
 #include "textile.h"
+#include "../include/fb.h"
+#include "../include/vbe.h"
 
 typedef unsigned char u8;
 typedef unsigned short u16;
@@ -657,6 +659,33 @@ static void boot_splash(void) {
         }
 }
 
+static struct fb boot_fb;
+
+static void draw_test_pattern(const struct fb *f) {
+    static const uint32_t bars[8] = {
+        0xFFFFFF, 0xFFFF00, 0x00FFFF, 0x00FF00,
+        0xFF00FF, 0xFF0000, 0x0000FF, 0x808080
+    };
+    int32_t bar_w = f->width / 8;
+    fb_clear(f, 0x000000);
+    for (int32_t i = 0; i < 8; i++)
+        fb_fill_rect(f, i * bar_w, 0, bar_w, f->height, bars[i]);
+    fb_frame_rect(f, 0, 0, f->width, f->height, 0xFFFFFF);
+    fb_fill_rect(f, f->width / 2 - 32, f->height / 2 - 32, 64, 64, 0x0088FF);
+}
+
+static void boot_test_pattern(void) {
+    if (!vbe_init(&boot_fb, 1024, 768)) {
+        serial_str("vbe: no linear framebuffer, staying in text mode\n");
+        return;
+    }
+    serial_str("vbe: 1024x768x32 framebuffer\n");
+    draw_test_pattern(&boot_fb);
+    wait_ticks(500);
+    vbe_text_mode();
+    clear_screen();
+}
+
 struct saved_regs {
     u32 edi, esi, ebp, esp_unused, ebx, edx, ecx, eax;
 };
@@ -897,6 +926,7 @@ void kmain(void) {
     drv_register_builtin();
     drv_init_all();
     irq_on();
+    boot_test_pattern();
     boot_splash();
     run_app();
     clear_screen();
