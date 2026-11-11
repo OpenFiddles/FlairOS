@@ -58,6 +58,8 @@ checks = [
     ('pmm free memory', re.compile(r'pmm: \d+ MB free of \d+ MB managed')),
     ('pmm selftest', 'pmm: selftest passed'),
     ('mem command', re.compile(r'mem: \d+ MB free of \d+ MB managed')),
+    ('paging on', 'vm: paging on, 4 GB identity map'),
+    ('paging selftest', 'vm: selftest passed'),
     ('app slide-in reaches target', 'app: slide-in done, title at col 35'),
     ('app chime', 'app: chime played'),
     ('app pulse', 'app: pulse done'),
