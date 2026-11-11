@@ -31,7 +31,7 @@ try:
         time.sleep(0.8)
 
     for cmd in ['help', 'time', 'uptime', 'in 60', 'echo hello textile', 'sqr 10 5', 'net',
-                'beep 523 50', 'run']:
+                'beep 523 50', 'mem', 'run']:
         type_line(cmd)
     time.sleep(4)
     text = open(log, errors='ignore').read()
@@ -54,6 +54,10 @@ checks = [
     ('net mac', re.compile(r'mac (?:[0-9A-F]{2}:){5}[0-9A-F]{2}')),
     ('net link state', re.compile(r'link (up|down)')),
     ('beep command', 'beep 523 Hz'),
+    ('pmm reads e820 map', re.compile(r'pmm: e820 regions [1-9]')),
+    ('pmm free memory', re.compile(r'pmm: \d+ MB free of \d+ MB managed')),
+    ('pmm selftest', 'pmm: selftest passed'),
+    ('mem command', re.compile(r'mem: \d+ MB free of \d+ MB managed')),
     ('app slide-in reaches target', 'app: slide-in done, title at col 35'),
     ('app chime', 'app: chime played'),
     ('app pulse', 'app: pulse done'),
