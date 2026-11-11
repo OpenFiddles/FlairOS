@@ -22,7 +22,7 @@ BUILD = build
 DRV_SRCS = $(wildcard drivers/*.c)
 DRV_OBJS = $(patsubst drivers/%.c,$(BUILD)/d_%.o,$(DRV_SRCS))
 
-CFLAGS = $(ARCH_CFLAGS) -std=gnu99 -ffreestanding -fno-pic -fno-stack-protector -fno-builtin -fno-common -fno-tree-loop-distribute-patterns -fcf-protection=none -fno-asynchronous-unwind-tables -O2 -Wall -Wextra
+CFLAGS = $(ARCH_CFLAGS) -std=gnu99 -ffreestanding -mno-sse -mno-sse2 -mno-mmx -fno-pic -fno-stack-protector -fno-builtin -fno-common -fno-tree-loop-distribute-patterns -fcf-protection=none -fno-asynchronous-unwind-tables -O2 -Wall -Wextra
 
 # Expanded to compile all the core kernel files visible in your tree
 OBJS = $(BUILD)/entry.o \

@@ -12,7 +12,7 @@ find_program(AIROS_QEMU qemu-system-i386)
 
 set(B ${CMAKE_BINARY_DIR})
 set(AIROS_INCLUDES ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/kernel)
-set(AIROS_CFLAGS -std=gnu99 -ffreestanding -fno-pic -fno-stack-protector -fno-builtin
+set(AIROS_CFLAGS -std=gnu99 -ffreestanding -mno-sse -mno-sse2 -mno-mmx -fno-pic -fno-stack-protector -fno-builtin
     -fno-common -fcf-protection=none -fno-asynchronous-unwind-tables -O2 -Wall -Wextra)
 
 add_custom_command(OUTPUT ${B}/stage1.bin
