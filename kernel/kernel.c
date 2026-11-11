@@ -2,6 +2,7 @@
 
 #include "textile.h"
 #include "../include/vbe.h"
+#include "../include/pmm.h"
 
 typedef unsigned char u8;
 typedef unsigned short u16;
@@ -742,6 +743,7 @@ static void run_command(char *input) {
         puts("  out PORT VAL   write one byte to an I/O port, e.g. out 80 0\n");
         puts("  reboot         reset through the keyboard controller\n");
         puts("  net            show the RTL8139 network card and its MAC\n");
+        puts("  mem            show free physical memory\n");
         puts("  sqr X Y        draw a 2x2 square at column X, row Y\n");
         puts("  beep HZ MS     play a tone on the PC speaker\n");
         puts("  Ctrl+Alt+D    switch between text mode and the desktop\n");
@@ -787,6 +789,12 @@ static void run_command(char *input) {
         puts(" to port 0x");
         put_hexn(port, 4);
         putc('\n');
+    } else if (str_eq(argv[0], "mem")) {
+        puts("mem: ");
+        put_dec(pmm_free_frames() >> 8);
+        puts(" MB free of ");
+        put_dec(pmm_managed_frames() >> 8);
+        puts(" MB managed\n");
     } else if (str_eq(argv[0], "reboot")) {
         puts("rebooting...\n");
         outb(0x64, 0xFE);
@@ -938,6 +946,7 @@ void kmain(void) {
     pit_init();
     drv_register_builtin();
     drv_init_all();
+    pmm_init();
     irq_on();
     vbe_boot_check();
     boot_splash();
