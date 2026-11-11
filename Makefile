@@ -40,7 +40,9 @@ OBJS = $(BUILD)/entry.o \
        $(BUILD)/axi.o \
        $(BUILD)/fs.o \
        $(BUILD)/sysdispatch.o \
-       $(BUILD)/airp.o
+       $(BUILD)/airp.o \
+       $(BUILD)/fb.o \
+       $(BUILD)/vbe.o
 
 all: $(BUILD)/textile.img
 
@@ -69,7 +71,7 @@ $(BUILD)/usermode.o: kernel/usermode.asm | $(BUILD)
 $(BUILD)/desktop.o: kernel/desktop.c kernel/kernel.h kernel/textile.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/kernel.o: kernel/kernel.c kernel/kernel.h kernel/textile.h | $(BUILD)
+$(BUILD)/kernel.o: kernel/kernel.c kernel/kernel.h kernel/textile.h include/fb.h include/vbe.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD)/drivers.o: kernel/drivers.c kernel/kernel.h kernel/textile.h | $(BUILD)
@@ -95,6 +97,12 @@ $(BUILD)/sysdispatch.o: kernel/sysdispatch.c kernel/kernel.h | $(BUILD)
 
 $(BUILD)/airp.o: kernel/airp.c include/airp.h kernel/textile.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD)/fb.o: kernel/fb.c include/fb.h | $(BUILD)
+	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
+
+$(BUILD)/vbe.o: kernel/vbe.c include/vbe.h include/fb.h include/hw.h include/airos_types.h | $(BUILD)
+	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
 
 # --- Modular Subsystem Drivers ---
 $(BUILD)/mouse_cursor.o: kernel/mouse_cursor.c kernel/kernel.h kernel/textile.h | $(BUILD)
