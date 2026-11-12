@@ -22,6 +22,7 @@
 
 int airp_load(const u8 *file, u32 len, u32 *entry);
 void enter_user(u32 entry, u32 user_esp);
+int vm_run_app(u32 entry, u32 user_esp);
 
 enum { WIN_HELLO, WIN_PIANO, WIN_CLOCK, WIN_TERM, WIN_COUNT };
 
@@ -158,7 +159,7 @@ static void launch_explorer(void) {
         return;
     }
     serial_str("desktop: open explorer\n");
-    enter_user(entry, APP_STACK_TOP);
+    vm_run_app(entry, APP_STACK_TOP);
 }
 
 #define TERM_IN_MAX 50

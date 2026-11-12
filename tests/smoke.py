@@ -69,6 +69,7 @@ checks = [
     ('mem command', re.compile(r'mem: \d+ MB free of \d+ MB managed')),
     ('paging on', 'vm: paging on, 4 GB identity map'),
     ('paging selftest', 'vm: selftest passed'),
+    ('app space ready', 'vm: app space ready'),
     ('app slide-in reaches target', 'app: slide-in done, title at col 35'),
     ('app chime', 'app: chime played'),
     ('app pulse', 'app: pulse done'),

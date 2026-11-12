@@ -295,6 +295,7 @@ static u8 ring0_stack[4096] __attribute__((aligned(16)));
 void gdt_flush(u32 ptr);
 void tss_flush(void);
 void enter_user(u32 entry, u32 user_esp);
+int vm_run_app(u32 entry, u32 user_esp);
 void user_leave(void);
 
 static void gdt_set(int i, u32 base, u32 limit, u8 access, u8 gran) {
@@ -722,7 +723,7 @@ static int run_app(void) {
     const u32 *head = (const u32 *)TX_APP_BASE;
     if (head[0] != TX_APP_MAGIC)
         return 0;
-    enter_user(head[1], USER_STACK_TOP);
+    vm_run_app(head[1], USER_STACK_TOP);
     return 1;
 }
 

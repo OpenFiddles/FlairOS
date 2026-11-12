@@ -1,8 +1,12 @@
-/* Paging. One page directory identity-maps the whole 32-bit space with 4 MiB
-   pages, so every address the kernel uses today (framebuffer, PMM frames, app
-   slot, stacks) keeps its physical address. vm_map and vm_unmap split a 4 MiB
-   page into a 4 KiB page table on demand; the tables come from PMM frames.
-   Every entry carries the user bit, so nothing is protected yet. */
+/* Paging. The kernel page directory identity-maps the whole 32-bit space with 4 MiB
+   pages, so every address the kernel uses today (framebuffer, PMM frames, stacks)
+   keeps its physical address. vm_map and vm_unmap split a 4 MiB page into a 4 KiB
+   page table on demand; the tables come from PMM frames. Every entry carries the
+   user bit, so nothing is protected yet.
+
+   Each app runs under its own page directory. It shares every kernel mapping, but
+   the app slot and its stack (APP_LO..APP_HI) are private frames holding a copy of
+   the image, so the app's view of that range is not the kernel's. */
 
 #include <cpuid.h>
 #include "../include/vm.h"
@@ -16,11 +20,25 @@
 #define CR0_PG   0x80000000u
 #define ADDR_MASK 0xFFFFF000u
 
+#define APP_LO    0x00040000u
+#define APP_HI    0x00060000u
+#define APP_PAGES ((APP_HI - APP_LO) / 4096u)
+
+void enter_user(unsigned int entry, unsigned int user_esp);
+
 static unsigned int pd[1024] __attribute__((aligned(4096)));
 static int paging_on;
 
+static unsigned int app_pd;
+static unsigned int app_pt;
+static unsigned int app_frames[APP_PAGES];
+
+static void load_cr3(unsigned int phys) {
+    __asm__ volatile ("mov %0, %%cr3" : : "r"(phys) : "memory");
+}
+
 static void write_cr3(void) {
-    __asm__ volatile ("mov %0, %%cr3" : : "r"((unsigned int)(unsigned long)pd) : "memory");
+    load_cr3((unsigned int)(unsigned long)pd);
 }
 
 static void invlpg(unsigned int virt) {
@@ -110,6 +128,88 @@ int vm_selftest(void) {
     }
     pmm_free_frame(frame);
     return ok;
+}
+
+static void release_app_space(void) {
+    unsigned int k;
+
+    for (k = 0; k < APP_PAGES; k++) {
+        if (app_frames[k])
+            pmm_free_frame(app_frames[k]);
+        app_frames[k] = 0;
+    }
+    if (app_pt)
+        pmm_free_frame(app_pt);
+    if (app_pd)
+        pmm_free_frame(app_pd);
+    app_pt = 0;
+    app_pd = 0;
+}
+
+static int build_app_space(void) {
+    unsigned int *npd, *npt, *kpt;
+    unsigned int i, j, k, frame, virt;
+    unsigned int pd_frame, pt_frame;
+    const unsigned char *src;
+    unsigned char *dst;
+
+    release_app_space();
+    pd_frame = pmm_alloc_frame();
+    if (!pd_frame)
+        return -1;
+    app_pd = pd_frame;
+    pt_frame = pmm_alloc_frame();
+    if (!pt_frame) {
+        release_app_space();
+        return -1;
+    }
+    app_pt = pt_frame;
+
+    npd = (unsigned int *)(unsigned long)pd_frame;
+    npt = (unsigned int *)(unsigned long)pt_frame;
+    for (i = 0; i < 1024u; i++)
+        npd[i] = pd[i];
+    if (pd[0] & FLAG_PS) {
+        for (j = 0; j < 1024u; j++)
+            npt[j] = (j << 12) | FLAG_US | FLAG_RW | FLAG_P;
+    } else {
+        kpt = (unsigned int *)(unsigned long)(pd[0] & ADDR_MASK);
+        for (j = 0; j < 1024u; j++)
+            npt[j] = kpt[j];
+    }
+    npd[0] = pt_frame | FLAG_US | FLAG_RW | FLAG_P;
+
+    for (k = 0; k < APP_PAGES; k++) {
+        virt = APP_LO + (k << 12);
+        frame = pmm_alloc_frame();
+        if (!frame) {
+            release_app_space();
+            return -1;
+        }
+        app_frames[k] = frame;
+        src = (const unsigned char *)(unsigned long)virt;
+        dst = (unsigned char *)(unsigned long)frame;
+        for (j = 0; j < 4096u; j++)
+            dst[j] = src[j];
+        npt[virt >> 12] = frame | FLAG_US | FLAG_RW | FLAG_P;
+    }
+    return 0;
+}
+
+int vm_run_app(unsigned int entry, unsigned int user_esp) {
+    if (!paging_on) {
+        enter_user(entry, user_esp);
+        return 0;
+    }
+    if (build_app_space() != 0) {
+        serial_str("vm: app space failed\n");
+        return -1;
+    }
+    serial_str("vm: app space ready\n");
+    load_cr3(app_pd);
+    enter_user(entry, user_esp);
+    write_cr3();
+    return 0;
 }
 
 int vm_init(void) {
