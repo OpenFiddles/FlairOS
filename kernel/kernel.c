@@ -296,6 +296,7 @@ void gdt_flush(u32 ptr);
 void tss_flush(void);
 void enter_user(u32 entry, u32 user_esp);
 int vm_run_app(u32 entry, u32 user_esp);
+unsigned int vm_brk(u32 want);
 void user_leave(void);
 
 static void gdt_set(int i, u32 base, u32 limit, u8 access, u8 gran) {
@@ -710,6 +711,9 @@ u32 syscall_dispatch(struct saved_regs *r) {
         break;
     case SYS_SCREEN:
         r->eax = (u32)VGA_COLS | ((u32)VGA_ROWS << 8);
+        break;
+    case SYS_BRK:
+        r->eax = vm_brk(r->ebx);
         break;
     default:
         r->eax = (u32)-1;

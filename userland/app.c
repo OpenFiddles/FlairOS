@@ -38,8 +38,31 @@ static void draw_title(i32 col, u32 attr) {
     }
 }
 
+#define HEAP_TEST (1024u * 1024u)
+#define HEAP_PATTERN 0x5A5A5A5Au
+
+static void brk_check(void) {
+    u32 base = sys(SYS_BRK, 0, 0, 0);
+    u32 end = base + HEAP_TEST;
+    u32 p;
+    int ok = (sys(SYS_BRK, end, 0, 0) >= end);
+
+    for (p = base; ok && p < end; p += 4096u) {
+        volatile u32 *w = (volatile u32 *)(unsigned long)p;
+        w[0] = p;
+        w[1023] = p ^ HEAP_PATTERN;
+    }
+    for (p = base; ok && p < end; p += 4096u) {
+        volatile u32 *w = (volatile u32 *)(unsigned long)p;
+        if (w[0] != p || w[1023] != (p ^ HEAP_PATTERN))
+            ok = 0;
+    }
+    sys(SYS_PRINT, (u32)(unsigned long)(ok ? "app: brk 1 MB ok\n" : "app: brk FAILED\n"), 0, 0);
+}
+
 void app_main(void) {
     sys(SYS_CLEAR, 0, 0, 0);
+    brk_check();
 
     u32 cs;
     __asm__ volatile ("mov %%cs, %0" : "=r"(cs));

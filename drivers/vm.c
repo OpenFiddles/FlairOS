@@ -6,7 +6,11 @@
 
    Each app runs under its own page directory. It shares every kernel mapping, but
    the app slot and its stack (APP_LO..APP_HI) are private frames holding a copy of
-   the image, so the app's view of that range is not the kernel's. */
+   the image, so the app's view of that range is not the kernel's.
+
+   The app heap (HEAP_BASE..HEAP_LIMIT) starts empty; vm_brk maps zeroed frames into
+   it on demand. It sits above 256 MB, so it relies on RAM ending below that (QEMU's
+   default fits). Nothing the kernel uses lives at those virtual addresses. */
 
 #include <cpuid.h>
 #include "../include/vm.h"
@@ -24,6 +28,10 @@
 #define APP_HI    0x00060000u
 #define APP_PAGES ((APP_HI - APP_LO) / 4096u)
 
+#define HEAP_BASE  0x10000000u
+#define HEAP_LIMIT 0x10400000u
+#define HEAP_PDI   (HEAP_BASE >> 22)
+
 void enter_user(unsigned int entry, unsigned int user_esp);
 
 static unsigned int pd[1024] __attribute__((aligned(4096)));
@@ -31,6 +39,8 @@ static int paging_on;
 
 static unsigned int app_pd;
 static unsigned int app_pt;
+static unsigned int app_hpt;
+static unsigned int heap_top;
 static unsigned int app_frames[APP_PAGES];
 
 static void load_cr3(unsigned int phys) {
@@ -43,6 +53,14 @@ static void write_cr3(void) {
 
 static void invlpg(unsigned int virt) {
     __asm__ volatile ("invlpg (%0)" : : "r"(virt) : "memory");
+}
+
+static void zero_frame(unsigned int frame) {
+    unsigned int *p = (unsigned int *)(unsigned long)frame;
+    unsigned int k;
+
+    for (k = 0; k < 1024u; k++)
+        p[k] = 0;
 }
 
 static int split_pde(unsigned int pdi) {
@@ -131,25 +149,36 @@ int vm_selftest(void) {
 }
 
 static void release_app_space(void) {
-    unsigned int k;
+    unsigned int k, j;
+    unsigned int *hpt;
 
     for (k = 0; k < APP_PAGES; k++) {
         if (app_frames[k])
             pmm_free_frame(app_frames[k]);
         app_frames[k] = 0;
     }
+    if (app_hpt) {
+        hpt = (unsigned int *)(unsigned long)app_hpt;
+        for (j = 0; j < 1024u; j++) {
+            if (hpt[j] & FLAG_P)
+                pmm_free_frame(hpt[j] & ADDR_MASK);
+        }
+        pmm_free_frame(app_hpt);
+    }
     if (app_pt)
         pmm_free_frame(app_pt);
     if (app_pd)
         pmm_free_frame(app_pd);
+    app_hpt = 0;
     app_pt = 0;
     app_pd = 0;
+    heap_top = 0;
 }
 
 static int build_app_space(void) {
     unsigned int *npd, *npt, *kpt;
     unsigned int i, j, k, frame, virt;
-    unsigned int pd_frame, pt_frame;
+    unsigned int pd_frame, pt_frame, hpt_frame;
     const unsigned char *src;
     unsigned char *dst;
 
@@ -193,6 +222,16 @@ static int build_app_space(void) {
             dst[j] = src[j];
         npt[virt >> 12] = frame | FLAG_US | FLAG_RW | FLAG_P;
     }
+
+    hpt_frame = pmm_alloc_frame();
+    if (!hpt_frame) {
+        release_app_space();
+        return -1;
+    }
+    zero_frame(hpt_frame);
+    app_hpt = hpt_frame;
+    npd[HEAP_PDI] = hpt_frame | FLAG_US | FLAG_RW | FLAG_P;
+    heap_top = HEAP_BASE;
     return 0;
 }
 
@@ -210,6 +249,34 @@ int vm_run_app(unsigned int entry, unsigned int user_esp) {
     enter_user(entry, user_esp);
     write_cr3();
     return 0;
+}
+
+/* Grows the current app's heap to `want` bytes of break address and returns the
+   break. A request at or below the current break (including 0) only queries it, so
+   shrinking is not supported. On failure the break stops short of `want`. The
+   frames are written and mapped under the kernel directory, because the app's view
+   of low frames may differ from their physical contents; the app directory is
+   reloaded afterwards, which also flushes the TLB. */
+unsigned int vm_brk(unsigned int want) {
+    unsigned int *hpt;
+    unsigned int v, end, frame;
+
+    if (!paging_on || !app_hpt || want <= heap_top || want > HEAP_LIMIT)
+        return heap_top;
+
+    load_cr3((unsigned int)(unsigned long)pd);
+    hpt = (unsigned int *)(unsigned long)app_hpt;
+    end = (want + 4095u) & ~4095u;
+    for (v = (heap_top + 4095u) & ~4095u; v < end; v += 4096u) {
+        frame = pmm_alloc_frame();
+        if (!frame)
+            break;
+        zero_frame(frame);
+        hpt[(v - HEAP_BASE) >> 12] = frame | FLAG_US | FLAG_RW | FLAG_P;
+    }
+    heap_top = (v >= end) ? want : v;
+    load_cr3(app_pd);
+    return heap_top;
 }
 
 int vm_init(void) {
