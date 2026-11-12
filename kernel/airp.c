@@ -45,6 +45,11 @@ int airp_load(const u8 *file, u32 len, u32 *entry) {
     for (i = 0; i < h->image_size; i++)
         dst[i] = file[sizeof(struct airp_header) + i];
 
+    /* The .airp file carries no BSS size, so clear the rest of the slot: .bss and any
+       bytes left by a previous app read as zero. */
+    for (i = h->image_size; i < AIRP_IMAGE_MAX; i++)
+        dst[i] = 0;
+
     {
         const u32 *head = (const u32 *)TX_APP_BASE;
         if (head[0] != TX_APP_MAGIC || head[1] != h->entry)
