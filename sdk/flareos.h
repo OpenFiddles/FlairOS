@@ -2,7 +2,7 @@
 #define FLAREOS_SDK_H
 
 /*
- * FlareOS app SDK, version 1.1.
+ * FlareOS app SDK, version 1.2.
  * Apps are flat binaries linked at FLARE_APP_BASE (userland/app.ld), capped at
  * FLARE_APP_MAX_BYTES, running in ring 3. They call the kernel with int 0x80.
  * The FLARE_SYS_* numbers must match kernel/textile.h and include/fs.h.

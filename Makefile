@@ -211,9 +211,27 @@ $(BUILD)/hello.bin: $(BUILD)/hello.elf
 	$(OBJCOPY) -O binary $< $@
 	test `stat -c %s $@` -le 65536
 
-sdk-example: $(BUILD)/hello.bin
+$(BUILD)/libc_demo.o: examples/libc_demo/libc_demo.c sdk/flareos.h sdk/flare_libc.h sdk/flare_string.h | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD)/libc_demo.elf: $(BUILD)/libc_demo.o $(BUILD)/rt.o userland/app.ld
+	$(LD) $(ARCH_LDFLAGS) -nostdlib -T userland/app.ld -o $@ $(BUILD)/libc_demo.o $(BUILD)/rt.o
+
+$(BUILD)/libc_demo.bin: $(BUILD)/libc_demo.elf
+	$(OBJCOPY) -O binary $< $@
+	test `stat -c %s $@` -le 65536
+
+sdk-example: $(BUILD)/hello.bin $(BUILD)/libc_demo.bin
 
 .PHONY: sdk-example
+
+# --- SDK host checks: native compiler, since the 32-bit fs-test build needs multilib headers ---
+HOSTCC ?= cc
+sdk-test: | $(BUILD)
+	$(HOSTCC) -std=gnu99 -Wall -Wextra -Isdk -o $(BUILD)/sdk_host_test tests/sdk_host_test.c
+	$(BUILD)/sdk_host_test
+
+.PHONY: sdk-test
 
 # --- Host test for the RAM filesystem (runs on this machine, not in the kernel) ---
 fs-test: | $(BUILD)
