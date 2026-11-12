@@ -3,48 +3,56 @@ import os, re, socket, subprocess, sys, tempfile, time
 img = sys.argv[1] if len(sys.argv) > 1 else 'build/textile.img'
 qemu = os.environ.get('QEMU', 'qemu-system-i386')
 work = tempfile.mkdtemp()
-sock = os.path.join(work, 'mon.sock')
-log = os.path.join(work, 'serial.log')
 
 disk = os.path.join(work, 'blank.img')
 with open(disk, 'wb') as f:
     f.truncate(8 * 1024 * 1024)
 
-proc = subprocess.Popen([qemu, '-fda', img, '-hda', disk, '-display', 'none', '-no-reboot',
-                         '-netdev', 'user,id=n0',
-                         '-device', 'rtl8139,netdev=n0',
-                         '-serial', 'file:' + log,
-                         '-monitor', 'unix:' + sock + ',server,nowait'])
-try:
-    for _ in range(100):
-        if os.path.exists(sock):
-            break
-        time.sleep(0.1)
-    mon = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    mon.connect(sock)
-    time.sleep(7)
-    mon.sendall(b'sendkey ctrl-alt-d\n')
-    time.sleep(1.5)
+keys = {' ': 'spc', '\n': 'ret'}
 
-    keys = {' ': 'spc', '\n': 'ret'}
 
-    def type_line(text):
-        for ch in text + '\n':
-            mon.sendall(('sendkey %s\n' % keys.get(ch, ch)).encode())
-            time.sleep(0.12)
-        time.sleep(0.8)
+def boot(tag, cmds):
+    sock = os.path.join(work, tag + '.sock')
+    log = os.path.join(work, tag + '.log')
+    proc = subprocess.Popen([qemu, '-fda', img, '-hda', disk, '-display', 'none', '-no-reboot',
+                             '-netdev', 'user,id=n0',
+                             '-device', 'rtl8139,netdev=n0',
+                             '-serial', 'file:' + log,
+                             '-monitor', 'unix:' + sock + ',server,nowait'])
+    try:
+        for _ in range(100):
+            if os.path.exists(sock):
+                break
+            time.sleep(0.1)
+        mon = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        mon.connect(sock)
+        time.sleep(7)
+        mon.sendall(b'sendkey ctrl-alt-d\n')
+        time.sleep(1.5)
 
-    for cmd in ['help', 'time', 'uptime', 'in 60', 'echo hello textile', 'sqr 10 5', 'net',
-                'beep 523 50', 'mem', 'format', 'run']:
-        type_line(cmd)
-    time.sleep(4)
-    text = open(log, errors='ignore').read()
-finally:
-    proc.kill()
+        def type_line(text):
+            for ch in text + '\n':
+                mon.sendall(('sendkey %s\n' % keys.get(ch, ch)).encode())
+                time.sleep(0.12)
+            time.sleep(0.8)
+
+        for cmd in cmds:
+            type_line(cmd)
+        time.sleep(4)
+        mon.close()
+        return open(log, errors='ignore').read()
+    finally:
+        proc.kill()
+
+
+text = boot('first', ['help', 'time', 'uptime', 'in 60', 'echo hello textile', 'sqr 10 5', 'net',
+                      'beep 523 50', 'mem', 'format', 'save note persistok', 'run'])
 
 with open(disk, 'rb') as f:
     head = f.read(128 * 512 + 4)
 fs_on_disk = head[128 * 512:128 * 512 + 4] == b'1SFA'
+
+text2 = boot('reboot', ['load note'])
 
 checks = [
     ('kernel banner', 'FlareOS 0.3'),
@@ -78,17 +86,20 @@ checks = [
     ('ata detects blank disk', 'ata: primary disk ready'),
     ('format reports success', 'fs: disk formatted'),
     ('format writes FlareOS magic to disk', fs_on_disk),
+    ('save reports success', 'fs: saved note'),
+    ('reboot detects formatted disk', 'ata: primary disk ready'),
+    ('file survives reboot', 'persistok' in text2),
 ]
 ok = True
 for name, pat in checks:
     if isinstance(pat, bool):
         found = pat
     elif hasattr(pat, 'search'):
-        found = bool(pat.search(text))
+        found = bool(pat.search(text if name != 'reboot detects formatted disk' else text2))
     else:
-        found = pat in text
+        found = pat in (text2 if name == 'reboot detects formatted disk' else text)
     ok = ok and found
     print(('PASS ' if found else 'FAIL ') + name)
-print('--- serial tail ---')
-print(text[-900:])
+print('--- serial tail (reboot) ---')
+print(text2[-400:])
 sys.exit(0 if ok else 1)

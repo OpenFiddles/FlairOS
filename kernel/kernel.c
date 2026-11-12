@@ -733,6 +733,8 @@ static int run_app(void) {
 
 int ata_is_ready(void);
 int fs_format(void);
+int fs_shell_save(const char *name, const char *text);
+int fs_shell_load(const char *name, char *out, u32 max);
 
 static void run_command(char *input) {
     char *argv[8];
@@ -848,6 +850,23 @@ static void run_command(char *input) {
             puts("fs: disk formatted\n");
         else
             say_error("format: no ATA disk, or the write failed\n");
+    } else if (str_eq(argv[0], "save")) {
+        if (argc < 3) {
+            say_error("usage: save NAME WORD\n");
+            return;
+        }
+        if (fs_shell_save(argv[1], argv[2]) == 0)
+            puts("fs: saved note\n");
+        else
+            say_error("save: no disk, or the write failed\n");
+    } else if (str_eq(argv[0], "load")) {
+        char buf[513];
+        if (argc < 2 || fs_shell_load(argv[1], buf, sizeof buf) < 0) {
+            say_error("load: no such file\n");
+            return;
+        }
+        puts(buf);
+        putc('\n');
     } else if (str_eq(argv[0], "desktop")) {
         puts("press Ctrl+Alt+D to open the desktop\n");
         clear_screen();

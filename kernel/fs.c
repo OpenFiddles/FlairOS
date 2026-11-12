@@ -378,6 +378,37 @@ int fs_format(void) {
     return 0;
 }
 
+int fs_shell_save(const char *name, const char *text) {
+    u32 n = 0, h, w;
+
+    fsk_ensure();
+    while (text[n])
+        n++;
+    h = fsk_open((u32)(unsigned long)name, FS_WRITE);
+    if (h == FS_FAIL)
+        return -1;
+    w = fsk_write(h, (u32)(unsigned long)text, n);
+    fsk_close(h);
+    return w == n ? 0 : -1;
+}
+
+int fs_shell_load(const char *name, char *out, u32 max) {
+    u32 h, n;
+
+    fsk_ensure();
+    if (max == 0)
+        return -1;
+    h = fsk_open((u32)(unsigned long)name, FS_READ);
+    if (h == FS_FAIL)
+        return -1;
+    n = fsk_read(h, (u32)(unsigned long)out, max - 1);
+    fsk_close(h);
+    if (n == FS_FAIL)
+        return -1;
+    out[n] = 0;
+    return (int)n;
+}
+
 int fs_dispatch(struct saved_regs *r) {
     fsk_ensure();
     switch (r->eax) {
