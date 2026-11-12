@@ -18,7 +18,7 @@ int memcmp(const void *s1, const void *s2, u32 n);
  */
 void *memset(void *dst, int value, u32 n) {
     u8 *p = (u8 *)dst;
-    
+
     // Broadcast the 8-bit value across all 4 bytes of a 32-bit word
     u8 b = (u8)value;
     u32 word_value = (b << 24) | (b << 16) | (b << 8) | b;
