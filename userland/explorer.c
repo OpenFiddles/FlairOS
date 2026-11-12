@@ -6,10 +6,12 @@
 #define EX_KEY_ESC 27
 #define EX_FIRST_ROW 1
 #define EX_LAST_ROW 8
+#define EX_STATUS_ROW 9
 #define EX_BTN_ROW 10
 #define EX_TEXT_ROWS 9
 #define EX_TEXT_COLS 38
 #define EX_MAX_FILES 8
+#define EX_NOTE_MAX 38
 
 /* No static storage: the app image is loaded from disk and .bss is not zeroed. */
 struct ex_state {
@@ -18,6 +20,7 @@ struct ex_state {
     unsigned int len;
     char name[FS_NAME_MAX + 1];
     char data[FS_FILE_MAX];
+    char note[EX_NOTE_MAX + 1];
 };
 
 static const char welcome[] = "Hello from the file explorer.\n";
@@ -73,10 +76,49 @@ static void make_name(char *out, unsigned int n) {
     out[k] = 0;
 }
 
+static unsigned int free_slots(void) {
+    unsigned int n = fs_sys(SYS_FS_SLOTS, 0, 0, 0);
+    return n == FS_FAIL ? 0 : n;
+}
+
+static void make_free_label(char *out, unsigned int n) {
+    const char *head = "files free: ";
+    char num[12];
+    int k = 0, t = 0;
+    while (head[t])
+        out[k++] = head[t++];
+    fmt_dec(num, n);
+    t = 0;
+    while (num[t])
+        out[k++] = num[t++];
+    out[k] = 0;
+}
+
+static void set_note(struct ex_state *s, const char *a, const char *b) {
+    unsigned int k = 0, t = 0;
+    while (a[k] && k < EX_NOTE_MAX) {
+        s->note[k] = a[k];
+        k++;
+    }
+    while (b[t] && k < EX_NOTE_MAX)
+        s->note[k++] = b[t++];
+    s->note[k] = 0;
+}
+
+static void draw_status(struct ex_state *s) {
+    char line[41];
+    int k;
+    clear_line(line);
+    for (k = 0; s->note[k] && k < EX_NOTE_MAX; k++)
+        line[1 + k] = s->note[k];
+    ax_text(s->win, EX_STATUS_ROW, 0, EX_BG, line);
+}
+
 static void draw_list(struct ex_state *s) {
     char line[41];
     char name[FS_NAME_MAX + 1];
     char size[12];
+    char label[24];
     unsigned int i, bytes;
     int count = 0;
 
@@ -96,6 +138,9 @@ static void draw_list(struct ex_state *s) {
     if (count == 0)
         ax_text(s->win, EX_FIRST_ROW, 1, EX_BG, "No files yet.");
     ax_text(s->win, EX_BTN_ROW, 1, EX_BG, "[ New file ]");
+    make_free_label(label, free_slots());
+    ax_text(s->win, EX_BTN_ROW, 20, EX_BG, label);
+    draw_status(s);
 }
 
 static void draw_text(struct ex_state *s) {
@@ -125,6 +170,7 @@ static void draw_text(struct ex_state *s) {
 static void open_file(struct ex_state *s, unsigned int index) {
     unsigned int size, h, got;
 
+    s->note[0] = 0;
     size = fs_list(index, s->name);
     if (size == FS_FAIL)
         return;
@@ -137,10 +183,14 @@ static void open_file(struct ex_state *s, unsigned int index) {
     s->viewing = 1;
 }
 
-static void new_file(void) {
+static void new_file(struct ex_state *s) {
     char name[FS_NAME_MAX + 1];
     unsigned int n, h;
 
+    if (free_slots() == 0) {
+        set_note(s, "No free slot. Delete a file first.", "");
+        return;
+    }
     for (n = 1; n <= 9; n++) {
         make_name(name, n);
         h = fs_open(name, FS_READ);
@@ -149,16 +199,23 @@ static void new_file(void) {
             continue;
         }
         h = fs_open(name, FS_WRITE);
-        if (h == FS_FAIL)
+        if (h == FS_FAIL) {
+            set_note(s, "Could not create the file.", "");
             return;
+        }
         fs_write(h, welcome, sizeof(welcome) - 1);
         fs_close(h);
+        set_note(s, "Created ", name);
         return;
     }
+    set_note(s, "No free note name.", "");
 }
 
 static void delete_current(struct ex_state *s) {
-    fs_delete(s->name);
+    if (fs_delete(s->name) == FS_FAIL)
+        set_note(s, "Could not delete ", s->name);
+    else
+        set_note(s, "Deleted ", s->name);
     s->viewing = 0;
 }
 
@@ -173,7 +230,7 @@ static void handle_click(struct ex_state *s, unsigned int row, unsigned int col)
     if (row >= EX_FIRST_ROW && row <= EX_LAST_ROW)
         open_file(s, row - EX_FIRST_ROW);
     else if (row == EX_BTN_ROW && col >= 1 && col <= 12)
-        new_file();
+        new_file(s);
 }
 
 void app_main(void) {
@@ -186,6 +243,7 @@ void app_main(void) {
     s.viewing = 0;
     s.len = 0;
     s.name[0] = 0;
+    s.note[0] = 0;
     for (;;) {
         if (s.viewing)
             draw_text(&s);
