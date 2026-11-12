@@ -85,3 +85,17 @@ arm-qemu-hello:
     when: always
     paths:
       - arm-boot.log
+
+# Builds the same kernel, apps and image with CMake and Ninja, then runs the smoke test. Allowed to fail so the Makefile Pages build is never blocked.
+cmake-ninja:
+  stage: test
+  allow_failure: true
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  script:
+    - apt-get update -qq
+    - DEBIAN_FRONTEND=noninteractive apt-get install -y -qq cmake ninja-build clang lld nasm binutils python3 qemu-system-x86 > /dev/null
+    - cmake -S . -B build-ninja -G Ninja -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-i686-clang.cmake
+    - ninja -C build-ninja
+    - test -s build-ninja/textile.img
+    - python3 tests/smoke.py build-ninja/textile.img

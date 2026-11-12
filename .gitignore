@@ -1,2 +1,4 @@
 build-cmake/
 __pycache__/
+build/
+build-ninja/
