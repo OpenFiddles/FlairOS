@@ -72,6 +72,6 @@ protected_entry:
     mov ss, ax
     mov esp, 0x90000
 
-    ; Pass control to Textile Kernel Entry point at physical 0x10000
+    ; Pass control to FlairOS Kernel Entry point at physical 0x10000
     mov eax, 0x10000
     jmp eax
