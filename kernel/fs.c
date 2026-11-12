@@ -1,7 +1,7 @@
 /*
 FILE PATH: kernel/fs.c
 CONTRIBUTOR (Optional): Textile
-PURPOSE: Flat filesystem for FlareOS: 8 files of up to 512 bytes, 4 open handles, syscalls 21-33. Files live in RAM. When the primary ATA disk is ready and already carries this filesystem's magic at LBA 128, files are written through to it: file slot N at LBA 129+N. A blank or foreign disk is never written; files stay in RAM and are lost on reboot.
+PURPOSE: Flat filesystem for FlareOS: 8 files of up to 512 bytes, 4 open handles, syscalls 21-33. Files live in RAM. When the primary ATA disk is ready and already carries this filesystem's magic at LBA 128, files are written through to it: file slot N at LBA 129+N. A blank or foreign disk is written only by the explicit format command (fs_format); until then files stay in RAM and are lost on reboot.
 */
 
 #include "kernel.h"
@@ -355,6 +355,27 @@ static u32 fsk_slots(void) {
         if (!fsk_files[i].used)
             n++;
     return n;
+}
+
+/* Explicit format: writes an empty filesystem to the primary disk and clears the RAM files.
+   Refused while a handle is open or when no ATA disk is ready. */
+int fs_format(void) {
+    fsk_ensure();
+    for (int i = 0; i < FS_HANDLES; i++)
+        if (fsk_handles[i].used)
+            return -1;
+    if (!ata_is_ready() || !fsk_disk_fits())
+        return -1;
+    for (int i = 0; i < FS_FILES; i++) {
+        fsk_files[i].used = 0;
+        fsk_files[i].size = 0;
+    }
+    fsk_disk = 1;
+    if (fsk_dir_write() != 0) {
+        fsk_disk = 0;
+        return -1;
+    }
+    return 0;
 }
 
 int fs_dispatch(struct saved_regs *r) {

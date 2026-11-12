@@ -726,6 +726,9 @@ static int run_app(void) {
     return 1;
 }
 
+int ata_is_ready(void);
+int fs_format(void);
+
 static void run_command(char *input) {
     char *argv[8];
     int argc = split(input, argv, 8);
@@ -744,6 +747,7 @@ static void run_command(char *input) {
         puts("  reboot         reset through the keyboard controller\n");
         puts("  net            show the RTL8139 network card and its MAC\n");
         puts("  mem            show free physical memory\n");
+        puts("  format         write an empty filesystem to the ATA disk\n");
         puts("  sqr X Y        draw a 2x2 square at column X, row Y\n");
         puts("  beep HZ MS     play a tone on the PC speaker\n");
         puts("  Ctrl+Alt+D    switch between text mode and the desktop\n");
@@ -834,6 +838,11 @@ static void run_command(char *input) {
         put_dec(hz);
         puts(" Hz\n");
         sound_tone(hz, ms);
+    } else if (str_eq(argv[0], "format")) {
+        if (fs_format() == 0)
+            puts("fs: disk formatted\n");
+        else
+            say_error("format: no ATA disk, or the write failed\n");
     } else if (str_eq(argv[0], "desktop")) {
         puts("press Ctrl+Alt+D to open the desktop\n");
         clear_screen();
@@ -946,6 +955,8 @@ void kmain(void) {
     pit_init();
     drv_register_builtin();
     drv_init_all();
+    if (ata_is_ready())
+        serial_str("ata: primary disk ready\n");
     pmm_init();
     irq_on();
     vbe_boot_check();

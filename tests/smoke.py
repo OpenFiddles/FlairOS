@@ -6,7 +6,11 @@ work = tempfile.mkdtemp()
 sock = os.path.join(work, 'mon.sock')
 log = os.path.join(work, 'serial.log')
 
-proc = subprocess.Popen([qemu, '-fda', img, '-display', 'none', '-no-reboot',
+disk = os.path.join(work, 'blank.img')
+with open(disk, 'wb') as f:
+    f.truncate(8 * 1024 * 1024)
+
+proc = subprocess.Popen([qemu, '-fda', img, '-hda', disk, '-display', 'none', '-no-reboot',
                          '-netdev', 'user,id=n0',
                          '-device', 'rtl8139,netdev=n0',
                          '-serial', 'file:' + log,
@@ -31,12 +35,16 @@ try:
         time.sleep(0.8)
 
     for cmd in ['help', 'time', 'uptime', 'in 60', 'echo hello textile', 'sqr 10 5', 'net',
-                'beep 523 50', 'mem', 'run']:
+                'beep 523 50', 'mem', 'format', 'run']:
         type_line(cmd)
     time.sleep(4)
     text = open(log, errors='ignore').read()
 finally:
     proc.kill()
+
+with open(disk, 'rb') as f:
+    head = f.read(128 * 512 + 4)
+fs_on_disk = head[128 * 512:128 * 512 + 4] == b'1SFA'
 
 checks = [
     ('kernel banner', 'FlareOS 0.3'),
@@ -64,6 +72,9 @@ checks = [
     ('app chime', 'app: chime played'),
     ('app pulse', 'app: pulse done'),
     ('run replays the app', text.count('app: slide-in done') >= 2),
+    ('ata detects blank disk', 'ata: primary disk ready'),
+    ('format reports success', 'fs: disk formatted'),
+    ('format writes FlareOS magic to disk', fs_on_disk),
 ]
 ok = True
 for name, pat in checks:
