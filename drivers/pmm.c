@@ -6,6 +6,7 @@
 
 #include "../include/pmm.h"
 #include "../include/vm.h"
+#include "../include/kheap.h"
 
 #define E820_COUNT_ADDR   0x5000u
 #define E820_ENTRIES_ADDR 0x5010u
@@ -104,6 +105,7 @@ void pmm_init(void) {
     serial_str(pmm_selftest() ? "pmm: selftest passed\n" : "pmm: selftest FAILED\n");
     /* Paging comes up after the PMM because its page tables are PMM frames. */
     vm_init();
+    kheap_selftest();
 }
 
 unsigned int pmm_alloc_frame(void) {
@@ -175,4 +177,26 @@ int pmm_selftest(void) {
     if (free_count != before)
         ok = 0;
     return ok;
+}
+
+unsigned int pmm_alloc_contig(unsigned int frames) {
+    unsigned int run = 0;
+    unsigned int start = 0;
+    if (frames == 0 || frames > free_count)
+        return 0;
+    for (unsigned int i = 0; i < FRAME_COUNT; i++) {
+        if (!bit_get(AVAIL_BITS, i)) {
+            run = 0;
+            continue;
+        }
+        if (run == 0)
+            start = i;
+        if (++run == frames) {
+            for (unsigned int k = start; k <= i; k++)
+                bit_set(AVAIL_BITS, k, 0);
+            free_count -= frames;
+            return FRAME_MIN + start * PMM_FRAME_SIZE;
+        }
+    }
+    return 0;
 }

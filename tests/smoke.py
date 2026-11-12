@@ -65,6 +65,7 @@ checks = [
     ('pmm reads e820 map', re.compile(r'pmm: e820 regions [1-9]')),
     ('pmm free memory', re.compile(r'pmm: \d+ MB free of \d+ MB managed')),
     ('pmm selftest', 'pmm: selftest passed'),
+    ('kheap selftest', 'kheap: selftest passed'),
     ('mem command', re.compile(r'mem: \d+ MB free of \d+ MB managed')),
     ('paging on', 'vm: paging on, 4 GB identity map'),
     ('paging selftest', 'vm: selftest passed'),
