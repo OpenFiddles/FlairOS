@@ -5,12 +5,13 @@ PURPOSE: Host-side checks for the FlareOS filesystem. Compiles kernel/fs.c direc
 */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #define putc fsk_test_putc
 #define puts fsk_test_puts
 #include "../kernel/fs.c"
 
-#define FAKE_SECTORS 256
+#define FAKE_SECTORS 4096
 
 static u8 fake_disk[FAKE_SECTORS][ATA_SECTOR_SIZE];
 static int fake_ready = 1;
@@ -36,6 +37,14 @@ int ata_write_sector(u32 lba, const void *buf) {
         return -1;
     memcpy(fake_disk[lba], buf, ATA_SECTOR_SIZE);
     return 0;
+}
+
+void *kmalloc(unsigned int size) {
+    return malloc(size);
+}
+
+void kfree(void *p) {
+    free(p);
 }
 
 static void seed_disk(void) {
@@ -84,6 +93,7 @@ int main(void) {
     u32 h, n, ok;
 
     seed_disk();
+    check(fs_format() == 0, "format fake disk");
 
     h = sys(SYS_FS_OPEN, addr("notes"), FS_WRITE, 0);
     check(h != FS_FAIL, "open notes for write");
@@ -114,7 +124,7 @@ int main(void) {
 
     memset(big, 'x', sizeof big);
     h = sys(SYS_FS_OPEN, addr("big"), FS_WRITE, 0);
-    check(sys(SYS_FS_WRITE, h, addr(big), 600) == 512, "write stops at 512 bytes");
+    check(sys(SYS_FS_WRITE, h, addr(big), 600) == 600, "write 600 bytes");
     sys(SYS_FS_CLOSE, h, 0, 0);
     check(sys(SYS_FS_DELETE, addr("big"), 0, 0) == 0, "delete big");
 
@@ -132,8 +142,8 @@ int main(void) {
             ok = 0;
         sys(SYS_FS_CLOSE, h, 0, 0);
     }
-    check(ok, "eight files fit");
-    check(sys(SYS_FS_OPEN, addr("extra"), FS_WRITE, 0) == FS_FAIL, "ninth file is refused");
+    check(ok, "all file slots fit");
+    check(sys(SYS_FS_OPEN, addr("extra"), FS_WRITE, 0) == FS_FAIL, "file past the slot limit is refused");
     check(sys(SYS_FS_LIST, 0, addr(buf), 0) == 0 && strcmp(buf, "f0") == 0, "list index 0 is f0");
     check(sys(SYS_FS_LIST, FS_FILES, addr(buf), 0) == FS_FAIL, "list past the last file fails");
 
@@ -142,7 +152,7 @@ int main(void) {
     h = sys(SYS_FS_OPEN, addr("newfile"), FS_APPEND, 0);
     check(h != FS_FAIL, "append creates a new file");
     sys(SYS_FS_CLOSE, h, 0, 0);
-    check(sys(SYS_FS_SLOTS, 0, 0, 0) == 0, "no free slots with eight files");
+    check(sys(SYS_FS_SLOTS, 0, 0, 0) == 0, "no free slots when full");
 
     check(sys(SYS_FS_EXISTS, addr("newfile"), 0, 0) == 1, "exists finds newfile");
     check(sys(SYS_FS_EXISTS, addr("ghost"), 0, 0) == 0, "exists misses ghost");
