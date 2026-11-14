@@ -74,7 +74,7 @@ void *memcpy(void *dst, const void *src, u32 n) {
 static int cur_row, cur_col;
 static u8 cur_attr = ATTR_TEXT;
 
-#define TERM_COLS 56
+#define TERM_COLS 64
 #define TERM_KEEP 32
 #define TERM_INPUT_MAX 50
 
@@ -778,7 +778,7 @@ static void run_command(char *input) {
         puts("  out PORT VAL   write one byte to an I/O port, e.g. out 80 0\n");
         puts("  reboot         reset through the keyboard controller\n");
         puts("  net            show the detected network controller and MAC\n");
-        puts("  ping IPv4      get an IPv4 address with DHCP and send an ICMP echo\n");
+        puts("  ping IPv4      get a DHCP lease and send an ICMP echo\n");
         puts("  mem            show free physical memory\n");
         puts("  format         write an empty filesystem to the ATA disk\n");
         puts("  sqr X Y        draw a 2x2 square at column X, row Y\n");
