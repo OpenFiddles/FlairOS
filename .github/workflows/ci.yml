@@ -49,6 +49,8 @@ jobs:
 
       - name: Filesystem tests
         run: make fs-test
+      - name: Boot layout and AIRP boundary tests
+        run: python3 tests/boot_layout_test.py
 
       - name: Host tests
         run: make test

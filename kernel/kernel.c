@@ -783,9 +783,10 @@ static void micropython_stage_init(void) {
         } else {
             serial_str("python: unable to reserve package memory\n");
         }
-        for (i = 0; i < MICROPYTHON_STAGE_BYTES; i++)
-            ((u8 *)MICROPYTHON_STAGE_ADDR)[i] = 0;
     }
+    /* Clear the complete app stack window even when no optional image exists. */
+    for (i = 0; i < MICROPYTHON_STAGE_BYTES; i++)
+        ((u8 *)MICROPYTHON_STAGE_ADDR)[i] = 0;
 }
 
 int run_micropython(void) {
