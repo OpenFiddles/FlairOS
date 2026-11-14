@@ -4,6 +4,7 @@
 #include "../include/vbe.h"
 #include "../include/airgraph.h"
 #include "../include/pmm.h"
+#include "../include/drv_net.h"
 
 typedef unsigned char u8;
 typedef unsigned short u16;
@@ -753,7 +754,7 @@ static void run_command(char *input) {
         puts("  in PORT        read one byte from an I/O port, e.g. in 60\n");
         puts("  out PORT VAL   write one byte to an I/O port, e.g. out 80 0\n");
         puts("  reboot         reset through the keyboard controller\n");
-        puts("  net            show the RTL8139 network card and its MAC\n");
+        puts("  net            show the detected network controller and MAC\n");
         puts("  mem            show free physical memory\n");
         puts("  format         write an empty filesystem to the ATA disk\n");
         puts("  sqr X Y        draw a 2x2 square at column X, row Y\n");
@@ -813,14 +814,14 @@ static void run_command(char *input) {
         for (;;)
             halt();
     } else if (str_eq(argv[0], "net")) {
-        if (!rtl_init()) {
-            say_error("no RTL8139 network card found\n");
+        if (!drv_net_device.ready) {
+            say_error("no supported network controller found\n");
         } else {
-            puts("rtl8139 at io 0x");
-            put_hexn(net_io, 4);
+            puts(drv_net_is_rtl() ? "rtl8139 at io 0x" : "network controller at io 0x");
+            put_hexn(drv_net_io(), 4);
             puts("  mac ");
-            put_mac(net_mac);
-            puts(rtl_link_up() ? "  link up\n" : "  link down\n");
+            put_mac(drv_net_mac());
+            puts(drv_net_link_up() ? "  link up (polling)\n" : "  link down\n");
         }
     } else if (str_eq(argv[0], "sqr")) {
         u32 x, y;
