@@ -829,20 +829,22 @@ static void run_command(char *input) {
         puts("  help           show this list\n");
         puts("  clear          clear the screen\n");
         puts("  echo TEXT      print TEXT\n");
-        puts("  time           read the clock chip (CMOS RTC, ports 0x70/0x71)\n");
-        puts("  uptime         seconds since boot (PIT timer, IRQ0)\n");
-        puts("  in PORT        read one byte from an I/O port, e.g. in 60\n");
-        puts("  out PORT VAL   write one byte to an I/O port, e.g. out 80 0\n");
-        puts("  reboot         reset through the keyboard controller\n");
-        puts("  net            show the detected network controller and MAC\n");
-        puts("  ping IPv4      get a DHCP lease and send an ICMP echo\n");
+        puts("  time           read the CMOS clock\n");
+        puts("  uptime         seconds since boot\n");
+        puts("  in PORT        read one I/O port byte\n");
+        puts("                 example: in 60\n");
+        puts("  out PORT VAL   write one I/O port byte\n");
+        puts("                 example: out 80 0\n");
+        puts("  reboot         reset the machine\n");
+        puts("  net            show network controller and MAC\n");
+        puts("  ping IPv4      DHCP then ICMP echo\n");
         puts("  mem            show free physical memory\n");
-        puts("  format         write an empty filesystem to the ATA disk\n");
-        puts("  sqr X Y        draw a 2x2 square at column X, row Y\n");
-        puts("  beep HZ MS     play a tone on the PC speaker\n");
-        puts("  Ctrl+Alt+D    switch between text mode and the desktop\n");
+        puts("  format         create an empty ATA filesystem\n");
+        puts("  sqr X Y        draw a 2x2 square at X,Y\n");
+        puts("  beep HZ MS     play a PC speaker tone\n");
+        puts("  Ctrl+Alt+D     switch text/desktop modes\n");
         puts("  run            run the intro app again\n");
-        puts("  python         launch MicroPython (python-enabled disk)\n");
+        puts("  python         launch MicroPython image\n");
     } else if (str_eq(argv[0], "clear")) {
         clear_screen();
     } else if (str_eq(argv[0], "echo")) {
