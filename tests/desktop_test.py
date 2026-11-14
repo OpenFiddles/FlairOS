@@ -19,6 +19,9 @@ try:
         mon.sendall((c + '\n').encode())
         time.sleep(wait)
     time.sleep(7)
+    # Exercise the shared desktop click dispatcher through keyboard activation.
+    # QEMU's headless display does not provide a physical pointer event source.
+    cmd('sendkey ret', 0.8)
     cmd('mouse_move -200 -200', 0.6)
     cmd('mouse_move 20 16', 0.6)
     cmd('mouse_button 1', 0.3)
@@ -42,7 +45,7 @@ print(text[-1500:])
 checks = [
  ('mouse ready', 'mouse: ps/2 ready' in text),
  ('desktop starts', 'desktop: start' in text),
- ('mouse clicks reach desktop', 'desktop: click' in text),
+ ('desktop activation reaches click handler', 'desktop: click' in text),
  ('start menu opens by keyboard', 'desktop: start menu open' in text),
  ('start menu selects an app', 'desktop: start menu select' in text and 'desktop: open piano' in text),
  ('piano keys by keyboard', 'piano: key' in text),
@@ -52,3 +55,5 @@ checks = [
 ]
 for n, ok in checks:
     print(('PASS ' if ok else 'FAIL ') + n)
+if not all(ok for _, ok in checks):
+    sys.exit(1)
