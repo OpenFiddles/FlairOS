@@ -297,6 +297,7 @@ void tss_flush(void);
 void enter_user(u32 entry, u32 user_esp);
 int vm_run_app(u32 entry, u32 user_esp);
 unsigned int vm_brk(u32 want);
+int vm_is_ready(void);
 void user_leave(void);
 
 static void gdt_set(int i, u32 base, u32 limit, u8 access, u8 gran) {
