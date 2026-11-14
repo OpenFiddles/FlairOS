@@ -11,6 +11,7 @@
 static uint8_t pixels[PITCH * H];
 static uint8_t display_mem[PITCH * H];
 static int fails;
+static int text_calls;
 
 #define CHECK(c) do { if (!(c)) { printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #c); fails++; } } while (0)
 
@@ -19,19 +20,23 @@ static uint32_t pixel_at(const uint8_t *mem, int x, int y) {
     memcpy(&value, mem + y * PITCH + x * 4, 4);
     return value;
 }
-
 static int padding_ok(const uint8_t *mem) {
     for (int y = 0; y < H; y++)
         for (int x = W * 4; x < PITCH; x++)
-            if (mem[y * PITCH + x] != 0xA5)
-                return 0;
+            if (mem[y * PITCH + x] != 0xA5) return 0;
     return 1;
 }
-
+static void test_text(struct ag_surface *s, int32_t x, int32_t y,
+                      const char *text, uint32_t color) {
+    (void)s; (void)x; (void)y; (void)text; (void)color;
+    text_calls++;
+}
 int main(void) {
     struct ag_surface s;
     struct fb fb;
     struct ag_device dev;
+    struct sp_theme theme;
+    struct sp_context ui;
 
     memset(pixels, 0xA5, sizeof pixels);
     memset(display_mem, 0xA5, sizeof display_mem);
@@ -44,7 +49,6 @@ int main(void) {
     CHECK(pixel_at(pixels, 0, 0) == 0x00123456);
     CHECK(pixel_at(pixels, W - 1, H - 1) == 0x00123456);
     CHECK(padding_ok(pixels));
-
     ag_put_pixel(&s, 2, 3, 0x00ABCDEF);
     CHECK(pixel_at(pixels, 2, 3) == 0x00ABCDEF);
     ag_put_pixel(&s, -1, 0, 0x00FFFFFF);
@@ -70,11 +74,9 @@ int main(void) {
     CHECK(pixel_at(pixels, 0, 0) == 0x00808080);
 
     {
-        uint32_t src[9] = {0x00000011, 0x00000022, 0x00000033,
-                           0x00000044, 0x00000055, 0x00000066,
-                           0x00000077, 0x00000088, 0x00000099};
+        uint32_t src[9] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99};
         ag_blit(0, &s, -1, -1, 3, 3, src, 12);
-        CHECK(pixel_at(pixels, 0, 0) == 0x00000055);
+        CHECK(pixel_at(pixels, 0, 0) == 0x55);
     }
 
     fb_init(&fb, display_mem, W, H, PITCH);
@@ -85,8 +87,6 @@ int main(void) {
     ag_device_shutdown(&dev);
     CHECK(ag_present(&dev, &s) != 0);
 
-
-    /* Rounded surfaces: corner pixels stay clear, centre and edges are filled. */
     ag_clear(&s, 0);
     ag_round_rect(0, &s, 1, 1, 6, 4, 2, 0x00ABCDEF);
     CHECK(pixel_at(pixels, 1, 1) == 0);
@@ -96,19 +96,29 @@ int main(void) {
     CHECK(pixel_at(pixels, 0, 0) == 0);
     CHECK(pixel_at(pixels, 2, 0) == 0x0000FF);
 
-    {
-        struct sp_theme theme;
-        struct sp_context ui;
-        sp_theme_default(&theme);
-        ui.device = 0; ui.surface = &s; ui.theme = &theme; ui.draw_text = 0;
-        ag_clear(&s, theme.color.background);
-        sp_panel(&ui, 1, 1, 6, 4);
-        sp_button(&ui, 2, 2, 4, 2, 0, 1);
-        sp_progress(&ui, 1, 5, 6, 1, 50);
-        CHECK(pixel_at(pixels, 3, 3) == theme.color.accent);
-    }
+    sp_theme_default(&theme);
+    ui.device = 0; ui.surface = &s; ui.theme = &theme; ui.draw_text = test_text;
+    ag_clear(&s, theme.color.background);
+    sp_panel(&ui, 1, 1, 6, 4);
+    sp_button(&ui, 2, 2, 4, 2, "OK", 1);
+    CHECK(pixel_at(pixels, 3, 3) == theme.color.accent);
+    sp_label(&ui, 0, 0, "Label", 0);
+    sp_badge(&ui, 0, 0, "NEW", theme.color.success);
+    sp_text_field(&ui, 0, 0, 8, 6, "x", 1);
+    sp_list_item(&ui, 0, 0, 8, 6, "item", 0, 1);
+    sp_toggle(&ui, 0, 0, 8, 6, 1); /* undersized: safely ignored */
+    sp_checkbox(&ui, 0, 0, 6, 1);
+    sp_slider(&ui, 0, 0, 8, 6, 50);
+    CHECK(text_calls >= 4);
 
-    if (!fails)
-        puts("AirGraph host test: all checks passed");
+    ag_clear(&s, 0);
+    sp_progress(&ui, 1, 1, 6, 1, 50); /* too short: safely ignored */
+    CHECK(pixel_at(pixels, 3, 1) == 0);
+    sp_progress(&ui, 1, 1, 6, 5, 150); /* clamps to 100 */
+    CHECK(pixel_at(pixels, 3, 3) == theme.color.accent);
+    sp_slider(&ui, 0, 0, 8, 6, 100);
+    CHECK(padding_ok(pixels));
+
+    if (!fails) puts("AirGraph host test: all checks passed");
     return fails ? 1 : 0;
 }
