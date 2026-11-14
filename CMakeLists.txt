@@ -38,7 +38,7 @@ file(GLOB AIROS_DRIVER_SRCS CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/drivers/*.c)
 set(AIROS_KERNEL_SRCS
   kernel/desktop.c kernel/kernel.c kernel/drivers.c kernel/keyboard.c
   kernel/panic.c kernel/mouse_cursor.c kernel/mouse_init.c kernel/pit_timer.c
-  kernel/axi.c kernel/fs.c kernel/sysdispatch.c kernel/airp.c kernel/fb.c kernel/vbe.c)
+  kernel/axi.c kernel/fs.c kernel/sysdispatch.c kernel/airp.c kernel/fb.c kernel/vbe.c kernel/airgraph.c)
 list(TRANSFORM AIROS_KERNEL_SRCS PREPEND ${CMAKE_SOURCE_DIR}/)
 
 add_library(airos_kernel_c OBJECT ${AIROS_KERNEL_SRCS} ${AIROS_DRIVER_SRCS})

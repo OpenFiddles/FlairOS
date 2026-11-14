@@ -42,7 +42,8 @@ OBJS = $(BUILD)/entry.o \
        $(BUILD)/sysdispatch.o \
        $(BUILD)/airp.o \
        $(BUILD)/fb.o \
-       $(BUILD)/vbe.o
+       $(BUILD)/vbe.o \
+       $(BUILD)/airgraph.o
 
 all: $(BUILD)/textile.img
 
@@ -102,6 +103,9 @@ $(BUILD)/fb.o: kernel/fb.c include/fb.h | $(BUILD)
 	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
 
 $(BUILD)/vbe.o: kernel/vbe.c include/vbe.h include/fb.h include/hw.h include/airos_types.h | $(BUILD)
+	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
+
+$(BUILD)/airgraph.o: kernel/airgraph.c include/airgraph.h include/fb.h | $(BUILD)
 	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
 
 # --- Modular Subsystem Drivers ---
@@ -192,7 +196,15 @@ run: $(BUILD)/textile.img
 win-demo: $(BUILD)/win-demo.img
 	$(QEMU) -fda $(BUILD)/win-demo.img -serial stdio -no-reboot
 
-test: $(BUILD)/textile.img
+$(BUILD)/airgraph_host_test: tests/airgraph_host_test.c kernel/airgraph.c kernel/fb.c include/airgraph.h include/fb.h | $(BUILD)
+	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/airgraph_host_test.c kernel/airgraph.c kernel/fb.c
+
+$(BUILD)/driver_host_test: tests/driver_host_test.c drivers/drv_core.c include/drv.h include/drv_pic.h | $(BUILD)
+	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/driver_host_test.c drivers/drv_core.c
+
+test: $(BUILD)/textile.img $(BUILD)/airgraph_host_test $(BUILD)/driver_host_test
+	$(BUILD)/airgraph_host_test
+	$(BUILD)/driver_host_test
 	python3 tests/smoke.py $(BUILD)/textile.img
 
 clean:
