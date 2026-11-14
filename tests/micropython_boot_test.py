@@ -12,6 +12,7 @@ qemu = os.environ.get("QEMU", "qemu-system-i386")
 work = tempfile.mkdtemp(prefix="flareos-python-")
 monitor_path = os.path.join(work, "monitor.sock")
 serial_path = os.path.join(work, "serial.log")
+monitor = None
 proc = subprocess.Popen([
     qemu, "-drive", "file=" + image + ",format=raw,if=floppy",
     "-display", "none", "-no-reboot",
@@ -49,11 +50,10 @@ try:
     command("sendkey ret", 1.5)
     time.sleep(1.0)
 finally:
-    proc.kill()
-    try:
+    if proc.poll() is None:
+        proc.kill()
+    if monitor is not None:
         monitor.close()
-    except Exception:
-        pass
 
 try:
     serial = open(serial_path, errors="ignore").read()
