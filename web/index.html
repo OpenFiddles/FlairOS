@@ -121,6 +121,9 @@
   .player:fullscreen #screen_container, .player:-webkit-full-screen #screen_container { max-height: 100%; }
   .player:fullscreen #screen_container canvas, .player:-webkit-full-screen #screen_container canvas { max-height: 100%; width: auto; max-width: 100%; }
   .player:fullscreen .toolbar, .player:-webkit-full-screen .toolbar { padding-bottom: max(12px, var(--safe-bottom)); }
+  .player:fullscreen .controls, .player:-webkit-full-screen .controls { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); margin: 0; padding: 10px; }
+  .player:fullscreen .controls .card, .player:-webkit-full-screen .controls .card { padding: 9px; }
+  .player:fullscreen #touchpad, .player:-webkit-full-screen #touchpad { min-height: 74px; }
   @media (max-width: 680px) {
     body { padding: 12px 10px calc(16px + var(--safe-bottom)); }
     header { margin-bottom: 12px; }
@@ -140,7 +143,9 @@
   }
   @media (orientation: landscape) and (max-height: 520px) {
     body { padding: 6px; }
-    header, .foot, .controls, .touch-card { display: none; }
+    header, .foot { display: none; }
+    .player:not(:fullscreen) .controls { display: none; }
+    .player:fullscreen .controls { display: grid; }
     .player { height: calc(100dvh - 12px); }
     #screen { flex: 1; min-height: 0; }
     #screen_container canvas { max-height: 100%; width: auto; max-width: 100%; }
@@ -180,31 +185,30 @@
       <button type="button" data-key="right" disabled>→</button>
       <button type="button" data-key="devmode" disabled>Ctrl+Alt+D</button>
     </div>
+    <section class="controls" aria-label="Keyboard and pointer controls">
+      <div class="card">
+        <h2>Keyboard</h2>
+        <label class="type-label" for="typebox">Tap here to open your phone or tablet keyboard</label>
+        <input id="typebox" type="text" inputmode="text" enterkeyhint="enter" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off" placeholder="Type into FlareOS..." disabled>
+        <p class="hint">Enter sends a command. Arrow keys and Backspace are forwarded to the VM.</p>
+      </div>
+      <div class="card">
+        <div class="touch-head"><h2>Pointer</h2><span>Touchpad</span></div>
+        <div id="touchpad" role="application" tabindex="0" aria-label="Touchpad. Drag to move the virtual mouse and tap to click.">
+          <p>Drag to move the pointer<br>Tap to click · Double-tap = right-click</p>
+        </div>
+        <div class="mouse-buttons">
+          <button id="left-click" type="button" disabled>Left click</button>
+          <button id="right-click" type="button" disabled>Right click</button>
+        </div>
+      </div>
+    </section>
   </section>
 
   <div class="status-row">
     <span class="led" id="status-led"></span>
     <p class="status" id="status" role="status" aria-live="polite">Loading the emulator...</p>
   </div>
-
-  <section class="controls" aria-label="Keyboard controls">
-    <div class="card">
-      <h2>Keyboard</h2>
-      <label class="type-label" for="typebox">Tap here to open your phone or tablet keyboard</label>
-      <input id="typebox" type="text" inputmode="text" enterkeyhint="enter" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off" placeholder="Type into FlareOS..." disabled>
-      <p class="hint">Enter sends a command. Arrow keys and Backspace are forwarded to the VM.</p>
-    </div>
-    <div class="card">
-      <h2>Pointer</h2>
-      <div id="touchpad" role="application" tabindex="0" aria-label="Touchpad. Drag to move the virtual mouse and tap to click.">
-        <p>Drag to move the pointer<br>Tap to click · Two-finger tap = right-click</p>
-      </div>
-      <div class="mouse-buttons">
-        <button id="left-click" type="button" disabled>Left click</button>
-        <button id="right-click" type="button" disabled>Right click</button>
-      </div>
-    </div>
-  </section>
 
   <p class="foot">Press Ctrl+Alt+D to switch between the desktop and text mode. In the desktop Terminal, try <code>help</code>, <code>time</code>, <code>uptime</code>, or <code>echo hello</code>.</p>
   <p class="foot">Source: <a href="https://gitlab.com/openfiddles/FlairOS">OpenFiddles / FlairOS</a></p>
