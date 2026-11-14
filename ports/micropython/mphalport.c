@@ -105,15 +105,6 @@ mp_uint_t mp_hal_stdout_tx_strn(const char *str, size_t len) {
     return (mp_uint_t)len;
 }
 
-void mp_hal_stdout_tx_strn_cooked(const char *str, size_t len) {
-    (void)mp_hal_stdout_tx_strn(str, len);
-}
-
-void mp_hal_stdout_tx_str(const char *str) {
-    size_t len = 0;
-    while (str[len]) ++len;
-    (void)mp_hal_stdout_tx_strn(str, len);
-}
 
 void mp_hal_delay_ms(mp_uint_t ms) {
     if (ms == 0) return;

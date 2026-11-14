@@ -33,15 +33,6 @@ static int flareos_vsnprintf(char *dst, size_t size, const char *format, va_list
     return (int)total;
 }
 
-int snprintf(char *dst, size_t size, const char *format, ...) {
-    va_list ap;
-    int result;
-    va_start(ap, format);
-    result = flareos_vsnprintf(dst, size, format, ap);
-    va_end(ap);
-    return result;
-}
-
 int __snprintf_chk(char *dst, size_t maxlen, int flag, size_t object_size,
                    const char *format, ...) {
     va_list ap;
