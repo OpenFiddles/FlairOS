@@ -6,6 +6,7 @@
 #include "py/misc.h"
 #include "py/obj.h"
 #include "py/runtime.h"
+#include "py/mphal.h"
 #include "py/repl.h"
 #include "py/stackctrl.h"
 #include "shared/runtime/pyexec.h"
@@ -68,6 +69,7 @@ void flareos_app_entry(void) {
 
     gc_init(heap, (uint8_t *)heap + FLAREOS_PY_HEAP_BYTES);
     mp_init();
+    mp_hal_reset_console();
     {
         static const char banner[] = "FlareOS MicroPython (minimal)\nType import flareos for OS APIs.\n";
         mp_hal_stdout_tx_strn_cooked(banner, sizeof(banner) - 1u);

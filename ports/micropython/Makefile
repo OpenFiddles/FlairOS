@@ -29,6 +29,8 @@ SRC_C = \
 	mphalport.c \
 	appheap.c \
 	modflareos.c \
+	fsport.c \
+	libcport.c \
 	shared/libc/printf.c \
 	shared/libc/string0.c \
 	shared/readline/readline.c \

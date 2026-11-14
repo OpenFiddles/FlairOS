@@ -26,7 +26,7 @@ static const char *checked_name(mp_obj_t obj) {
 }
 static mp_obj_t flareos_exit(void) {
     flareos_call(SYS_EXIT, 0, 0, 0);
-    for (;;) { }
+    return mp_const_none; /* SYS_EXIT normally transfers control to the kernel. */
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(flareos_exit_obj, flareos_exit);
 static mp_obj_t flareos_ticks_ms(void) {
@@ -110,7 +110,7 @@ static mp_obj_t flareos_fs_read_handle(mp_obj_t handle_obj, mp_obj_t count_obj) 
     byte *buffer;
     uint32_t got;
     mp_obj_t result;
-    if (handle <= 0 || handle > FS_HANDLES || count < 0 || count > FS_FILE_MAX)
+    if (handle <= 0 || handle > (mp_int_t)FS_HANDLES || count < 0 || count > (mp_int_t)FS_FILE_MAX)
         mp_raise_ValueError(MP_ERROR_TEXT("invalid handle or read size"));
     buffer = m_new(byte, count ? (size_t)count : 1u);
     got = count ? fs_read((uint32_t)handle, buffer, (uint32_t)count) : 0;
@@ -129,7 +129,7 @@ static mp_obj_t flareos_fs_write_handle(mp_obj_t handle_obj, mp_obj_t data_obj) 
     size_t size;
     const char *data = mp_obj_str_get_data(data_obj, &size);
     uint32_t wrote;
-    if (handle <= 0 || handle > FS_HANDLES || size > FS_FILE_MAX)
+    if (handle <= 0 || handle > FS_HANDLES || size > (size_t)FS_FILE_MAX)
         mp_raise_ValueError(MP_ERROR_TEXT("invalid handle or write size"));
     wrote = size ? fs_write((uint32_t)handle, data, (uint32_t)size) : 0;
     if (wrote == FS_FAIL) mp_raise_OSError(MP_EIO);
@@ -150,7 +150,7 @@ static mp_obj_t flareos_fs_seek(mp_obj_t handle_obj, mp_obj_t position_obj) {
     mp_int_t handle = mp_obj_get_int(handle_obj);
     mp_int_t position = mp_obj_get_int(position_obj);
     uint32_t result;
-    if (handle <= 0 || handle > FS_HANDLES || position < 0 || position > FS_FILE_MAX)
+    if (handle <= 0 || handle > FS_HANDLES || position < 0 || position > (mp_int_t)FS_FILE_MAX)
         mp_raise_ValueError(MP_ERROR_TEXT("invalid handle or file position"));
     result = fs_seek((uint32_t)handle, (uint32_t)position);
     if (result == FS_FAIL) mp_raise_OSError(MP_EINVAL);
