@@ -28,6 +28,10 @@ try:
     cmd('mouse_button 0', 0.8)
     cmd('sendkey tab', 0.5)
     cmd('sendkey 2', 0.8)
+    # The GUI Terminal is focused on desktop startup, so the first Enter
+    # is terminal input. After selecting Piano, Enter is routed through the
+    # desktop click dispatcher. This is deterministic in headless QEMU.
+    cmd('sendkey ret', 0.5)
     for k in ['a', 's', 'd']:
         cmd('sendkey ' + k, 0.4)
     cmd('sendkey ctrl-alt-d', 1.5)
