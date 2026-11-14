@@ -56,6 +56,13 @@ int main(void) {
     CHECK(padding_ok(pixels));
 
     ag_clear(&s, 0);
+    ag_frame_rect(0, &s, -1, -1, 4, 4, 0x0000FF);
+    CHECK(pixel_at(pixels, 0, 0) == 0);
+    CHECK(pixel_at(pixels, 2, 0) == 0x0000FF);
+    CHECK(pixel_at(pixels, 0, 2) == 0x0000FF);
+    CHECK(pixel_at(pixels, 1, 1) == 0);
+
+    ag_clear(&s, 0);
     ag_blend_rect(0, &s, 0, 0, W, H, 0x80FFFFFF);
     CHECK(pixel_at(pixels, 0, 0) == 0x00808080);
     ag_blend_rect(0, &s, 0, 0, W, H, 0x00FFFFFF);
