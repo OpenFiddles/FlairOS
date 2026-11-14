@@ -62,9 +62,11 @@ int main(void) {
     CHECK(pixel_at(pixels, 0, 0) == 0x007F7F7F);
 
     {
-        uint32_t src[4] = {0x00000011, 0x00000022, 0x00000033, 0x00000044};
+        uint32_t src[9] = {0x00000011, 0x00000022, 0x00000033,
+                           0x00000044, 0x00000055, 0x00000066,
+                           0x00000077, 0x00000088, 0x00000099};
         ag_blit(0, &s, -1, -1, 3, 3, src, 12);
-        CHECK(pixel_at(pixels, 0, 0) == 0x00000044);
+        CHECK(pixel_at(pixels, 0, 0) == 0x00000055);
     }
 
     fb_init(&fb, display_mem, W, H, PITCH);

@@ -147,7 +147,7 @@ void ag_blend_rect(struct ag_device *device, struct ag_surface *surface,
     for (int32_t dy = 0; dy < h; dy++) {
         uint32_t *row = surface_row(surface, y + dy) + x;
         for (int32_t dx = 0; dx < w; dx++)
-            row[dx] = blend_pixel(row[dx], color);
+            row[dx] = opaque_color(surface, blend_pixel(row[dx], color));
     }
 }
 
