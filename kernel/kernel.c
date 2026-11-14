@@ -766,21 +766,21 @@ int airp_load(const u8 *file, u32 len, u32 *entry);
 int run_micropython(void) {
     u32 entry = 0;
     if (!vm_is_ready()) {
-        serial_str("python: paging unavailable\\n");
+        serial_str("python: paging unavailable\n");
         return -1;
     }
     if (airp_load((const u8 *)MICROPYTHON_AIRP_ADDR, MICROPYTHON_AIRP_BYTES, &entry) != 0) {
-        serial_str("python: no valid MicroPython image in boot slot\\n");
+        serial_str("python: no valid MicroPython image in boot slot\n");
         return -1;
     }
-    serial_str("python: launching MicroPython\\n");
+    serial_str("python: launching MicroPython\n");
     clear_screen();
     if (vm_run_app(entry, USER_STACK_TOP) != 0) {
-        serial_str("python: app launch failed\\n");
+        serial_str("python: app launch failed\n");
         return -1;
     }
     clear_screen();
-    serial_str("python: returned to desktop\\n");
+    serial_str("python: returned to desktop\n");
     return 0;
 }
 
@@ -949,11 +949,11 @@ static void run_command(char *input) {
         clear_screen();
     } else if (str_eq(argv[0], "python")) {
         if (term_capture) {
-            puts("python needs text mode or the desktop Start menu\\n");
+            puts("python needs text mode or the desktop Start menu\n");
             return;
         }
         if (run_micropython() != 0)
-            say_error("python image unavailable; build the python-enabled disk\\n");
+            say_error("python image unavailable; build the python-enabled disk\n");
     } else if (str_eq(argv[0], "run")) {
         if (term_capture) {
             puts("run needs text mode: press Ctrl+Alt+D\n");

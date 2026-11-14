@@ -17,9 +17,9 @@
 #define START_MENU_Y (TASK_ROW - 8)
 #define START_MENU_W 25
 #define START_MENU_H 7
-#define EXPLORER_STAGE ((const u8 *)0x50000)
+#define EXPLORER_STAGE ((const u8 *)0x34000)
 #define EXPLORER_STAGE_LEN 4608
-#define APP_STACK_TOP 0x5F000u
+#define APP_STACK_TOP 0x7F000u
 
 int airp_load(const u8 *file, u32 len, u32 *entry);
 void enter_user(u32 entry, u32 user_esp);

@@ -294,7 +294,7 @@ micropython-port: micropython-fetch
 	$(MAKE) -C "$(MICROPYTHON_DIR)/ports/flareos" BUILD="$(MICROPYTHON_BUILD)"
 
 micropython-package: micropython-port
-	test $(stat -c %s "$(MICROPYTHON_BUILD)/flareos.bin") -le 131072
+	test `stat -c %s "$(MICROPYTHON_BUILD)/flareos.bin"` -le 131072
 	python3 tools/airpack.py "$(MICROPYTHON_BUILD)/flareos.bin" "$(MICROPYTHON_BUILD)/flareos.airp" micropython
 
 .PHONY: micropython-fetch micropython-port micropython-package
