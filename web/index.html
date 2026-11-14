@@ -64,7 +64,7 @@
     font: 14px/14px monospace; -webkit-text-size-adjust: none; text-size-adjust: none;
   }
   #screen_container canvas {
-    display: block; flex: 0 1 auto; width: auto; height: auto; max-width: 100%; max-height: min(72vh, 720px);
+    display: block; flex: 0 1 auto; width: auto; height: auto; max-width: 100%; max-height: 100%;
     object-fit: contain; image-rendering: pixelated; touch-action: none;
   }
   #screen_container > div {
@@ -327,18 +327,39 @@
     led.classList.toggle("ready", ready);
   };
 
-  // v86 renders the guest's native framebuffer. Let CSS scale the canvas
-  // proportionally instead of transforming the whole screen container.
+  // Fit the guest framebuffer to the actual space available. v86 can change
+  // the canvas bitmap dimensions during boot, so recompute when its attributes
+  // or the viewport change instead of relying on intrinsic canvas sizing.
   const fitScreen = () => {
     const canvas = screenContainer.querySelector("canvas");
-    if (canvas) {
-      canvas.style.maxWidth = "100%";
-      canvas.style.height = "auto";
-    }
+    if (!canvas || !canvas.width || !canvas.height) return;
+    const screenStyle = getComputedStyle(screen);
+    const availableWidth = Math.max(1, screen.clientWidth -
+      parseFloat(screenStyle.paddingLeft || 0) - parseFloat(screenStyle.paddingRight || 0));
+    const fullscreen = document.fullscreenElement === player ||
+      document.webkitFullscreenElement === player;
+    const shortLandscape = window.matchMedia("(orientation: landscape) and (max-height: 520px)").matches;
+    const availableHeight = fullscreen || shortLandscape
+      ? Math.max(1, screen.clientHeight -
+        parseFloat(screenStyle.paddingTop || 0) - parseFloat(screenStyle.paddingBottom || 0))
+      : Math.max(1, Math.min(window.innerHeight * 0.58, 720));
+    const scale = Math.min(1, availableWidth / canvas.width, availableHeight / canvas.height);
+    canvas.style.width = Math.floor(canvas.width * scale) + "px";
+    canvas.style.height = Math.floor(canvas.height * scale) + "px";
+    canvas.style.maxWidth = "100%";
+    canvas.style.maxHeight = "100%";
   };
-  if ("ResizeObserver" in window) new ResizeObserver(fitScreen).observe(screen);
+  if ("ResizeObserver" in window) {
+    const screenObserver = new ResizeObserver(fitScreen);
+    screenObserver.observe(screen);
+    screenObserver.observe(screenContainer);
+  }
+  const canvasObserver = new MutationObserver(fitScreen);
+  canvasObserver.observe(screenContainer, { subtree: true, childList: true, attributes: true, attributeFilter: ["width", "height", "style"] });
   window.addEventListener("resize", fitScreen);
   window.addEventListener("orientationchange", fitScreen);
+  document.addEventListener("fullscreenchange", fitScreen);
+  document.addEventListener("webkitfullscreenchange", fitScreen);
 
   const isFullscreen = () => document.fullscreenElement === player || document.webkitFullscreenElement === player;
   const updateFullscreenLabel = () => {
