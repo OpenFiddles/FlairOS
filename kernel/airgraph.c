@@ -134,21 +134,40 @@ void ag_frame_rect(struct ag_device *device, struct ag_surface *surface,
                    int32_t x, int32_t y, int32_t w, int32_t h, uint32_t color) {
     int32_t original_x = x, original_y = y;
     int32_t original_w = w, original_h = h;
+    int32_t right_x = 0, bottom_y = 0;
+    int right_visible = 0, bottom_visible = 0;
     if (!clip_rect(surface, &x, &y, &w, &h))
         return;
 
     if (original_y >= 0 && original_y < surface->height)
         ag_fill_rect(device, surface, original_x, original_y, original_w, 1, color);
-    if (original_h > 1 && original_y >= 0 &&
-        original_h <= surface->height - original_y)
-        ag_fill_rect(device, surface, original_x,
-                     original_y + original_h - 1, original_w, 1, color);
+    if (original_h > 1) {
+        if (original_y < 0) {
+            bottom_y = original_y + original_h - 1;
+            bottom_visible = bottom_y >= 0 && bottom_y < surface->height;
+        } else if (original_y < surface->height &&
+                   original_h <= surface->height - original_y) {
+            bottom_y = original_y + original_h - 1;
+            bottom_visible = 1;
+        }
+    }
+    if (bottom_visible)
+        ag_fill_rect(device, surface, original_x, bottom_y, original_w, 1, color);
 
     if (original_x >= 0 && original_x < surface->width)
         ag_fill_rect(device, surface, original_x, y, 1, h, color);
-    if (original_w > 1 && original_x >= 0 &&
-        original_w <= surface->width - original_x)
-        ag_fill_rect(device, surface, original_x + original_w - 1, y, 1, h, color);
+    if (original_w > 1) {
+        if (original_x < 0) {
+            right_x = original_x + original_w - 1;
+            right_visible = right_x >= 0 && right_x < surface->width;
+        } else if (original_x < surface->width &&
+                   original_w <= surface->width - original_x) {
+            right_x = original_x + original_w - 1;
+            right_visible = 1;
+        }
+    }
+    if (right_visible)
+        ag_fill_rect(device, surface, right_x, y, 1, h, color);
 }
 void ag_blend_rect(struct ag_device *device, struct ag_surface *surface,
                    int32_t x, int32_t y, int32_t w, int32_t h, uint32_t color) {
