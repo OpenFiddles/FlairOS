@@ -51,8 +51,8 @@ void fb_blit32_pitch(const struct fb *f, int32_t x, int32_t y, int32_t w, int32_
     int32_t ox = x, oy = y;
     if (!clip(f, &x, &y, &w, &h)) return;
     const uint8_t *base = (const uint8_t *)src +
-                         (uint32_t)(y - oy) * source_pitch +
-                         (uint32_t)(x - ox) * 4u;
+                         ((uint32_t)y - (uint32_t)oy) * source_pitch +
+                         ((uint32_t)x - (uint32_t)ox) * 4u;
     for (int32_t dy = 0; dy < h; ++dy) {
         const uint32_t *s = (const uint32_t *)(base + (uint32_t)dy * source_pitch);
         uint32_t *d = row(f, y + dy) + x;
