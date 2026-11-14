@@ -6,7 +6,9 @@ it is not a Python reimplementation.
 
 ## Build
 
-From the repository root, run `make micropython-port`. The target fetches the
+From the repository root, run `make python-image`. This builds a separate
+`build/textile-python.img` containing the optional MicroPython package in the
+reserved tail of the floppy image. The ordinary `make` image remains lightweight. The target fetches the
 pinned upstream tag into `build/third_party/micropython`, copies this port
 into that checkout, and builds `build/micropython/flareos.elf` and
 `build/micropython/flareos.bin`. The upstream source tree is not committed.
@@ -16,6 +18,8 @@ into that checkout, and builds `build/micropython/flareos.elf` and
 ```python
 import flareos
 print(flareos.screen())           # (80, 25)
+# Leave the REPL and return to the desktop:
+# flareos.exit()
 print(flareos.pointer())          # (x, y, button_bits)
 print(flareos.get_arrow())        # arrow code or None
 print(flareos.ticks_ms())         # PIT ticks, 10 ms resolution
@@ -51,8 +55,9 @@ allocated from the FlareOS app heap through `SYS_BRK`; stack checks are capped
 at 12 KiB. VFS imports, POSIX, sockets, threads, and CPython extension modules
 are not enabled in this minimal profile.
 
-The current `.airp` application container is limited to 64 KiB. The build
-reports the actual binary size, and `make micropython-package` checks that
-limit before creating an `.airp`. It does not claim a larger image can be
-loaded. Boot-image integration remains separate until size and runtime tests
-succeed.
+The `.airp` image limit is 128 KiB, within a 256 KiB private app/stack slot.
+The optional Python package is stored in the final 257 sectors of the 1.44 MiB
+boot image and loaded only when its AIRP magic is present. Select **Python** in
+the desktop Start menu or type `python` in the text shell. Use `flareos.exit()`
+to return to the desktop. The standard disk image does not include Python;
+`make python-image` builds the Python-enabled variant.

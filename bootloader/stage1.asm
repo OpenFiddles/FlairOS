@@ -8,6 +8,7 @@ STAGE2_SECTORS equ 4
 KERNEL_SECTORS equ 256
 APP_SECTORS    equ 256
 EXPLORER_SECTORS equ 9
+PYTHON_SECTORS  equ 257
 
 start:
     cli
@@ -51,6 +52,22 @@ start:
     mov word [offset], 0
     mov word [remaining], EXPLORER_SECTORS
     call load_range
+
+    ; Probe the optional MicroPython AIRP slot. Only load the remaining 256
+    ; sectors when its first sector contains the AIRP magic.
+    mov ax, 0x6000
+    mov es, ax
+    mov word [lba], 2623
+    mov word [offset], 0
+    mov word [remaining], 1
+    call load_range
+    cmp dword [es:0], 0x50524941
+    jne .no_python
+    mov word [lba], 2624
+    mov word [offset], 512
+    mov word [remaining], PYTHON_SECTORS - 1
+    call load_range
+.no_python:
 
     ; Pass boot drive to Stage 2 in DL and jump
     mov dl, [boot_drive]

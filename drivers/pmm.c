@@ -16,8 +16,8 @@
 #define FRAME_MAX    0x10000000u
 #define FRAME_COUNT  ((FRAME_MAX - FRAME_MIN) / PMM_FRAME_SIZE)
 #define BITMAP_BYTES (FRAME_COUNT / 8u)
-#define AVAIL_BITS   ((unsigned char *)0x60000u)
-#define MANAGED_BITS ((unsigned char *)0x62000u)
+#define AVAIL_BITS   ((unsigned char *)0x30000u)
+#define MANAGED_BITS ((unsigned char *)0x32000u)
 
 static unsigned int free_count;
 static unsigned int managed_count;

@@ -24,6 +24,11 @@ static const char *checked_name(mp_obj_t obj) {
         mp_raise_ValueError(MP_ERROR_TEXT("filename must be 1-12 characters"));
     return name;
 }
+static mp_obj_t flareos_exit(void) {
+    flareos_call(SYS_EXIT, 0, 0, 0);
+    for (;;) { }
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(flareos_exit_obj, flareos_exit);
 static mp_obj_t flareos_ticks_ms(void) {
     return mp_obj_new_int_from_uint(flareos_call(SYS_TICKS, 0, 0, 0) * 10u);
 }
@@ -237,6 +242,7 @@ static mp_obj_t flareos_run(mp_obj_t name_obj) {
 static MP_DEFINE_CONST_FUN_OBJ_1(flareos_run_obj, flareos_run);
 static const mp_rom_map_elem_t flareos_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_flareos) },
+    { MP_ROM_QSTR(MP_QSTR_exit), MP_ROM_PTR(&flareos_exit_obj) },
     { MP_ROM_QSTR(MP_QSTR_ticks_ms), MP_ROM_PTR(&flareos_ticks_ms_obj) },
     { MP_ROM_QSTR(MP_QSTR_sleep_ms), MP_ROM_PTR(&flareos_sleep_ms_obj) },
     { MP_ROM_QSTR(MP_QSTR_beep), MP_ROM_PTR(&flareos_beep_obj) },

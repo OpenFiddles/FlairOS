@@ -20,7 +20,7 @@ typedef unsigned int u32;
 int airp_load(const u8 *file, u32 len, u32 *entry) {
     const struct airp_header *h;
     u8 *dst = (u8 *)TX_APP_BASE;
-    u32 i;
+    u32 i, image_size, entry_value;
 
     if (len < sizeof(struct airp_header))
         return AIRP_LOAD_TOO_SHORT;
@@ -37,25 +37,29 @@ int airp_load(const u8 *file, u32 len, u32 *entry) {
         return AIRP_LOAD_BASE;
     if (h->image_size < 8 || h->image_size > AIRP_IMAGE_MAX)
         return AIRP_LOAD_SIZE;
-    if (h->image_size > len - sizeof(struct airp_header))
+    image_size = h->image_size;
+    entry_value = h->entry;
+    if (image_size > len - sizeof(struct airp_header))
         return AIRP_LOAD_SIZE;
-    if (h->entry < TX_APP_BASE || h->entry - TX_APP_BASE >= h->image_size)
+    if (entry_value < TX_APP_BASE || entry_value - TX_APP_BASE >= image_size)
         return AIRP_LOAD_ENTRY;
 
-    for (i = 0; i < h->image_size; i++)
+    /* Source may live at 0x60000 inside the app/stack slot. Snapshot header
+       fields before copying/clearing so the clear cannot destroy the header. */
+    for (i = 0; i < image_size; i++)
         dst[i] = file[sizeof(struct airp_header) + i];
 
     /* The .airp file carries no BSS size, so clear the rest of the slot: .bss and any
        bytes left by a previous app read as zero. */
-    for (i = h->image_size; i < AIRP_IMAGE_MAX; i++)
+    for (i = image_size; i < AIRP_SLOT_SIZE; i++)
         dst[i] = 0;
 
     {
         const u32 *head = (const u32 *)TX_APP_BASE;
-        if (head[0] != TX_APP_MAGIC || head[1] != h->entry)
+        if (head[0] != TX_APP_MAGIC || head[1] != entry_value)
             return AIRP_LOAD_IMAGE;
     }
 
-    *entry = h->entry;
+    *entry = entry_value;
     return AIRP_LOAD_OK;
 }

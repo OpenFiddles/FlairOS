@@ -80,7 +80,7 @@ function(airos_app name src max_bytes pad)
   endif()
 endfunction()
 
-airos_app(app ${CMAKE_SOURCE_DIR}/userland/app.c 131072 TRUE)
+airos_app(app ${CMAKE_SOURCE_DIR}/userland/app.c 65536 TRUE)
 airos_app(explorer ${CMAKE_SOURCE_DIR}/userland/explorer.c 65536 FALSE)
 airos_app(win_app ${CMAKE_SOURCE_DIR}/userland/win_app.c 65536 TRUE)
 
@@ -93,8 +93,8 @@ add_custom_command(OUTPUT ${B}/textile.img
   COMMAND dd if=${B}/stage1.bin of=${B}/textile.img bs=512 count=1 conv=notrunc status=none
   COMMAND dd if=${B}/stage2.bin of=${B}/textile.img bs=512 seek=1 count=4 conv=notrunc status=none
   COMMAND dd if=${B}/kernel.bin of=${B}/textile.img bs=512 seek=5 count=256 conv=notrunc status=none
-  COMMAND dd if=${B}/app.bin of=${B}/textile.img bs=512 seek=261 count=256 conv=notrunc status=none
-  COMMAND dd if=${B}/explorer.airp of=${B}/textile.img bs=512 seek=517 count=9 conv=notrunc status=none
+  COMMAND dd if=${B}/app.bin of=${B}/textile.img bs=512 seek=261 count=128 conv=notrunc status=none
+  COMMAND dd if=${B}/explorer.airp of=${B}/textile.img bs=512 seek=389 count=9 conv=notrunc status=none
   DEPENDS ${B}/stage1.bin ${B}/stage2.bin ${B}/kernel.bin ${B}/app.bin ${B}/explorer.airp VERBATIM)
 
 add_custom_target(image ALL DEPENDS ${B}/textile.img)

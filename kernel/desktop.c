@@ -14,9 +14,9 @@
 #define CURSOR_ATTR 0x0F
 #define FILES_ROW 10
 #define START_MENU_X 1
-#define START_MENU_Y (TASK_ROW - 7)
+#define START_MENU_Y (TASK_ROW - 8)
 #define START_MENU_W 25
-#define START_MENU_H 6
+#define START_MENU_H 7
 #define EXPLORER_STAGE ((const u8 *)0x50000)
 #define EXPLORER_STAGE_LEN 4608
 #define APP_STACK_TOP 0x5F000u
@@ -258,13 +258,13 @@ static void draw_window(int k) {
 
 static void draw_start_menu(void) {
     static const char *const items[5] = {
-        "1  Welcome", "2  Clock", "3  Terminal", "4  Files"
+        "1  Welcome", "2  Clock", "3  Terminal", "4  Files", "5  Python"
     };
     if (!start_open) return;
     fill(START_MENU_Y, START_MENU_X, START_MENU_H, START_MENU_W, ' ', 0x70);
     fill(START_MENU_Y, START_MENU_X, 1, START_MENU_W, ' ', 0x1F);
     text(START_MENU_Y, START_MENU_X + 2, "FlareOS", 0x1F, START_MENU_W - 4);
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < 5; i++)
         text(START_MENU_Y + 1 + i, START_MENU_X + 2, items[i], 0x70, START_MENU_W - 4);
     fill(START_MENU_Y + START_MENU_H - 1, START_MENU_X, 1, START_MENU_W, ' ', 0x17);
     text(START_MENU_Y + START_MENU_H - 1, START_MENU_X + 2, "Tab / Esc to close", 0x17, START_MENU_W - 4);
@@ -274,6 +274,7 @@ static void start_select(int item) {
     start_open = 0;
     if (item >= 0 && item < WIN_COUNT) open_win(item);
     else if (item == WIN_COUNT) launch_explorer();
+    else if (item == WIN_COUNT + 1) run_micropython();
     serial_str("desktop: start menu select ");
     log_point("item", item + 1, 0);
 }
@@ -329,7 +330,7 @@ static void click(i32 mx, i32 my) {
     }
     if (start_open) {
         if (mx >= START_MENU_X && mx < START_MENU_X + START_MENU_W &&
-            my >= START_MENU_Y + 1 && my < START_MENU_Y + 5) {
+            my >= START_MENU_Y + 1 && my < START_MENU_Y + 6) {
             start_select(my - START_MENU_Y - 1);
             return;
         }

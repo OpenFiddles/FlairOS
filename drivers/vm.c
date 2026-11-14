@@ -3,8 +3,8 @@
    vm_map may opt an individual PTE into user access when explicitly requested.
 
    Each app gets a private page directory. Its low-memory page table keeps kernel
-   pages supervisor-only and exposes only the copied APP_LO..APP_HI image/stack
-   pages. The heap has its own user-accessible page table. Kernel mappings remain
+   pages supervisor-only and exposes only the copied 256 KiB APP_LO..APP_HI
+   app/stack region. The heap has its own user-accessible page table. Kernel mappings remain
    supervisor-only in every app address space.
 
    The app heap (HEAP_BASE..HEAP_LIMIT) starts empty; vm_brk maps zeroed frames into
@@ -24,7 +24,7 @@
 #define ADDR_MASK 0xFFFFF000u
 
 #define APP_LO    0x00040000u
-#define APP_HI    0x00060000u
+#define APP_HI    0x00080000u
 #define APP_PAGES ((APP_HI - APP_LO) / 4096u)
 
 #define HEAP_BASE  0x10000000u
@@ -275,6 +275,10 @@ int vm_run_app(unsigned int entry, unsigned int user_esp) {
    frames are written and mapped under the kernel directory, because the app's view
    of low frames may differ from their physical contents; the app directory is
    reloaded afterwards, which also flushes the TLB. */
+int vm_is_ready(void) {
+    return paging_on;
+}
+
 unsigned int vm_brk(unsigned int want) {
     unsigned int *hpt;
     unsigned int v, end, frame;

@@ -285,7 +285,7 @@ struct tss {
 } __attribute__((packed));
 
 #define GDT_KDATA 0x10
-#define USER_STACK_TOP 0x5F000u
+#define USER_STACK_TOP 0x7F000u
 
 static struct gdt_entry gdt[6];
 static struct gdt_ptr gdt_desc;
@@ -759,6 +759,31 @@ static int run_app(void) {
     return 1;
 }
 
+#define MICROPYTHON_AIRP_ADDR 0x60000u
+#define MICROPYTHON_AIRP_BYTES (257u * 512u)
+int airp_load(const u8 *file, u32 len, u32 *entry);
+
+int run_micropython(void) {
+    u32 entry = 0;
+    if (!vm_is_ready()) {
+        serial_str("python: paging unavailable\\n");
+        return -1;
+    }
+    if (airp_load((const u8 *)MICROPYTHON_AIRP_ADDR, MICROPYTHON_AIRP_BYTES, &entry) != 0) {
+        serial_str("python: no valid MicroPython image in boot slot\\n");
+        return -1;
+    }
+    serial_str("python: launching MicroPython\\n");
+    clear_screen();
+    if (vm_run_app(entry, USER_STACK_TOP) != 0) {
+        serial_str("python: app launch failed\\n");
+        return -1;
+    }
+    clear_screen();
+    serial_str("python: returned to desktop\\n");
+    return 0;
+}
+
 int ata_is_ready(void);
 int fs_format(void);
 int fs_shell_save(const char *name, const char *text);
@@ -788,6 +813,7 @@ static void run_command(char *input) {
         puts("  beep HZ MS     play a tone on the PC speaker\n");
         puts("  Ctrl+Alt+D    switch between text mode and the desktop\n");
         puts("  run            run the intro app again\n");
+        puts("  python         launch MicroPython (python-enabled disk)\n");
     } else if (str_eq(argv[0], "clear")) {
         clear_screen();
     } else if (str_eq(argv[0], "echo")) {
@@ -921,6 +947,13 @@ static void run_command(char *input) {
     } else if (str_eq(argv[0], "desktop")) {
         puts("press Ctrl+Alt+D to open the desktop\n");
         clear_screen();
+    } else if (str_eq(argv[0], "python")) {
+        if (term_capture) {
+            puts("python needs text mode or the desktop Start menu\\n");
+            return;
+        }
+        if (run_micropython() != 0)
+            say_error("python image unavailable; build the python-enabled disk\\n");
     } else if (str_eq(argv[0], "run")) {
         if (term_capture) {
             puts("run needs text mode: press Ctrl+Alt+D\n");

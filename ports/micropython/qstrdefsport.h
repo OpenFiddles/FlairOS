@@ -1,6 +1,7 @@
 // FlareOS port-specific qstrs.
 // *FORMAT-OFF*
 Q(flareos)
+Q(exit)
 Q(ticks_ms)
 Q(sleep_ms)
 Q(beep)

@@ -151,6 +151,7 @@ int kbd_toggle_take(void);
 int term_count(void);
 const char *term_text(int idx, int *len);
 void terminal_exec(const char *cmd);
+int run_micropython(void);
 extern int term_capture;
 
 /* Arrow keys and pointer nudging, used by the desktop */
