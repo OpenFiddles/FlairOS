@@ -814,14 +814,14 @@ static void run_command(char *input) {
     } else if (str_eq(argv[0], "net")) {
         struct net_device *dev = net_default();
         if (!dev) {
-            say_error("no supported network controller found\\n");
+            say_error("no supported network controller found\n");
         } else {
             puts(dev->name);
             puts("  mac ");
             put_mac(dev->mac);
             puts("  mtu ");
             put_dec(dev->mtu);
-            puts(net_link_up(dev) ? "  link up\\n" : "  link down\\n");
+            puts(net_link_up(dev) ? "  link up\n" : "  link down\n");
         }
     } else if (str_eq(argv[0], "sqr")) {
         u32 x, y;
