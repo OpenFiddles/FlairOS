@@ -11,6 +11,19 @@ with open(disk, 'wb') as f:
 keys = {' ': 'spc', '\n': 'ret'}
 
 
+def wait_for(log, marker, timeout=20):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            data = open(log, errors='ignore').read()
+        except FileNotFoundError:
+            data = ''
+        if marker in data:
+            return data
+        time.sleep(0.1)
+    raise RuntimeError('timed out waiting for serial marker: ' + marker)
+
+
 def boot(tag, cmds):
     sock = os.path.join(work, tag + '.sock')
     log = os.path.join(work, tag + '.log')
@@ -26,9 +39,13 @@ def boot(tag, cmds):
             time.sleep(0.1)
         mon = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         mon.connect(sock)
-        time.sleep(7)
+
+        # The kernel now boots directly into the desktop. Wait for that state
+        # before asking it to switch to the developer shell; a fixed delay can
+        # send the shortcut during the VBE splash and leave it pending.
+        wait_for(log, 'desktop: start')
         mon.sendall(b'sendkey ctrl-alt-d\n')
-        time.sleep(1.5)
+        wait_for(log, 'ui: text mode')
 
         def type_line(text):
             for ch in text + '\n':
@@ -61,8 +78,8 @@ checks = [
     ('help list', 'Commands:'),
     ('help lists net', 'net            show'),
     ('help lists beep', 'beep HZ MS'),
-    ('clock', re.compile(r'20\d\d-\d\d-\d\d \d\d:\d\d:\d\d')),
-    ('uptime from timer', re.compile(r'up \d+ s')),
+    ('clock', re.compile(r'20\\d\\d-\\d\\d-\\d\\d \\d\\d:\\d\\d:\\d\\d')),
+    ('uptime from timer', re.compile(r'up \\d+ s')),
     ('port read', re.compile(r'port 0x0060 = 0x[0-9A-F]{2}')),
     ('echo', 'hello textile'),
     ('sqr draws square', 'square at 10 5'),
@@ -71,10 +88,10 @@ checks = [
     ('net link state', re.compile(r'link (up|down)')),
     ('beep command', 'beep 523 Hz'),
     ('pmm reads e820 map', re.compile(r'pmm: e820 regions [1-9]')),
-    ('pmm free memory', re.compile(r'pmm: \d+ MB free of \d+ MB managed')),
+    ('pmm free memory', re.compile(r'pmm: \\d+ MB free of \\d+ MB managed')),
     ('pmm selftest', 'pmm: selftest passed'),
     ('kheap selftest', 'kheap: selftest passed'),
-    ('mem command', re.compile(r'mem: \d+ MB free of \d+ MB managed')),
+    ('mem command', re.compile(r'mem: \\d+ MB free of \\d+ MB managed')),
     ('paging on', 'vm: paging on, 4 GB identity map'),
     ('paging selftest', 'vm: selftest passed'),
     ('app space ready', 'vm: app space ready'),
