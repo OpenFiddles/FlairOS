@@ -1,23 +1,32 @@
 /*
 FILE PATH: kernel/fs.c
-CONTRIBUTOR (Optional): Textile
-PURPOSE: Flat filesystem for FlareOS: 8 files of up to 512 bytes, 4 open handles, syscalls 21-33. Files live in RAM. When the primary ATA disk is ready and already carries this filesystem's magic at LBA 128, files are written through to it: file slot N at LBA 129+N. A blank or foreign disk is written only by the explicit format command (fs_format); until then files stay in RAM and are lost on reboot.
+CONTRIBUTOR: Textile
+PURPOSE: Dynamic filesystem for FlareOS. Files are variable-size (up to 64 KB),
+  held in kernel heap buffers and written through to the ATA disk. Sector 398
+  holds the directory; file slot N owns a fixed 128-sector region starting at
+  sector 399 + N * 128, so a file that grows never overlaps another file.
+  Paging is not involved: data buffers come from kmalloc, not the app address space.
 */
 
 #include "kernel.h"
 #include "../include/fs.h"
 #include "../include/drv_ata.h"
+#include "../include/kheap.h"
 
-#define FSK_DIR_LBA 128u
-#define FSK_MAGIC 0x41465331u
-#define FSK_HDR 8
-#define FSK_ENTRY (FS_NAME_MAX + 6)
+#define FSK_DIR_LBA    FS_DIR_LBA
+#define FSK_DATA_LBA   (FS_DIR_LBA + 1)
+#define FSK_FILE_SECTS (FS_FILE_MAX / ATA_SECTOR_SIZE)
+#define FSK_MAGIC      FS_MAGIC
+#define FSK_HDR        8
+#define FSK_ENTRY      FS_ENTRY_SIZE
 
 struct fs_file {
     u8 used;
     char name[FS_NAME_MAX + 1];
     u32 size;
-    u8 data[FS_FILE_MAX];
+    u32 cap;
+    u32 start_lba;
+    u8 *data;
 };
 
 struct fs_handle {
@@ -29,62 +38,116 @@ struct fs_handle {
 
 static struct fs_file fsk_files[FS_FILES];
 static struct fs_handle fsk_handles[FS_HANDLES];
-static u8 fsk_io[ATA_SECTOR_SIZE] __attribute__((aligned(4)));
+static u8 fsk_sector[ATA_SECTOR_SIZE];
 static int fsk_loaded;
 static int fsk_disk;
 
 static u32 fsk_file_lba(int i) {
-    return FSK_DIR_LBA + 1 + (u32)i;
+    return FSK_DATA_LBA + (u32)i * FSK_FILE_SECTS;
 }
 
 static int fsk_disk_fits(void) {
-    return FS_FILE_MAX <= ATA_SECTOR_SIZE &&
-           FSK_HDR + FS_FILES * FSK_ENTRY <= ATA_SECTOR_SIZE &&
-           ata_sector_count() > FSK_DIR_LBA + FS_FILES;
+    return ata_sector_count() >= fsk_file_lba(FS_FILES);
 }
 
 static void fsk_put32(int at, u32 v) {
-    fsk_io[at] = (u8)v;
-    fsk_io[at + 1] = (u8)(v >> 8);
-    fsk_io[at + 2] = (u8)(v >> 16);
-    fsk_io[at + 3] = (u8)(v >> 24);
+    fsk_sector[at] = (u8)v;
+    fsk_sector[at + 1] = (u8)(v >> 8);
+    fsk_sector[at + 2] = (u8)(v >> 16);
+    fsk_sector[at + 3] = (u8)(v >> 24);
 }
 
 static u32 fsk_get32(int at) {
-    return (u32)fsk_io[at] | ((u32)fsk_io[at + 1] << 8) |
-           ((u32)fsk_io[at + 2] << 16) | ((u32)fsk_io[at + 3] << 24);
+    return (u32)fsk_sector[at] | ((u32)fsk_sector[at + 1] << 8) |
+           ((u32)fsk_sector[at + 2] << 16) | ((u32)fsk_sector[at + 3] << 24);
 }
 
 static int fsk_dir_write(void) {
     int i, k, at;
 
     for (i = 0; i < ATA_SECTOR_SIZE; i++)
-        fsk_io[i] = 0;
+        fsk_sector[i] = 0;
     fsk_put32(0, FSK_MAGIC);
+    fsk_put32(4, FS_FILES);
     for (i = 0; i < FS_FILES; i++) {
         at = FSK_HDR + i * FSK_ENTRY;
-        fsk_io[at] = fsk_files[i].used ? 1 : 0;
+        fsk_sector[at] = fsk_files[i].used ? 1 : 0;
         for (k = 0; k <= FS_NAME_MAX; k++)
-            fsk_io[at + 1 + k] = (u8)fsk_files[i].name[k];
-        fsk_put32(at + FS_NAME_MAX + 2, fsk_files[i].size);
+            fsk_sector[at + 1 + k] = (u8)fsk_files[i].name[k];
+        fsk_put32(at + 1 + FS_NAME_MAX + 1, fsk_files[i].size);
+        fsk_put32(at + 1 + FS_NAME_MAX + 5, fsk_files[i].start_lba);
     }
-    return ata_write_sector(FSK_DIR_LBA, fsk_io);
+    return ata_write_sector(FSK_DIR_LBA, fsk_sector);
 }
 
 static int fsk_file_write(int i) {
-    int k;
+    struct fs_file *f = &fsk_files[i];
+    u32 offset = 0;
 
-    for (k = 0; k < ATA_SECTOR_SIZE; k++)
-        fsk_io[k] = k < FS_FILE_MAX ? fsk_files[i].data[k] : 0;
-    return ata_write_sector(fsk_file_lba(i), fsk_io);
+    while (offset < f->size) {
+        u32 chunk = f->size - offset;
+        if (chunk > ATA_SECTOR_SIZE)
+            chunk = ATA_SECTOR_SIZE;
+        for (u32 b = 0; b < ATA_SECTOR_SIZE; b++)
+            fsk_sector[b] = b < chunk ? f->data[offset + b] : 0;
+        if (ata_write_sector(f->start_lba + offset / ATA_SECTOR_SIZE, fsk_sector) != 0)
+            return -1;
+        offset += chunk;
+    }
+    return 0;
 }
 
-static int fsk_commit(int i) {
+static int fsk_file_read(int i) {
+    struct fs_file *f = &fsk_files[i];
+    u32 offset = 0;
+
+    while (offset < f->size) {
+        u32 chunk = f->size - offset;
+        if (chunk > ATA_SECTOR_SIZE)
+            chunk = ATA_SECTOR_SIZE;
+        if (ata_read_sector(f->start_lba + offset / ATA_SECTOR_SIZE, fsk_sector) != 0)
+            return -1;
+        for (u32 b = 0; b < chunk; b++)
+            f->data[offset + b] = fsk_sector[b];
+        offset += chunk;
+    }
+    return 0;
+}
+
+static int fsk_reserve(struct fs_file *f, u32 need) {
+    u8 *buf;
+    u32 cap, i;
+
+    if (need <= f->cap)
+        return 0;
+    cap = (need + ATA_SECTOR_SIZE - 1) / ATA_SECTOR_SIZE * ATA_SECTOR_SIZE;
+    buf = (u8 *)kmalloc(cap);
+    if (!buf)
+        return -1;
+    for (i = 0; f->data && i < f->size; i++)
+        buf[i] = f->data[i];
+    if (f->data)
+        kfree(f->data);
+    f->data = buf;
+    f->cap = cap;
+    return 0;
+}
+
+static void fsk_drop(struct fs_file *f) {
+    if (f->data)
+        kfree(f->data);
+    f->data = 0;
+    f->cap = 0;
+    f->size = 0;
+    f->used = 0;
+}
+
+static int fsk_commit(int file) {
     if (!fsk_disk)
         return 0;
-    if (i >= 0 && fsk_file_write(i) != 0)
+    if (file >= 0 && fsk_file_write(file) != 0)
         return -1;
-    return fsk_dir_write();
+    return fsk_dir_write() == 0 ? 0 : -1;
 }
 
 static void fsk_load(void) {
@@ -94,30 +157,29 @@ static void fsk_load(void) {
     fsk_disk = 0;
     if (!ata_is_ready() || !fsk_disk_fits())
         return;
-    if (ata_read_sector(FSK_DIR_LBA, fsk_io) != 0)
+    if (ata_read_sector(FSK_DIR_LBA, fsk_sector) != 0)
         return;
     if (fsk_get32(0) != FSK_MAGIC)
         return;
     fsk_disk = 1;
     for (i = 0; i < FS_FILES; i++) {
         at = FSK_HDR + i * FSK_ENTRY;
-        fsk_files[i].used = fsk_io[at] == 1;
-        for (k = 0; k < FS_NAME_MAX; k++)
-            fsk_files[i].name[k] = (char)fsk_io[at + 1 + k];
+        fsk_files[i].used = fsk_sector[at] == 1;
+        for (k = 0; k <= FS_NAME_MAX; k++)
+            fsk_files[i].name[k] = (char)fsk_sector[at + 1 + k];
         fsk_files[i].name[FS_NAME_MAX] = 0;
-        fsk_files[i].size = fsk_get32(at + FS_NAME_MAX + 2);
-        if (fsk_files[i].size > FS_FILE_MAX)
-            fsk_files[i].size = FS_FILE_MAX;
+        fsk_files[i].size = fsk_get32(at + 1 + FS_NAME_MAX + 1);
+        fsk_files[i].start_lba = fsk_file_lba(i);
+        fsk_files[i].data = 0;
+        fsk_files[i].cap = 0;
+        if (fsk_files[i].used && fsk_files[i].size > FS_FILE_MAX)
+            fsk_files[i].used = 0;
     }
     for (i = 0; i < FS_FILES; i++) {
-        if (!fsk_files[i].used)
+        if (!fsk_files[i].used || fsk_files[i].size == 0)
             continue;
-        if (ata_read_sector(fsk_file_lba(i), fsk_io) != 0) {
-            fsk_files[i].used = 0;
-            continue;
-        }
-        for (k = 0; k < FS_FILE_MAX; k++)
-            fsk_files[i].data[k] = fsk_io[k];
+        if (fsk_reserve(&fsk_files[i], fsk_files[i].size) != 0 || fsk_file_read(i) != 0)
+            fsk_drop(&fsk_files[i]);
     }
 }
 
@@ -187,7 +249,8 @@ static struct fs_handle *fsk_get(u32 h) {
 
 static u32 fsk_open(u32 name_ptr, u32 mode) {
     char name[FS_NAME_MAX + 1];
-    int file, slot, created = 0, changed = 0;
+    int file, slot, created = 0;
+    u32 old_size;
 
     if (mode > FS_APPEND || !fsk_copy_name(name, name_ptr))
         return FS_FAIL;
@@ -205,18 +268,19 @@ static u32 fsk_open(u32 name_ptr, u32 mode) {
             return FS_FAIL;
         fsk_files[file].used = 1;
         fsk_files[file].size = 0;
+        fsk_files[file].start_lba = fsk_file_lba(file);
         for (int i = 0; i <= FS_NAME_MAX; i++)
             fsk_files[file].name[i] = name[i];
         created = 1;
-        changed = 1;
     }
-    if (mode == FS_WRITE && fsk_files[file].size != 0) {
+    old_size = fsk_files[file].size;
+    if (mode == FS_WRITE)
         fsk_files[file].size = 0;
-        changed = 1;
-    }
-    if (changed && fsk_commit(-1) != 0) {
+    if ((created || fsk_files[file].size != old_size) && fsk_commit(file) != 0) {
         if (created)
             fsk_files[file].used = 0;
+        else
+            fsk_files[file].size = old_size;
         return FS_FAIL;
     }
     fsk_handles[slot].used = 1;
@@ -246,7 +310,7 @@ static u32 fsk_read(u32 h, u32 buf, u32 max) {
 static u32 fsk_write(u32 h, u32 buf, u32 count) {
     struct fs_handle *s = fsk_get(h);
     struct fs_file *f;
-    u32 room, n;
+    u32 room, n, old_size, old_pos;
     const u8 *src = (const u8 *)buf;
 
     if (!s || s->mode == FS_READ || !buf)
@@ -254,13 +318,22 @@ static u32 fsk_write(u32 h, u32 buf, u32 count) {
     f = &fsk_files[s->file];
     room = FS_FILE_MAX - s->pos;
     n = count < room ? count : room;
+    if (n == 0)
+        return 0;
+    if (fsk_reserve(f, s->pos + n) != 0)
+        return FS_FAIL;
+    old_size = f->size;
+    old_pos = s->pos;
     for (u32 i = 0; i < n; i++)
         f->data[s->pos + i] = src[i];
     s->pos += n;
     if (s->pos > f->size)
         f->size = s->pos;
-    if (n != 0 && fsk_commit(s->file) != 0)
+    if (fsk_commit(s->file) != 0) {
+        f->size = old_size;
+        s->pos = old_pos;
         return FS_FAIL;
+    }
     return n;
 }
 
@@ -281,8 +354,7 @@ static u32 fsk_delete(u32 name_ptr) {
     file = fsk_find(name);
     if (file < 0 || fsk_file_busy(file))
         return FS_FAIL;
-    fsk_files[file].used = 0;
-    fsk_files[file].size = 0;
+    fsk_drop(&fsk_files[file]);
     if (fsk_commit(-1) != 0)
         return FS_FAIL;
     return 0;
@@ -357,8 +429,6 @@ static u32 fsk_slots(void) {
     return n;
 }
 
-/* Explicit format: writes an empty filesystem to the primary disk and clears the RAM files.
-   Refused while a handle is open or when no ATA disk is ready. */
 int fs_format(void) {
     fsk_ensure();
     for (int i = 0; i < FS_HANDLES; i++)
@@ -366,10 +436,8 @@ int fs_format(void) {
             return -1;
     if (!ata_is_ready() || !fsk_disk_fits())
         return -1;
-    for (int i = 0; i < FS_FILES; i++) {
-        fsk_files[i].used = 0;
-        fsk_files[i].size = 0;
-    }
+    for (int i = 0; i < FS_FILES; i++)
+        fsk_drop(&fsk_files[i]);
     fsk_disk = 1;
     if (fsk_dir_write() != 0) {
         fsk_disk = 0;

@@ -720,7 +720,7 @@ u32 syscall_dispatch(struct saved_regs *r) {
         break;
     }
 
-    return r->eax; 
+    return r->eax;
 }
 
 static int run_app(void) {

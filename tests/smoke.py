@@ -49,8 +49,8 @@ text = boot('first', ['help', 'time', 'uptime', 'in 60', 'echo hello textile', '
                       'beep 523 50', 'mem', 'format', 'save note persistok', 'run'])
 
 with open(disk, 'rb') as f:
-    head = f.read(128 * 512 + 4)
-fs_on_disk = head[128 * 512:128 * 512 + 4] == b'1SFA'
+    head = f.read(398 * 512 + 4)
+fs_on_disk = head[398 * 512:398 * 512 + 4] == bytes.fromhex('59 44 53 46')
 
 text2 = boot('reboot', ['load note'])
 

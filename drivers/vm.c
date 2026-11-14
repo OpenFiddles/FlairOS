@@ -1,12 +1,11 @@
-/* Paging. The kernel page directory identity-maps the whole 32-bit space with 4 MiB
-   pages, so every address the kernel uses today (framebuffer, PMM frames, stacks)
-   keeps its physical address. vm_map and vm_unmap split a 4 MiB page into a 4 KiB
-   page table on demand; the tables come from PMM frames. Every entry carries the
-   user bit, so nothing is protected yet.
+/* Paging. The kernel page directory identity-maps the 32-bit address space with
+   supervisor-only 4 MiB pages. Splitting a large page preserves that protection;
+   vm_map may opt an individual PTE into user access when explicitly requested.
 
-   Each app runs under its own page directory. It shares every kernel mapping, but
-   the app slot and its stack (APP_LO..APP_HI) are private frames holding a copy of
-   the image, so the app's view of that range is not the kernel's.
+   Each app gets a private page directory. Its low-memory page table keeps kernel
+   pages supervisor-only and exposes only the copied APP_LO..APP_HI image/stack
+   pages. The heap has its own user-accessible page table. Kernel mappings remain
+   supervisor-only in every app address space.
 
    The app heap (HEAP_BASE..HEAP_LIMIT) starts empty; vm_brk maps zeroed frames into
    it on demand. It sits above 256 MB, so it relies on RAM ending below that (QEMU's
@@ -73,8 +72,8 @@ static int split_pde(unsigned int pdi) {
         return -1;
     pt = (unsigned int *)(unsigned long)frame;
     for (j = 0; j < 1024u; j++)
-        pt[j] = (base + (j << 12)) | FLAG_US | FLAG_RW | FLAG_P;
-    pd[pdi] = frame | FLAG_US | FLAG_RW | FLAG_P;
+        pt[j] = (base + (j << 12)) | FLAG_RW | FLAG_P;
+    pd[pdi] = frame | FLAG_RW | FLAG_P;
     write_cr3();
     return 0;
 }
@@ -88,10 +87,14 @@ int vm_map(unsigned int virt, unsigned int phys, unsigned int flags) {
         return -1;
     if ((pd[pdi] & FLAG_PS) && split_pde(pdi) != 0)
         return -1;
+    if (!(pd[pdi] & FLAG_P))
+        return -1;
     pt = (unsigned int *)(unsigned long)(pd[pdi] & ADDR_MASK);
     if (pt[pti] & FLAG_P)
         return -1;
     pt[pti] = (phys & ADDR_MASK) | (flags & 0xFFFu) | FLAG_P;
+    if (flags & FLAG_US)
+        pd[pdi] |= FLAG_US;
     invlpg(virt);
     return 0;
 }
@@ -104,6 +107,8 @@ int vm_unmap(unsigned int virt) {
     if (!paging_on)
         return -1;
     if ((pd[pdi] & FLAG_PS) && split_pde(pdi) != 0)
+        return -1;
+    if (!(pd[pdi] & FLAG_P))
         return -1;
     pt = (unsigned int *)(unsigned long)(pd[pdi] & ADDR_MASK);
     if (!(pt[pti] & FLAG_P))
@@ -130,7 +135,7 @@ int vm_selftest(void) {
             pmm_free_frame(frame);
         return 0;
     }
-    if (vm_unmap(virt) == 0 && vm_map(virt, frame, FLAG_RW | FLAG_US) == 0) {
+    if (vm_unmap(virt) == 0 && vm_map(virt, frame, FLAG_RW) == 0) {
         ok = 1;
         for (k = 0; k < 1024u; k++)
             v[k] = pattern ^ k;
@@ -200,7 +205,7 @@ static int build_app_space(void) {
         npd[i] = pd[i];
     if (pd[0] & FLAG_PS) {
         for (j = 0; j < 1024u; j++)
-            npt[j] = (j << 12) | FLAG_US | FLAG_RW | FLAG_P;
+            npt[j] = (j << 12) | FLAG_RW | FLAG_P;
     } else {
         kpt = (unsigned int *)(unsigned long)(pd[0] & ADDR_MASK);
         for (j = 0; j < 1024u; j++)
@@ -231,6 +236,19 @@ static int build_app_space(void) {
     zero_frame(hpt_frame);
     app_hpt = hpt_frame;
     npd[HEAP_PDI] = hpt_frame | FLAG_US | FLAG_RW | FLAG_P;
+
+    /* Prove the app can reach its image/stack and heap, but not kernel text,
+       neighboring low memory, or the next page beyond its private slot. */
+    if (!(npd[0] & FLAG_US) || !(npd[HEAP_PDI] & FLAG_US) ||
+        (npt[0x10000u >> 12] & FLAG_US) ||
+        !(npt[APP_LO >> 12] & FLAG_US) ||
+        (npt[APP_HI >> 12] & FLAG_US) ||
+        (npd[1] & FLAG_US)) {
+        serial_str("vm: app permission check FAILED\n");
+        release_app_space();
+        return -1;
+    }
+    serial_str("vm: app permissions isolated\n");
     heap_top = HEAP_BASE;
     return 0;
 }
@@ -287,7 +305,7 @@ int vm_init(void) {
         return 0;
     }
     for (i = 0; i < 1024u; i++)
-        pd[i] = (i << 22) | FLAG_PS | FLAG_US | FLAG_RW | FLAG_P;
+        pd[i] = (i << 22) | FLAG_PS | FLAG_RW | FLAG_P;
     __asm__ volatile ("mov %%cr4, %0" : "=r"(cr4));
     cr4 |= CR4_PSE;
     __asm__ volatile ("mov %0, %%cr4" : : "r"(cr4) : "memory");

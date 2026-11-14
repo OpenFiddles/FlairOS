@@ -64,10 +64,11 @@ build-branch:
   stage: test
   script:
     - apt-get update -qq
-    - DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nasm gcc-multilib binutils make > /dev/null
+    - DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nasm gcc-multilib binutils make python3 qemu-system-x86 > /dev/null
     - make ARCH=i386
     - test -s build/textile.img
     - make fs-test
+    - make test
 
 # Boots the aarch64 hello stub under QEMU virt. Runs only on arm-port.
 arm-qemu-hello:
