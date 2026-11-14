@@ -2,7 +2,7 @@
 #define FLAREOS_SDK_H
 
 /*
- * FlareOS app SDK, version 1.2.
+ * FlareOS app SDK, version 1.3.
  * Apps are flat binaries linked at FLARE_APP_BASE (userland/app.ld), capped at
  * FLARE_APP_MAX_BYTES, running in ring 3. They call the kernel with int 0x80.
  * The FLARE_SYS_* numbers must match kernel/textile.h and include/fs.h.
@@ -59,8 +59,9 @@ typedef int flare_i32;
 #define FLARE_FS_APPEND 2u
 #define FLARE_FS_FAIL 0xFFFFFFFFu
 #define FLARE_FS_NAME_MAX 12u
-#define FLARE_FS_FILE_MAX 512u
-#define FLARE_FS_FILES 8u
+#define FLARE_FS_FILE_MAX 65536u
+#define FLARE_FS_FILES 16u
+#define FLARE_FS_HANDLES 8u
 
 static inline flare_u32 flare_call(flare_u32 n, flare_u32 b, flare_u32 c, flare_u32 d) {
     flare_u32 ret;
