@@ -6,13 +6,14 @@ PURPOSE: Decode ATA IDENTIFY words without hardware I/O so parsing can be host-t
 
 static void ata_identify_string(char *out, const u16 *words, u32 first, u32 count) {
     u32 i;
+    u32 length = count * 2;
     for (i = 0; i < count; ++i) {
         out[i * 2] = (char)(words[first + i] >> 8);
         out[i * 2 + 1] = (char)(words[first + i] & 0xFF);
     }
-    while (count && (out[count * 2 - 1] == ' ' || out[count * 2 - 1] == 0))
-        out[--count * 2 + 1] = 0;
-    out[(count * 2) ? count * 2 : 0] = 0;
+    while (length && out[length - 1] == ' ')
+        --length;
+    out[length] = 0;
 }
 
 int ata_identify_parse(const u16 words[256], struct ata_identify_info *out) {

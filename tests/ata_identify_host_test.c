@@ -7,9 +7,10 @@ static int failures;
 
 static void set_string(unsigned short *words, int first, int count, const char *s) {
     int i;
+    size_t length = strlen(s);
     for (i = 0; i < count; ++i) {
-        unsigned char a = s[i * 2] ? (unsigned char)s[i * 2] : ' ';
-        unsigned char b = s[i * 2 + 1] ? (unsigned char)s[i * 2 + 1] : ' ';
+        unsigned char a = (size_t)(i * 2) < length ? (unsigned char)s[i * 2] : (unsigned char)' ';
+        unsigned char b = (size_t)(i * 2 + 1) < length ? (unsigned char)s[i * 2 + 1] : (unsigned char)' ';
         words[first + i] = (unsigned short)(((unsigned short)a << 8) | b);
     }
 }
@@ -28,8 +29,8 @@ int main(void) {
     CHECK(info.lba_supported == 1);
     CHECK(info.lba48_supported == 1);
     CHECK(info.sectors_lba28 == 0x00011234u);
-    CHECK(strncmp(info.model, "FLAIR STORAGE MODEL 01", 22) == 0);
-    CHECK(strncmp(info.serial, "SERIAL123456789", 15) == 0);
+    CHECK(strcmp(info.model, "FLAIR STORAGE MODEL 01") == 0);
+    CHECK(strcmp(info.serial, "SERIAL123456789") == 0);
 
     words[49] = 0;
     CHECK(ata_identify_parse(words, &info) != 0);
