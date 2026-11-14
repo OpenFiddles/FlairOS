@@ -310,7 +310,7 @@ static void click(i32 mx, i32 my) {
     log_point("desktop: click", mx, my);
     if (my == TASK_ROW && mx >= 0 && mx < 10) {
         start_open = !start_open;
-        serial_str(start_open ? "desktop: start menu open\\n" : "desktop: start menu close\\n");
+        serial_str(start_open ? "desktop: start menu open\n" : "desktop: start menu close\n");
         return;
     }
     if (start_open) {
@@ -334,7 +334,7 @@ static void click(i32 mx, i32 my) {
         }
         if (my == w->y && mx >= w->x + w->w - 8 && mx <= w->x + w->w - 6) {
             w->open = 0;
-            serial_str("desktop: minimize\\n");
+            serial_str("desktop: minimize\n");
             return;
         }
         raise_win(k);
@@ -388,7 +388,7 @@ static void term_key(int c) {
 static void handle_key(int c) {
     if (c == '\t') {
         start_open = !start_open;
-        serial_str(start_open ? "desktop: start menu open\\n" : "desktop: start menu close\\n");
+        serial_str(start_open ? "desktop: start menu open\n" : "desktop: start menu close\n");
         return;
     }
     if (start_open) {
