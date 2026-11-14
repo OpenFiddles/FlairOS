@@ -812,14 +812,16 @@ static void run_command(char *input) {
         for (;;)
             halt();
     } else if (str_eq(argv[0], "net")) {
-        if (!drv_net_device.ready) {
-            say_error("no supported network controller found\n");
+        struct net_device *dev = net_default();
+        if (!dev) {
+            say_error("no supported network controller found\\n");
         } else {
-            puts(drv_net_is_rtl() ? "rtl8139 at io 0x" : "network controller at io 0x");
-            put_hexn(drv_net_io(), 4);
+            puts(dev->name);
             puts("  mac ");
-            put_mac(drv_net_mac());
-            puts(drv_net_link_up() ? "  link up (polling)\n" : "  link down\n");
+            put_mac(dev->mac);
+            puts("  mtu ");
+            put_dec(dev->mtu);
+            puts(net_link_up(dev) ? "  link up\\n" : "  link down\\n");
         }
     } else if (str_eq(argv[0], "sqr")) {
         u32 x, y;

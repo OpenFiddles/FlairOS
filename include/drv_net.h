@@ -1,18 +1,37 @@
 #ifndef AIROS_DRV_NET_H
 #define AIROS_DRV_NET_H
 
-#include "drv.h"
+#include "airos_types.h"
 
-/* Polling raw-Ethernet interface. RTL8139 is the first supported PCI NIC.
-   Network protocols (ARP/IP/UDP/TCP) sit above this layer. */
-extern struct drv drv_net_device;
+#define NET_NAME_MAX 16
+#define NET_MAX_DEVICES 4
+#define NET_MTU 1500
+#define NET_FRAME_MAX 1514
 
-const u8 *drv_net_mac(void);
-u16 drv_net_io(void);
-int drv_net_is_rtl(void);
-int drv_net_init(void);
-int drv_net_link_up(void);
-int drv_net_send(const void *frame, u16 length);
-int drv_net_receive(void *frame, u16 capacity);
+struct net_device;
+
+struct net_device_ops {
+    int (*link_up)(struct net_device *dev);
+    int (*send)(struct net_device *dev, const void *frame, u16 length);
+    int (*receive)(struct net_device *dev, void *frame, u16 capacity);
+};
+
+struct net_device {
+    const char *name;
+    u8 mac[6];
+    u16 mtu;
+    void *private_data;
+    const struct net_device_ops *ops;
+    int ready;
+};
+
+/* Hardware drivers register devices; the protocol stack uses only this API. */
+int net_register(struct net_device *dev);
+int net_device_count(void);
+struct net_device *net_default(void);
+struct net_device *net_device_at(unsigned int index);
+int net_link_up(struct net_device *dev);
+int net_send(struct net_device *dev, const void *frame, u16 length);
+int net_receive(struct net_device *dev, void *frame, u16 capacity);
 
 #endif
