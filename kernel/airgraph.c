@@ -228,3 +228,53 @@ int ag_present(struct ag_device *device, const struct ag_surface *surface) {
         fb_blit32(device->display, 0, y, w, 1, surface_row(surface, y));
     return 0;
 }
+
+/* Rounded rectangles are scanline-rendered and clipped by the normal surface
+   primitives. Radius is clamped so tiny widgets remain well-defined. */
+static int32_t round_inset(int32_t y, int32_t h, int32_t radius) {
+    int32_t cy = y < radius ? radius - y : (y >= h - radius ? y - (h - radius - 1) : 0);
+    if (cy <= 0) return 0;
+    /* Integer circle approximation: inset = r - floor(sqrt(r*r-dy*dy)). */
+    int32_t rr = radius * radius;
+    int32_t yy = cy * cy;
+    int32_t xx = rr - yy;
+    int32_t root = 0;
+    while ((root + 1) * (root + 1) <= xx) root++;
+    return radius - root;
+}
+
+void ag_round_rect(struct ag_device *device, struct ag_surface *surface,
+                   int32_t x, int32_t y, int32_t w, int32_t h,
+                   int32_t radius, uint32_t color) {
+    if (!surface_valid(surface) || w <= 0 || h <= 0 || radius <= 0) {
+        ag_fill_rect(device, surface, x, y, w, h, color);
+        return;
+    }
+    int32_t maxr = (w < h ? w : h) / 2;
+    if (radius > maxr) radius = maxr;
+    if (radius < 1) { ag_fill_rect(device, surface, x, y, w, h, color); return; }
+    for (int32_t row = 0; row < h; row++) {
+        int32_t inset = round_inset(row, h, radius);
+        if (w > inset * 2)
+            ag_fill_rect(device, surface, x + inset, y + row, w - inset * 2, 1, color);
+    }
+}
+
+void ag_round_frame(struct ag_device *device, struct ag_surface *surface,
+                    int32_t x, int32_t y, int32_t w, int32_t h,
+                    int32_t radius, uint32_t color) {
+    if (w <= 0 || h <= 0) return;
+    if (radius <= 0) { ag_frame_rect(device, surface, x, y, w, h, color); return; }
+    int32_t maxr = (w < h ? w : h) / 2;
+    if (radius > maxr) radius = maxr;
+    for (int32_t row = 0; row < h; row++) {
+        int32_t inset = round_inset(row, h, radius);
+        int32_t left = x + inset, right = x + w - inset - 1;
+        ag_put_pixel(surface, left, y + row, color);
+        ag_put_pixel(surface, right, y + row, color);
+        if (row == 0 || row == h - 1) {
+            if (right > left)
+                ag_fill_rect(device, surface, left + 1, y + row, right - left - 1, 1, color);
+        }
+    }
+}
