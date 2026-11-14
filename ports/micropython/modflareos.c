@@ -49,10 +49,29 @@ static mp_obj_t flareos_getkey(void) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(flareos_getkey_obj, flareos_getkey);
 static mp_obj_t flareos_screen(void) {
-    mp_obj_t dims[2] = { mp_obj_new_int(VGA_COLS), mp_obj_new_int(VGA_ROWS) };
+    uint32_t packed = flareos_call(SYS_SCREEN, 0, 0, 0);
+    mp_obj_t dims[2] = {
+        mp_obj_new_int(packed & 0xFFu),
+        mp_obj_new_int((packed >> 8) & 0xFFu),
+    };
     return mp_obj_new_tuple(2, dims);
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(flareos_screen_obj, flareos_screen);
+static mp_obj_t flareos_get_arrow(void) {
+    int arrow = (int)flareos_call(SYS_GETARROW, 0, 0, 0);
+    return arrow < 0 ? mp_const_none : mp_obj_new_int(arrow);
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(flareos_get_arrow_obj, flareos_get_arrow);
+static mp_obj_t flareos_pointer(void) {
+    uint32_t packed = flareos_call(SYS_POINTER, 0, 0, 0);
+    mp_obj_t values[3] = {
+        mp_obj_new_int(packed & 0xFFu),
+        mp_obj_new_int((packed >> 8) & 0xFFu),
+        mp_obj_new_int((packed >> 16) & 0x07u),
+    };
+    return mp_obj_new_tuple(3, values);
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(flareos_pointer_obj, flareos_pointer);
 static mp_obj_t flareos_clear(void) {
     flareos_call(SYS_CLEAR, 0, 0, 0);
     return mp_const_none;
@@ -156,6 +175,8 @@ static const mp_rom_map_elem_t flareos_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_beep), MP_ROM_PTR(&flareos_beep_obj) },
     { MP_ROM_QSTR(MP_QSTR_getkey), MP_ROM_PTR(&flareos_getkey_obj) },
     { MP_ROM_QSTR(MP_QSTR_screen), MP_ROM_PTR(&flareos_screen_obj) },
+    { MP_ROM_QSTR(MP_QSTR_get_arrow), MP_ROM_PTR(&flareos_get_arrow_obj) },
+    { MP_ROM_QSTR(MP_QSTR_pointer), MP_ROM_PTR(&flareos_pointer_obj) },
     { MP_ROM_QSTR(MP_QSTR_clear), MP_ROM_PTR(&flareos_clear_obj) },
     { MP_ROM_QSTR(MP_QSTR_fs_list), MP_ROM_PTR(&flareos_fs_list_obj) },
     { MP_ROM_QSTR(MP_QSTR_fs_read), MP_ROM_PTR(&flareos_fs_read_obj) },

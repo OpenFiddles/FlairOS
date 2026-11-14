@@ -725,6 +725,9 @@ u32 syscall_dispatch(struct saved_regs *r) {
     case SYS_GETKEY:
         r->eax = (u32)kbd_read();
         break;
+    case SYS_GETARROW:
+        r->eax = (u32)kbd_arrow_read();
+        break;
     case SYS_EXIT:
         user_leave();
         break;

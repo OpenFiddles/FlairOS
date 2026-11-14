@@ -9,6 +9,9 @@ typedef uint32_t u32;
 #define SYS_SLEEP 5u
 #define SYS_TONE 6u
 #define SYS_GETKEY 9u
+#define SYS_GETARROW 12u
+#define SYS_POINTER 29u
+#define SYS_SCREEN 30u
 #define SYS_EXIT 11u
 #define SYS_BRK 34u
 #define VGA_COLS 80u

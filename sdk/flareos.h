@@ -139,9 +139,11 @@ static inline void flare_screen(flare_u32 *cols, flare_u32 *rows) {
     *rows = (v >> 8) & 0xFFu;
 }
 
-/* Files: RAM only, 8 files of up to 512 bytes, one open handle per file, lost on reboot.
-   Open with FLARE_FS_READ, FLARE_FS_WRITE (truncates) or FLARE_FS_APPEND. Each returns a
-   handle (1-4) or FLARE_FS_FAIL. */
+/* Files: 16 files of up to 64 KiB, with up to 8 open handles. Data is
+   buffered in kernel memory and committed to the ATA disk when one is available;
+   without an ATA disk, the filesystem falls back to RAM and files are lost on reboot.
+   Open with FLARE_FS_READ, FLARE_FS_WRITE (truncates) or FLARE_FS_APPEND. Each returns
+   a handle (1-8) or FLARE_FS_FAIL. */
 static inline flare_u32 flare_fs_open(const char *name, flare_u32 mode) {
     return flare_call(FLARE_SYS_FS_OPEN, (flare_u32)(unsigned long)name, mode, 0);
 }

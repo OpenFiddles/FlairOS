@@ -16,6 +16,8 @@ into that checkout, and builds `build/micropython/flareos.elf` and
 ```python
 import flareos
 print(flareos.screen())           # (80, 25)
+print(flareos.pointer())          # (x, y, button_bits)
+print(flareos.get_arrow())        # arrow code or None
 print(flareos.ticks_ms())         # PIT ticks, 10 ms resolution
 flareos.sleep_ms(100)
 flareos.beep(523, 120)
@@ -27,10 +29,12 @@ print(flareos.fs_slots())
 flareos.run("SCRIPT.PY")
 ```
 
-The module bridges console output/clear, keyboard input (including Ctrl+C and
-Ctrl+D control characters), PIT time/sleep, the PC speaker, and persistent
-flat-file operations. It exposes file listing, existence, read/write, rename,
-remove, and free-slot count. Filenames are 1–12
+The module bridges console output/clear, keyboard input and arrow keys, pointer
+state, PIT time/sleep, the PC speaker, and filesystem operations. The filesystem
+supports 16 files up to 64 KiB each and 8 open handles. It commits files to ATA
+storage when an ATA disk is detected; without one, it operates as a RAM fallback
+and those files are lost on reboot. It exposes listing, existence, read/write,
+rename, remove, and free-slot count. Filenames are 1–12
 characters with no directory separator. Files are limited to 64 KiB.
 `flareos.run(name)` executes Python source stored in the filesystem.
 
