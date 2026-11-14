@@ -136,7 +136,7 @@ jobs:
 
   pages:
     name: Deploy web emulator to GitHub Pages
-    if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.build-test.result == 'success'
+    if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs['build-test'].result == 'success'
     needs: [build-test, micropython-port]
     runs-on: ubuntu-22.04
     permissions:
@@ -161,7 +161,7 @@ jobs:
           cp /usr/share/seabios/bios-256k.bin public/v86/seabios.bin
           cp /usr/share/seabios/vgabios-stdvga.bin public/v86/vgabios.bin
       - name: Download Python-enabled disk when the port passes
-        if: needs.micropython-port.result == 'success'
+        if: needs['micropython-port'].result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: flareos-micropython-i386
