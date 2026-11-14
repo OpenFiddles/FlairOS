@@ -83,7 +83,7 @@ checks = [
     ('port read', re.compile(r'port 0x0060 = 0x[0-9A-F]{2}')),
     ('echo', 'hello textile'),
     ('sqr draws square', 'square at 10 5'),
-    ('net finds rtl8139', re.compile(r'rtl8139 at io 0x[0-9A-F]{4}')),
+    ('net reports generic interface', re.compile(r'rtl8139\s+mac (?:[0-9A-F]{2}:){5}[0-9A-F]{2}\s+mtu 1500\s+link (?:up|down)')),
     ('net mac', re.compile(r'mac (?:[0-9A-F]{2}:){5}[0-9A-F]{2}')),
     ('net link state', re.compile(r'link (up|down)')),
     ('beep command', 'beep 523 Hz'),
