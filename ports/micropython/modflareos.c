@@ -31,7 +31,7 @@ static MP_DEFINE_CONST_FUN_OBJ_0(flareos_ticks_ms_obj, flareos_ticks_ms);
 static mp_obj_t flareos_sleep_ms(mp_obj_t arg) {
     mp_int_t ms = mp_obj_get_int(arg);
     if (ms < 0) mp_raise_ValueError(MP_ERROR_TEXT("ms must be non-negative"));
-    if (ms) flareos_call(SYS_SLEEP, (uint32_t)(((uint32_t)ms + 9u) / 10u), 0, 0);
+    if (ms) flareos_call(SYS_SLEEP, (uint32_t)((uint32_t)ms / 10u + ((uint32_t)ms % 10u != 0u)), 0, 0);
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(flareos_sleep_ms_obj, flareos_sleep_ms);

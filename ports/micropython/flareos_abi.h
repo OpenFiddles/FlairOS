@@ -3,6 +3,7 @@
 #include <stdint.h>
 typedef uint8_t u8;
 typedef uint32_t u32;
+#define TX_APP_MAGIC 0x54505041u
 #define SYS_PUTC 1u
 #define SYS_CLEAR 3u
 #define SYS_TICKS 4u

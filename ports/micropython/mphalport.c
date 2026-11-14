@@ -39,13 +39,13 @@ void mp_hal_stdout_tx_str(const char *str) {
 
 void mp_hal_delay_ms(mp_uint_t ms) {
     if (ms == 0) return;
-    flareos_call(SYS_SLEEP, (u32)((ms + 9u) / 10u), 0, 0);
+    flareos_call(SYS_SLEEP, (u32)(ms / 10u + (ms % 10u != 0u)), 0, 0);
 }
 
 void mp_hal_delay_us(mp_uint_t us) {
     /* PIT resolution is 10 ms; sub-tick delays are best-effort only. */
     if (us >= 10000u) {
-        mp_hal_delay_ms((us + 999u) / 1000u);
+        mp_hal_delay_ms(us / 1000u + (us % 1000u != 0u));
     } else {
         volatile u32 loops = us * 12u;
         while (loops--) __asm__ volatile ("pause");
