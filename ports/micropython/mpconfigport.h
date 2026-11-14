@@ -4,6 +4,9 @@
 #include <stdint.h>
 #include <stddef.h>
 
+/* MicroPython stream offsets use the native 32-bit signed file offset. */
+typedef long mp_off_t;
+
 #define MICROPY_CONFIG_ROM_LEVEL (MICROPY_CONFIG_ROM_LEVEL_MINIMUM)
 #define MICROPY_USE_INTERNAL_ERRNO (1)
 #define MICROPY_ENABLE_COMPILER (1)
