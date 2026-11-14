@@ -242,7 +242,6 @@ int mouse_init(void);
 int desktop_run(void);
 void isr_fault(void);
 void isr_syscall(void);
-void isr_ne2k(void);
 
 static void idt_set(int n, void (*handler)(void), u8 flags) {
     u32 addr = (u32)handler;
@@ -260,7 +259,6 @@ static void idt_init(void) {
     idt_set(0x21, isr_keyboard, 0x8E);
     idt_set(0x2C, isr_mouse, 0x8E);
     idt_set(0x80, isr_syscall, 0xEF);
-    idt_set(0x2A, isr_ne2k, 0x8E);
     struct idt_ptr ptr = { (u16)(sizeof(idt) - 1), (u32)idt };
     __asm__ volatile ("lidt %0" : : "m"(ptr));
 }
