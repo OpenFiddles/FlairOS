@@ -778,6 +778,7 @@ static void run_command(char *input) {
         puts("  out PORT VAL   write one byte to an I/O port, e.g. out 80 0\n");
         puts("  reboot         reset through the keyboard controller\n");
         puts("  net            show the detected network controller and MAC\n");
+        puts("  ping IPv4      get an IPv4 address with DHCP and send an ICMP echo\n");
         puts("  mem            show free physical memory\n");
         puts("  format         write an empty filesystem to the ATA disk\n");
         puts("  sqr X Y        draw a 2x2 square at column X, row Y\n");
@@ -851,7 +852,7 @@ static void run_command(char *input) {
     } else if (str_eq(argv[0], "ping")) {
         u8 target[4];
         if (argc < 2 || !parse_ipv4(argv[1], target)) {
-            say_error("usage: ping IPv4   (e.g. ping 1.1.1.1)\\n");
+            say_error("usage: ping IPv4   (e.g. ping 1.1.1.1)\n");
             return;
         }
         puts("ping ");
@@ -859,15 +860,15 @@ static void run_command(char *input) {
         puts(": ");
         int result = net_ping_ipv4(target);
         if (result == 0)
-            puts("reply received\\n");
+            puts("reply received\n");
         else if (result == -1)
-            say_error("no network device\\n");
+            say_error("no network device\n");
         else if (result == -2)
-            say_error("DHCP failed: no address lease\\n");
+            say_error("DHCP failed: no address lease\n");
         else if (result == -3)
-            say_error("ARP failed: destination gateway did not respond\\n");
+            say_error("ARP failed: destination gateway did not respond\n");
         else
-            say_error("request timed out\\n");
+            say_error("request timed out\n");
     } else if (str_eq(argv[0], "sqr")) {
         u32 x, y;
         if (argc < 3 || !parse_dec(argv[1], &x) || !parse_dec(argv[2], &y) ||

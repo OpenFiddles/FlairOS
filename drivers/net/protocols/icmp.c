@@ -84,12 +84,12 @@ static int dhcp_send(struct net_device *dev, u8 message_type,
 static int parse_dhcp(const u8 *frame, int length, u8 wanted,
                       const u8 *mac, struct net_lease *out) {
     u16 ip_len, udp_len;
-    const u8 *ip, *udp, *p, *options;
+    const u8 *ip, *udp, *p;
     u32 xid;
     int option_type = 0;
     if (length < 14 + 20 + 8 + 240 || get16(frame + 12) != ETH_IP) return 0;
     ip = frame + 14;
-    if ((ip[0] >> 4) != 4 || ip[9] != IP_UDP) return 0;
+    if ((ip[0] >> 4) != 4 || (ip[0] & 0x0Fu) < 5 || ip[9] != IP_UDP) return 0;
     ip_len = get16(ip + 2);
     if (ip_len < 28 || ip_len > (u16)(length - 14)) return 0;
     udp = ip + (ip[0] & 0x0Fu) * 4u;
@@ -104,7 +104,6 @@ static int parse_dhcp(const u8 *frame, int length, u8 wanted,
     if (p[236] != 99 || p[237] != 130 || p[238] != 83 || p[239] != 99) return 0;
     copy_bytes(out->ip, p + 16, 4);
     zero_bytes(out->mask, 4); zero_bytes(out->gateway, 4); zero_bytes(out->server, 4);
-    options = p + 240;
     {
         u32 off = 240;
         u32 end = udp_len - 8;
@@ -123,7 +122,6 @@ static int parse_dhcp(const u8 *frame, int length, u8 wanted,
             off += len;
         }
     }
-    (void)options;
     return option_type == wanted;
 }
 static int wait_dhcp(struct net_device *dev, u8 wanted, struct net_lease *out) {
@@ -208,9 +206,13 @@ int net_ping_ipv4(const u8 target[4]) {
     u8 next_hop[4], target_mac[6];
     if (!dev) return -1;
     if (!lease.valid && dhcp_configure(dev) != 0) return -2;
-    for (int i = 0; i < 4; ++i)
-        next_hop[i] = (u8)((target[i] & lease.mask[i]) |
-                           (lease.gateway[i] & (u8)~lease.mask[i]));
+    {
+        int on_link = 1;
+        for (int i = 0; i < 4; ++i)
+            if ((target[i] & lease.mask[i]) != (lease.ip[i] & lease.mask[i]))
+                on_link = 0;
+        copy_bytes(next_hop, on_link ? target : lease.gateway, 4);
+    }
     if (arp_resolve(dev, next_hop, target_mac) != 0) return -3;
     if (send_echo(dev, target, target_mac) != 0) return -4;
     return wait_echo(dev, target) == 0 ? 0 : -4;
