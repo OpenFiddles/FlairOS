@@ -190,14 +190,17 @@ int drv_net_receive(void *frame, u16 capacity) {
     frame_size = (u32)packet_size - 4u;
     next = (rx_offset + 4u + packet_size + 3u) & ~3u;
     if (status & RX_STATUS_OK) {
-        if (frame_size > capacity)
-            return -1;
-        for (i = 0; i < frame_size; ++i)
-            dst[i] = rx_ring[rx_offset + 4u + i];
+        if (frame_size <= capacity) {
+            for (i = 0; i < frame_size; ++i)
+                dst[i] = rx_ring[rx_offset + 4u + i];
+        }
     }
+    /* Always release a sane packet, including one too large for the caller's buffer. */
     rx_offset = next % RX_RING_SIZE;
     hw_outw(net_io + RTL_CAPR, (u16)(rx_offset - 16u));
-    return (status & RX_STATUS_OK) ? (int)frame_size : -1;
+    if (!(status & RX_STATUS_OK) || frame_size > capacity)
+        return -1;
+    return (int)frame_size;
 }
 
 static void net_shutdown(void) {
