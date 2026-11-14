@@ -43,7 +43,7 @@ OBJS = $(BUILD)/entry.o \
        $(BUILD)/airp.o \
        $(BUILD)/fb.o \
        $(BUILD)/vbe.o \
-       $(BUILD)/airgraph.o \\
+       $(BUILD)/airgraph.o \
        $(BUILD)/sprunkui.o
 
 all: $(BUILD)/textile.img
