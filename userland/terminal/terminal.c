@@ -189,6 +189,8 @@ static void on_char(int c) {
     }
 }
 
+void app_main(void);
+
 static void app_entry(void) {
     app_main();
     ax_call(SYS_EXIT, 0, 0, 0);
