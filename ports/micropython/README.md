@@ -22,11 +22,15 @@ flareos.beep(523, 120)
 print(flareos.fs_list())
 flareos.fs_write("HELLO.TXT", "Hello from Python")
 print(flareos.fs_read("HELLO.TXT"))
+flareos.fs_rename("HELLO.TXT", "HELLO.BAK")
+print(flareos.fs_slots())
 flareos.run("SCRIPT.PY")
 ```
 
-The module bridges console output/clear, keyboard input, PIT time/sleep,
-the PC speaker, and persistent flat-file operations. Filenames are 1–12
+The module bridges console output/clear, keyboard input (including Ctrl+C and
+Ctrl+D control characters), PIT time/sleep, the PC speaker, and persistent
+flat-file operations. It exposes file listing, existence, read/write, rename,
+remove, and free-slot count. Filenames are 1–12
 characters with no directory separator. Files are limited to 64 KiB.
 `flareos.run(name)` executes Python source stored in the filesystem.
 

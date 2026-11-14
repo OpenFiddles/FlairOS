@@ -17,15 +17,6 @@ void mp_hal_stdout_tx_strn_cooked(const char *str, size_t len);
 
 static void *stack_top;
 
-static uint32_t flareos_call(uint32_t number, uint32_t b, uint32_t c, uint32_t d) {
-    uint32_t result;
-    __asm__ volatile ("int $0x80"
-        : "=a"(result)
-        : "a"(number), "b"(b), "c"(c), "d"(d)
-        : "memory");
-    return result;
-}
-
 void gc_collect(void) {
     void *stack_marker;
     uintptr_t top = (uintptr_t)stack_top;

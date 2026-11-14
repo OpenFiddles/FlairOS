@@ -8,19 +8,11 @@ void mp_hal_set_interrupt_char(int c) {
     interrupt_char = c;
 }
 
-static u32 flareos_call(u32 number, u32 b, u32 c, u32 d) {
-    u32 result;
-    __asm__ volatile ("int $0x80"
-        : "=a"(result)
-        : "a"(number), "b"(b), "c"(c), "d"(d)
-        : "memory");
-    return result;
-}
-
 int mp_hal_stdin_rx_chr(void) {
     for (;;) {
         int c = (int)flareos_call(SYS_GETKEY, 0, 0, 0);
         if (c >= 0) {
+            if (interrupt_char >= 0 && c == interrupt_char) return interrupt_char;
             if (c == '\r') return '\n';
             if (c == 127) return '\b';
             return c;

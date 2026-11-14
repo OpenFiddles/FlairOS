@@ -56,4 +56,7 @@ static inline u32 fs_size(u32 h) { return flareos_call(SYS_FS_SIZE, h, 0, 0); }
 static inline u32 fs_exists(const char *name) {
     return flareos_call(SYS_FS_EXISTS, (u32)(uintptr_t)name, 0, 0);
 }
+static inline u32 fs_rename(const char *old_name, const char *new_name) {
+    return flareos_call(SYS_FS_RENAME, (u32)(uintptr_t)old_name, (u32)(uintptr_t)new_name, 0);
+}
 #endif
