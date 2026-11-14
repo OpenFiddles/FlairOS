@@ -1,6 +1,6 @@
 #include "py/mpconfig.h"
 #include "py/mphal.h"
-#include "../../kernel/textile.h"
+#include "flareos_abi.h"
 
 static u32 flareos_call(u32 number, u32 b, u32 c, u32 d) {
     u32 result;

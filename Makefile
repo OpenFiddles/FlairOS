@@ -278,3 +278,23 @@ $(BUILD)/terminal.airp: $(BUILD)/terminal.bin tools/airpack.py
 terminal-app: $(BUILD)/terminal.airp
 
 .PHONY: terminal-app
+
+# --- Optional MicroPython port (upstream source is fetched, not vendored) ---
+MICROPYTHON_TAG ?= v1.29.0
+MICROPYTHON_DIR ?= $(BUILD)/third_party/micropython
+MICROPYTHON_BUILD ?= $(abspath $(BUILD)/micropython)
+
+micropython-fetch: | $(BUILD)
+	python3 tools/fetch_micropython.py "$(MICROPYTHON_DIR)" "$(MICROPYTHON_TAG)"
+
+micropython-port: micropython-fetch
+	rm -rf "$(MICROPYTHON_DIR)/ports/flareos"
+	mkdir -p "$(MICROPYTHON_DIR)/ports/flareos"
+	cp -R ports/micropython/. "$(MICROPYTHON_DIR)/ports/flareos/"
+	$(MAKE) -C "$(MICROPYTHON_DIR)/ports/flareos" BUILD="$(MICROPYTHON_BUILD)"
+
+micropython-package: micropython-port
+	test $$(stat -c %s "$(MICROPYTHON_BUILD)/flareos.bin") -le 65536
+	python3 tools/airpack.py "$(MICROPYTHON_BUILD)/flareos.bin" "$(MICROPYTHON_BUILD)/flareos.airp" micropython
+
+.PHONY: micropython-fetch micropython-port micropython-package

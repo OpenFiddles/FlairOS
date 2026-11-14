@@ -16,7 +16,7 @@
 #define MICROPY_PY_SYS_PATH (0)
 #define MICROPY_PY_SYS_ARGV (0)
 #define MICROPY_PY_GC (1)
-#define MICROPY_PY_MATH (1)
+#define MICROPY_PY_MATH (0)
 #define MICROPY_PY_TIME (0)
 #define MICROPY_PY_OS (0)
 #define MICROPY_PY_COLLECTIONS (1)

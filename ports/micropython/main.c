@@ -8,7 +8,7 @@
 #include "py/repl.h"
 #include "py/stackctrl.h"
 #include "shared/runtime/pyexec.h"
-#include "../../kernel/textile.h"
+#include "flareos_abi.h"
 
 #define FLAREOS_PY_HEAP_BYTES (384u * 1024u)
 
@@ -44,7 +44,8 @@ void gc_collect(void) {
 
 void nlr_jump_fail(void *val) {
     (void)val;
-    mp_hal_stdout_tx_strn_cooked("\nMicroPython: unhandled fatal exception\n", 40);
+    static const char message[] = "\nMicroPython: unhandled fatal exception\n";
+    mp_hal_stdout_tx_strn_cooked(message, sizeof(message) - 1u);
     for (;;) flareos_call(SYS_SLEEP, 100, 0, 0);
 }
 
@@ -67,14 +68,18 @@ void flareos_app_entry(void) {
 
     heap = flareos_heap_alloc(FLAREOS_PY_HEAP_BYTES);
     if (!heap) {
-        mp_hal_stdout_tx_strn_cooked("MicroPython: cannot allocate GC heap\n", 37);
+        static const char message[] = "MicroPython: cannot allocate GC heap\n";
+        mp_hal_stdout_tx_strn_cooked(message, sizeof(message) - 1u);
         flareos_call(SYS_EXIT, 0, 0, 0);
         for (;;) {}
     }
 
     gc_init(heap, (uint8_t *)heap + FLAREOS_PY_HEAP_BYTES);
     mp_init();
-    mp_hal_stdout_tx_strn_cooked("FlareOS MicroPython (minimal)\nType help() or import flareos.\n", 62);
+    {
+        static const char banner[] = "FlareOS MicroPython (minimal)\nType help() or import flareos.\n";
+        mp_hal_stdout_tx_strn_cooked(banner, sizeof(banner) - 1u);
+    }
     pyexec_friendly_repl();
     mp_deinit();
 
