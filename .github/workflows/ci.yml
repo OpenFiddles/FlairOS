@@ -136,8 +136,8 @@ jobs:
 
   pages:
     name: Deploy web emulator to GitHub Pages
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    needs: build-test
+    if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.build-test.result == 'success'
+    needs: [build-test, micropython-port]
     runs-on: ubuntu-22.04
     permissions:
       contents: read
@@ -155,12 +155,27 @@ jobs:
           make ARCH=i386
           mkdir -p public/v86 /tmp/v86
           cp web/index.html public/index.html
-          cp build/textile.img public/textile.img
-          xorriso -as mkisofs -quiet -b textile.img -o public/textile.iso public/textile.img
+          cp build/textile.img public/textile-standard.img
           (cd /tmp/v86 && npm install --no-audit --no-fund v86@0.5.472)
           cp /tmp/v86/node_modules/v86/build/libv86.js /tmp/v86/node_modules/v86/build/v86.wasm public/v86/
           cp /usr/share/seabios/bios-256k.bin public/v86/seabios.bin
           cp /usr/share/seabios/vgabios-stdvga.bin public/v86/vgabios.bin
+      - name: Download Python-enabled disk when the port passes
+        if: needs.micropython-port.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: flareos-micropython-i386
+          path: build/python
+      - name: Select deployed disk image
+        run: |
+          if [ -s build/python/textile-python.img ]; then
+            cp build/python/textile-python.img public/textile.img
+            echo "Deploying Python-enabled FlairOS image"
+          else
+            cp build/textile.img public/textile.img
+            echo "Deploying standard FlairOS image"
+          fi
+          xorriso -as mkisofs -quiet -b textile.img -o public/textile.iso public/textile.img
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
