@@ -6,6 +6,17 @@ typedef unsigned char u8;
 typedef unsigned int u32;
 typedef int i32;
 
+int abs(int n) { return n < 0 ? -n : n; }
+
+int atoi(const char *s) {
+    int sign = 1, value = 0;
+    while (*s == ' ' || *s == '\t' || *s == '\n' || *s == '\r') ++s;
+    if (*s == '-' || *s == '+') { if (*s++ == '-') sign = -1; }
+    while (*s >= '0' && *s <= '9') value = value * 10 + (*s++ - '0');
+    return sign * value;
+}
+
+
 #define SYS_BRK 34u
 #define HEAP_GROWTH 4096u
 #define HEAP_MAX_REQUEST 0x003FFFF0u
