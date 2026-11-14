@@ -32,7 +32,7 @@ int mp_hal_stdin_rx_chr(void) {
             arrow_sequence[0] = '[';
             arrow_sequence[1] = arrow == 1 ? 'A' : arrow == 2 ? 'B' :
                                 arrow == 3 ? 'D' : 'C';
-            arrow_pos = 1;
+            arrow_pos = 0;
             arrow_len = 2;
             return 0x1B;
         }

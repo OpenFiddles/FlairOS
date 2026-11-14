@@ -129,7 +129,7 @@ static mp_obj_t flareos_fs_write_handle(mp_obj_t handle_obj, mp_obj_t data_obj) 
     size_t size;
     const char *data = mp_obj_str_get_data(data_obj, &size);
     uint32_t wrote;
-    if (handle <= 0 || handle > FS_HANDLES || size > (size_t)FS_FILE_MAX)
+    if (handle <= 0 || handle > (mp_int_t)FS_HANDLES || size > (size_t)FS_FILE_MAX)
         mp_raise_ValueError(MP_ERROR_TEXT("invalid handle or write size"));
     wrote = size ? fs_write((uint32_t)handle, data, (uint32_t)size) : 0;
     if (wrote == FS_FAIL) mp_raise_OSError(MP_EIO);
@@ -139,7 +139,7 @@ static MP_DEFINE_CONST_FUN_OBJ_2(flareos_fs_write_handle_obj, flareos_fs_write_h
 
 static mp_obj_t flareos_fs_close_handle(mp_obj_t handle_obj) {
     mp_int_t handle = mp_obj_get_int(handle_obj);
-    if (handle <= 0 || handle > FS_HANDLES)
+    if (handle <= 0 || handle > (mp_int_t)FS_HANDLES)
         mp_raise_ValueError(MP_ERROR_TEXT("invalid filesystem handle"));
     if (fs_close((uint32_t)handle) == FS_FAIL) mp_raise_OSError(MP_EBADF);
     return mp_const_none;
@@ -150,7 +150,7 @@ static mp_obj_t flareos_fs_seek(mp_obj_t handle_obj, mp_obj_t position_obj) {
     mp_int_t handle = mp_obj_get_int(handle_obj);
     mp_int_t position = mp_obj_get_int(position_obj);
     uint32_t result;
-    if (handle <= 0 || handle > FS_HANDLES || position < 0 || position > (mp_int_t)FS_FILE_MAX)
+    if (handle <= 0 || handle > (mp_int_t)FS_HANDLES || position < 0 || position > (mp_int_t)FS_FILE_MAX)
         mp_raise_ValueError(MP_ERROR_TEXT("invalid handle or file position"));
     result = fs_seek((uint32_t)handle, (uint32_t)position);
     if (result == FS_FAIL) mp_raise_OSError(MP_EINVAL);
@@ -164,7 +164,7 @@ static mp_obj_t flareos_fs_read(mp_obj_t name_obj) {
     mp_obj_t result;
     if (handle == FS_FAIL) mp_raise_OSError(MP_ENOENT);
     size = fs_size(handle);
-    if (size == FS_FAIL || size > FS_FILE_MAX) {
+    if (size == FS_FAIL || size > (size_t)FS_FILE_MAX) {
         fs_close(handle); mp_raise_OSError(MP_EIO);
     }
     buffer = m_new(byte, size ? size : 1u);
@@ -183,7 +183,7 @@ static mp_obj_t flareos_fs_write(mp_obj_t name_obj, mp_obj_t data_obj) {
     size_t size;
     const char *data = mp_obj_str_get_data(data_obj, &size);
     uint32_t handle, wrote;
-    if (size > FS_FILE_MAX) mp_raise_ValueError(MP_ERROR_TEXT("file exceeds 64 KiB"));
+    if (size > (size_t)FS_FILE_MAX) mp_raise_ValueError(MP_ERROR_TEXT("file exceeds 64 KiB"));
     handle = fs_open(name, FS_WRITE);
     if (handle == FS_FAIL) mp_raise_OSError(MP_EIO);
     wrote = size ? fs_write(handle, data, (uint32_t)size) : 0;
@@ -221,7 +221,7 @@ static mp_obj_t flareos_run(mp_obj_t name_obj) {
     mp_obj_t module_fun;
     if (handle == FS_FAIL) mp_raise_OSError(MP_ENOENT);
     size = fs_size(handle);
-    if (size == FS_FAIL || size > FS_FILE_MAX) {
+    if (size == FS_FAIL || size > (size_t)FS_FILE_MAX) {
         fs_close(handle); mp_raise_OSError(MP_EIO);
     }
     source = m_new(char, size + 1u);
