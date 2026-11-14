@@ -53,6 +53,7 @@ static const u32 piano_hz[PIANO_KEYS] = {262, 294, 330, 349, 392, 440, 494, 523}
 static u16 back[VGA_ROWS * VGA_COLS];
 static int z[WIN_COUNT] = {WIN_HELLO, WIN_PIANO, WIN_CLOCK, WIN_TERM};
 static int drag_win = -1;
+static int keyboard_focus = -1;
 static i32 drag_dx, drag_dy;
 static u8 prev_buttons;
 static int piano_last = -1;
@@ -122,6 +123,7 @@ static void raise_win(int k) {
     while (i < WIN_COUNT && z[i] != k) i++;
     for (; i < WIN_COUNT - 1; i++) z[i] = z[i + 1];
     z[WIN_COUNT - 1] = k;
+    keyboard_focus = k;
 }
 
 static int top_win(void) {
@@ -371,10 +373,13 @@ static void click(i32 mx, i32 my) {
     if (k >= 0) {
         struct window *w = &wins[k];
         if (my == w->y && mx >= w->x + w->w - 4 && mx <= w->x + w->w - 2) {
-            w->open = 0; return;
+            w->open = 0;
+            if (keyboard_focus == k) keyboard_focus = top_win();
+            return;
         }
         if (my == w->y && mx >= w->x + w->w - 8 && mx <= w->x + w->w - 6) {
             w->open = 0;
+            if (keyboard_focus == k) keyboard_focus = top_win();
             serial_str("desktop: minimize\n");
             return;
         }
@@ -466,7 +471,7 @@ static void handle_key(int c) {
         }
         if (c == 27) { start_open = 0; return; }
     }
-    if (top_win() == WIN_TERM) {
+    if (keyboard_focus == WIN_TERM && wins[WIN_TERM].open) {
         term_key(c);
         return;
     }
@@ -474,7 +479,7 @@ static void handle_key(int c) {
         click((i32)cursor_x, (i32)cursor_y);
         return;
     }
-    if (top_win() != WIN_PIANO) return;
+    if (keyboard_focus != WIN_PIANO || !wins[WIN_PIANO].open) return;
     for (int i = 0; i < PIANO_KEYS; i++)
         if (piano_keys[i] == c) { piano_play(i); return; }
 }
