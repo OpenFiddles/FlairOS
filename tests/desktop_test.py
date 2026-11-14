@@ -43,8 +43,11 @@ finally:
     except Exception:
         pass
 print(text[-1500:])
+initial_desktop = text.split('desktop: start\\n', 1)[1].split('desktop: start menu open', 1)[0]
 checks = [
  ('mouse ready', 'mouse: ps/2 ready' in text),
+ ('desktop starts without auto-opening Terminal', 'desktop: open terminal' not in initial_desktop),
+ ('Terminal opens from Start', 'desktop: open terminal' in text),
  ('desktop starts', 'desktop: start' in text),
  ('desktop activation reaches click handler', 'desktop: click' in text),
  ('start menu opens by keyboard', 'desktop: start menu open' in text),

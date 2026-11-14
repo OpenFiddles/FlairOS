@@ -110,6 +110,17 @@ static mp_obj_t flareos_fs_remove(mp_obj_t name_obj) {
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(flareos_fs_remove_obj, flareos_fs_remove);
+static mp_obj_t flareos_fs_rename(mp_obj_t old_obj, mp_obj_t new_obj) {
+    const char *old_name = checked_name(old_obj);
+    const char *new_name = checked_name(new_obj);
+    if (fs_rename(old_name, new_name) == FS_FAIL) mp_raise_OSError(MP_EIO);
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_2(flareos_fs_rename_obj, flareos_fs_rename);
+static mp_obj_t flareos_fs_slots(void) {
+    return mp_obj_new_int_from_uint(flareos_call(SYS_FS_SLOTS, 0, 0, 0));
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(flareos_fs_slots_obj, flareos_fs_slots);
 static mp_obj_t flareos_run(mp_obj_t name_obj) {
     const char *name = checked_name(name_obj);
     uint32_t handle = fs_open(name, FS_READ), size, got;
@@ -151,6 +162,8 @@ static const mp_rom_map_elem_t flareos_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_fs_write), MP_ROM_PTR(&flareos_fs_write_obj) },
     { MP_ROM_QSTR(MP_QSTR_fs_exists), MP_ROM_PTR(&flareos_fs_exists_obj) },
     { MP_ROM_QSTR(MP_QSTR_fs_remove), MP_ROM_PTR(&flareos_fs_remove_obj) },
+    { MP_ROM_QSTR(MP_QSTR_fs_rename), MP_ROM_PTR(&flareos_fs_rename_obj) },
+    { MP_ROM_QSTR(MP_QSTR_fs_slots), MP_ROM_PTR(&flareos_fs_slots_obj) },
     { MP_ROM_QSTR(MP_QSTR_run), MP_ROM_PTR(&flareos_run_obj) },
 };
 static MP_DEFINE_CONST_DICT(flareos_globals, flareos_globals_table);

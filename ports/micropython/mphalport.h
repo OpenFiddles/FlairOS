@@ -16,3 +16,5 @@ mp_uint_t mp_hal_ticks_us(void);
 mp_uint_t mp_hal_ticks_cpu(void);
 
 #endif
+
+void mp_hal_set_interrupt_char(int c);

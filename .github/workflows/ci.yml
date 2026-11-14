@@ -44,6 +44,9 @@ jobs:
           make ARCH=i386
           test -s build/textile.img
 
+      - name: Build standalone GUI Terminal app
+        run: make terminal-app
+
       - name: Filesystem tests
         run: make fs-test
 
@@ -163,3 +166,38 @@ jobs:
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
+
+  micropython-port:
+    name: Build MicroPython port (experimental)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install i386 toolchain
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq gcc-multilib binutils make python3 git > /dev/null
+
+      - name: Fetch and build MicroPython
+        run: make micropython-port
+
+      - name: Report interpreter image size
+        run: |
+          test -s build/micropython/flareos.bin
+          size=$(stat -c %s build/micropython/flareos.bin)
+          echo "MicroPython flat image: $size bytes"
+          if [ "$size" -gt 65536 ]; then
+            echo "::warning::The interpreter exceeds the current AIRP v1 64 KiB image limit."
+          fi
+
+      - name: Upload MicroPython build
+        uses: actions/upload-artifact@v4
+        with:
+          name: flareos-micropython-i386
+          path: |
+            build/micropython/flareos.elf
+            build/micropython/flareos.bin
+          if-no-files-found: error
+          retention-days: 7

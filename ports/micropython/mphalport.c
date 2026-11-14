@@ -2,6 +2,12 @@
 #include "py/mphal.h"
 #include "flareos_abi.h"
 
+static int interrupt_char = -1;
+
+void mp_hal_set_interrupt_char(int c) {
+    interrupt_char = c;
+}
+
 static u32 flareos_call(u32 number, u32 b, u32 c, u32 d) {
     u32 result;
     __asm__ volatile ("int $0x80"

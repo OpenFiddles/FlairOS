@@ -14,3 +14,6 @@ Q(fs_exists)
 Q(fs_remove)
 Q(run)
 // *FORMAT-ON*
+
+Q(fs_rename)
+Q(fs_slots)

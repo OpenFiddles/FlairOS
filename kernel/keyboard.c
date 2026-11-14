@@ -104,7 +104,13 @@ void keyboard_irq(void) {
         return;
     }
 
+    /* Translate Ctrl+letter to the conventional ASCII control code.
+       Userland shells then receive Ctrl+C (ETX) and Ctrl+D (EOT). */
     char c = shift_down ? kmap_shift[sc] : kmap[sc];
+    if (ctrl_down && c >= 'a' && c <= 'z')
+        c = (char)(c - 'a' + 1);
+    else if (ctrl_down && c >= 'A' && c <= 'Z')
+        c = (char)(c - 'A' + 1);
     if (!c) {
         return;
     }
