@@ -34,6 +34,7 @@ typedef uint32_t u32;
 #define FS_NAME_MAX 12u
 #define FS_FILE_MAX 65536u
 #define FS_FILES 16u
+#define FS_HANDLES 8u
 static inline u32 flareos_call(u32 n, u32 b, u32 c, u32 d) {
     u32 ret;
     __asm__ volatile ("int $0x80" : "=a"(ret) : "a"(n), "b"(b), "c"(c), "d"(d) : "memory");
@@ -48,7 +49,7 @@ static inline u32 fs_read(u32 h, void *buf, u32 max) {
 static inline u32 fs_write(u32 h, const void *buf, u32 count) {
     return flareos_call(SYS_FS_WRITE, h, (u32)(uintptr_t)buf, count);
 }
-static inline void fs_close(u32 h) { (void)flareos_call(SYS_FS_CLOSE, h, 0, 0); }
+static inline u32 fs_close(u32 h) { return flareos_call(SYS_FS_CLOSE, h, 0, 0); }
 static inline u32 fs_delete(const char *name) {
     return flareos_call(SYS_FS_DELETE, (u32)(uintptr_t)name, 0, 0);
 }
@@ -58,6 +59,9 @@ static inline u32 fs_list(u32 index, char *out) {
 static inline u32 fs_size(u32 h) { return flareos_call(SYS_FS_SIZE, h, 0, 0); }
 static inline u32 fs_exists(const char *name) {
     return flareos_call(SYS_FS_EXISTS, (u32)(uintptr_t)name, 0, 0);
+}
+static inline u32 fs_seek(u32 h, u32 position) {
+    return flareos_call(SYS_FS_SEEK, h, position, 0);
 }
 static inline u32 fs_rename(const char *old_name, const char *new_name) {
     return flareos_call(SYS_FS_RENAME, (u32)(uintptr_t)old_name, (u32)(uintptr_t)new_name, 0);

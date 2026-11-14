@@ -26,6 +26,11 @@ flareos.fs_write("HELLO.TXT", "Hello from Python")
 print(flareos.fs_read("HELLO.TXT"))
 flareos.fs_rename("HELLO.TXT", "HELLO.BAK")
 print(flareos.fs_slots())
+
+handle = flareos.fs_open("HELLO.BAK", flareos.FS_READ)
+data = flareos.fs_read_handle(handle, 512)
+flareos.fs_seek(handle, 0)
+flareos.fs_close(handle)
 flareos.run("SCRIPT.PY")
 ```
 
@@ -33,8 +38,9 @@ The module bridges console output/clear, keyboard input and arrow keys, pointer
 state, PIT time/sleep, the PC speaker, and filesystem operations. The filesystem
 supports 16 files up to 64 KiB each and 8 open handles. It commits files to ATA
 storage when an ATA disk is detected; without one, it operates as a RAM fallback
-and those files are lost on reboot. It exposes listing, existence, read/write,
-rename, remove, and free-slot count. Filenames are 1–12
+and those files are lost on reboot. It exposes both whole-file helpers and low-level handle operations (open,
+read, write, seek, close), plus listing, existence, rename, remove, and the
+free-slot count. Filenames are 1–12
 characters with no directory separator. Files are limited to 64 KiB.
 `flareos.run(name)` executes Python source stored in the filesystem.
 

@@ -86,6 +86,72 @@ static mp_obj_t flareos_fs_list(void) {
     return result;
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(flareos_fs_list_obj, flareos_fs_list);
+static mp_obj_t flareos_fs_open(mp_obj_t name_obj, mp_obj_t mode_obj) {
+    mp_int_t mode = mp_obj_get_int(mode_obj);
+    uint32_t handle;
+    if (mode < FS_READ || mode > FS_APPEND)
+        mp_raise_ValueError(MP_ERROR_TEXT("mode must be FS_READ, FS_WRITE, or FS_APPEND"));
+    handle = fs_open(checked_name(name_obj), (uint32_t)mode);
+    if (handle == FS_FAIL)
+        mp_raise_OSError(mode == FS_READ ? MP_ENOENT : MP_EIO);
+    return mp_obj_new_int_from_uint(handle);
+}
+static MP_DEFINE_CONST_FUN_OBJ_2(flareos_fs_open_obj, flareos_fs_open);
+
+static mp_obj_t flareos_fs_read_handle(mp_obj_t handle_obj, mp_obj_t count_obj) {
+    mp_int_t handle = mp_obj_get_int(handle_obj);
+    mp_int_t count = mp_obj_get_int(count_obj);
+    byte *buffer;
+    uint32_t got;
+    mp_obj_t result;
+    if (handle <= 0 || handle > FS_HANDLES || count < 0 || count > FS_FILE_MAX)
+        mp_raise_ValueError(MP_ERROR_TEXT("invalid handle or read size"));
+    buffer = m_new(byte, count ? (size_t)count : 1u);
+    got = count ? fs_read((uint32_t)handle, buffer, (uint32_t)count) : 0;
+    if (got == FS_FAIL) {
+        m_del(byte, buffer, count ? (size_t)count : 1u);
+        mp_raise_OSError(MP_EIO);
+    }
+    result = mp_obj_new_bytes(buffer, got);
+    m_del(byte, buffer, count ? (size_t)count : 1u);
+    return result;
+}
+static MP_DEFINE_CONST_FUN_OBJ_2(flareos_fs_read_handle_obj, flareos_fs_read_handle);
+
+static mp_obj_t flareos_fs_write_handle(mp_obj_t handle_obj, mp_obj_t data_obj) {
+    mp_int_t handle = mp_obj_get_int(handle_obj);
+    size_t size;
+    const char *data = mp_obj_str_get_data(data_obj, &size);
+    uint32_t wrote;
+    if (handle <= 0 || handle > FS_HANDLES || size > FS_FILE_MAX)
+        mp_raise_ValueError(MP_ERROR_TEXT("invalid handle or write size"));
+    wrote = size ? fs_write((uint32_t)handle, data, (uint32_t)size) : 0;
+    if (wrote == FS_FAIL) mp_raise_OSError(MP_EIO);
+    return mp_obj_new_int_from_uint(wrote);
+}
+static MP_DEFINE_CONST_FUN_OBJ_2(flareos_fs_write_handle_obj, flareos_fs_write_handle);
+
+static mp_obj_t flareos_fs_close_handle(mp_obj_t handle_obj) {
+    mp_int_t handle = mp_obj_get_int(handle_obj);
+    if (handle <= 0 || handle > FS_HANDLES)
+        mp_raise_ValueError(MP_ERROR_TEXT("invalid filesystem handle"));
+    if (fs_close((uint32_t)handle) == FS_FAIL) mp_raise_OSError(MP_EBADF);
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(flareos_fs_close_handle_obj, flareos_fs_close_handle);
+
+static mp_obj_t flareos_fs_seek(mp_obj_t handle_obj, mp_obj_t position_obj) {
+    mp_int_t handle = mp_obj_get_int(handle_obj);
+    mp_int_t position = mp_obj_get_int(position_obj);
+    uint32_t result;
+    if (handle <= 0 || handle > FS_HANDLES || position < 0 || position > FS_FILE_MAX)
+        mp_raise_ValueError(MP_ERROR_TEXT("invalid handle or file position"));
+    result = fs_seek((uint32_t)handle, (uint32_t)position);
+    if (result == FS_FAIL) mp_raise_OSError(MP_EINVAL);
+    return mp_obj_new_int_from_uint(result);
+}
+static MP_DEFINE_CONST_FUN_OBJ_2(flareos_fs_seek_obj, flareos_fs_seek);
+
 static mp_obj_t flareos_fs_read(mp_obj_t name_obj) {
     uint32_t handle = fs_open(checked_name(name_obj), FS_READ), size, got;
     byte *buffer;
@@ -178,6 +244,14 @@ static const mp_rom_map_elem_t flareos_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_get_arrow), MP_ROM_PTR(&flareos_get_arrow_obj) },
     { MP_ROM_QSTR(MP_QSTR_pointer), MP_ROM_PTR(&flareos_pointer_obj) },
     { MP_ROM_QSTR(MP_QSTR_clear), MP_ROM_PTR(&flareos_clear_obj) },
+    { MP_ROM_QSTR(MP_QSTR_FS_READ), MP_ROM_INT(FS_READ) },
+    { MP_ROM_QSTR(MP_QSTR_FS_WRITE), MP_ROM_INT(FS_WRITE) },
+    { MP_ROM_QSTR(MP_QSTR_FS_APPEND), MP_ROM_INT(FS_APPEND) },
+    { MP_ROM_QSTR(MP_QSTR_fs_open), MP_ROM_PTR(&flareos_fs_open_obj) },
+    { MP_ROM_QSTR(MP_QSTR_fs_read_handle), MP_ROM_PTR(&flareos_fs_read_handle_obj) },
+    { MP_ROM_QSTR(MP_QSTR_fs_write_handle), MP_ROM_PTR(&flareos_fs_write_handle_obj) },
+    { MP_ROM_QSTR(MP_QSTR_fs_close), MP_ROM_PTR(&flareos_fs_close_handle_obj) },
+    { MP_ROM_QSTR(MP_QSTR_fs_seek), MP_ROM_PTR(&flareos_fs_seek_obj) },
     { MP_ROM_QSTR(MP_QSTR_fs_list), MP_ROM_PTR(&flareos_fs_list_obj) },
     { MP_ROM_QSTR(MP_QSTR_fs_read), MP_ROM_PTR(&flareos_fs_read_obj) },
     { MP_ROM_QSTR(MP_QSTR_fs_write), MP_ROM_PTR(&flareos_fs_write_obj) },
