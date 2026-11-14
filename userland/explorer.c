@@ -40,6 +40,8 @@ struct ex_state {
     int dirty;
 };
 
+static unsigned int ex_window;
+
 static const char ex_welcome[] =
     "Welcome to FlairOS Explorer.\n"
     "Use N to create a note, arrows to navigate, Enter to open.\n";
@@ -101,7 +103,7 @@ static void ex_put(char *line, unsigned int col, const char *s, unsigned int max
 }
 
 static void ex_draw(unsigned int row, unsigned int attr, const char *line) {
-    ax_text(0, row, 0, attr, line);
+    ax_text(ex_window, row, 0, attr, line);
 }
 
 /* ---------- SprunkUI-ready presentation backend ---------- */
@@ -374,13 +376,14 @@ void app_main(void) {
         return;
     }
 
-    s->win = ax_open(8, 2, 40, 14, "FlairOS Explorer");
+    s->win = ax_open(8, 2, 40, 12, "FlairOS Explorer");
     if (s->win == AX_FAIL) {
         free(s->buffer);
         free(s);
         return;
     }
 
+    ex_window = s->win;
     ex_status(s, "Ready. Select a file or create a new note.");
     ex_refresh(s);
     while (!s->dirty && ax_alive(s->win)) {
