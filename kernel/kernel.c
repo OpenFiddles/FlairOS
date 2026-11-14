@@ -759,9 +759,34 @@ static int run_app(void) {
     return 1;
 }
 
-#define MICROPYTHON_AIRP_ADDR 0x60000u
+#define MICROPYTHON_STAGE_ADDR 0x60000u
 #define MICROPYTHON_AIRP_BYTES (257u * 512u)
+#define MICROPYTHON_STAGE_BYTES 0x20000u
+static u32 micropython_package_addr;
 int airp_load(const u8 *file, u32 len, u32 *entry);
+
+/* Stage 1 places the optional package at 0x60000, inside the app/stack region.
+   Preserve it in contiguous PMM frames before the built-in app starts, then
+   clear the staging area so the boot app gets a clean stack. */
+static void micropython_stage_init(void) {
+    const u8 *src = (const u8 *)MICROPYTHON_STAGE_ADDR;
+    u32 i;
+    if (*(const u32 *)src == 0x50524941u) {
+        u32 frames = (MICROPYTHON_AIRP_BYTES + PMM_FRAME_SIZE - 1u) / PMM_FRAME_SIZE;
+        u32 base = pmm_alloc_contig(frames);
+        if (base) {
+            u8 *dst = (u8 *)base;
+            for (i = 0; i < MICROPYTHON_AIRP_BYTES; i++)
+                dst[i] = src[i];
+            micropython_package_addr = base;
+            serial_str("python: package staged\n");
+        } else {
+            serial_str("python: unable to reserve package memory\n");
+        }
+        for (i = 0; i < MICROPYTHON_STAGE_BYTES; i++)
+            ((u8 *)MICROPYTHON_STAGE_ADDR)[i] = 0;
+    }
+}
 
 int run_micropython(void) {
     u32 entry = 0;
@@ -769,7 +794,8 @@ int run_micropython(void) {
         serial_str("python: paging unavailable\n");
         return -1;
     }
-    if (airp_load((const u8 *)MICROPYTHON_AIRP_ADDR, MICROPYTHON_AIRP_BYTES, &entry) != 0) {
+    if (!micropython_package_addr ||
+        airp_load((const u8 *)micropython_package_addr, MICROPYTHON_AIRP_BYTES, &entry) != 0) {
         serial_str("python: no valid MicroPython image in boot slot\n");
         return -1;
     }
@@ -1070,6 +1096,7 @@ void kmain(void) {
     if (ata_is_ready())
         serial_str("ata: primary disk ready\n");
     pmm_init();
+    micropython_stage_init();
     irq_on();
     vbe_boot_check();
     boot_splash();

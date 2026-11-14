@@ -30,7 +30,7 @@ Apps are flat x86 binaries. They run in ring 3 and call the kernel with `int 0x8
 | `flare_anim_start(slot, ease, ticks, from, to)` | Start a tween in one of 16 slots |
 | `flare_anim_value(slot)` | Read a tween's current value |
 | `flare_getkey()` | Next keyboard character, or -1 if none |
-| `flare_get_arrow()` | Arrow code, or -1. The kernel has no handler for it yet, so it returns -1 today |
+| `flare_get_arrow()` | Arrow code, or -1 when no arrow event is waiting |
 | `flare_pointer()` | Pointer x, y (text cells) and buttons |
 | `flare_screen(&cols, &rows)` | Text grid size (80 x 25 today) |
 | `flare_exit()` | Return to the desktop (called automatically when `app_main` returns) |
@@ -97,7 +97,7 @@ Files are held in kernel memory and, when a supported ATA disk with a valid Flar
 - The SDK's example heap is bump-only. The experimental MicroPython port uses its own garbage-collected arena from the kernel's `SYS_BRK` heap instead.
 - The window API (`include/axi.h`) is available to kernel/userland code but is not yet wrapped by the small C SDK.
 - Strings passed to kernel calls are read by the kernel. Passing a stack or heap buffer has not been tested on physical hardware.
-- MicroPython: an experimental i386 port exists under `ports/micropython`. It is built separately with `make micropython-port`; it is not yet installed into the boot image or launchable from the desktop. It still needs a successful upstream build and a compatible application-image size/loader path. This is MicroPython, not CPython.
+- MicroPython: an experimental i386 port exists under `ports/micropython`. Build the separate Python-enabled disk with `make python-image`; select Python in the desktop Start menu and use `flareos.exit()` to return. This is MicroPython, not CPython, and still requires successful CI and runtime validation.
 
 ## Checks
 

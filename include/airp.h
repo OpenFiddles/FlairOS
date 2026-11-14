@@ -4,7 +4,7 @@
 /* .airp container, version 1. Little-endian: a 36-byte header, then the flat app image.
    The image is what the kernel loads at TX_APP_BASE: its first two words are TX_APP_MAGIC
    and the absolute address of the entry function (kernel/textile.h). tools/airpack.py
-   writes this format. The kernel loader that reads .airp files is not written yet. */
+   writes this format. kernel/airp.c validates and loads images into the app slot. */
 
 #define AIRP_MAGIC        0x50524941u  /* bytes on disk: "AIRP" */
 #define AIRP_VERSION      1
