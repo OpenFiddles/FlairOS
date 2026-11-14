@@ -1,62 +1,232 @@
 <!doctype html>
-<html lang='en'>
+<html lang="en">
 <head>
-<meta charset='utf-8'>
-<meta name='viewport' content='width=device-width, initial-scale=1, viewport-fit=cover'>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#101113">
 <title>FlareOS in the browser</title>
 <style>
-  :root { color-scheme: dark; }
+  :root {
+    color-scheme: dark;
+    --bg: #101113;
+    --panel: #181a1e;
+    --panel-raised: #202329;
+    --line: #343840;
+    --text: #e8e8e8;
+    --muted: #aeb4bf;
+    --accent: #8fb4ff;
+    --accent-strong: #7aa2ff;
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
   *, *::before, *::after { box-sizing: border-box; }
-  html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
-  body { margin: 0; padding: 12px; background: #101113; color: #e8e8e8; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; line-height: 1.5; }
-  main { max-width: 760px; margin: 0 auto; }
-  h1 { font-size: 1.25rem; margin: 0 0 4px; }
-  p { margin: 6px 0 12px; color: #b5b5b5; overflow-wrap: anywhere; }
-  a { color: #8fb4ff; }
-  #screen { background: #000; border-radius: 6px; padding: 8px; overflow: hidden; min-height: 160px; -webkit-text-size-adjust: none; text-size-adjust: none; }
-  #screen_container { width: max-content; transform-origin: 0 0; white-space: pre; font: 14px/14px monospace; color: #ddd; -webkit-text-size-adjust: none; text-size-adjust: none; }
-  #screen_container canvas { display: block; cursor: crosshair; }
-  .status { font-size: .95rem; color: #9aa; min-height: 1.5em; margin: 8px 0; }
-  button { font: inherit; padding: 8px 12px; border-radius: 6px; border: 1px solid #444; background: #1c1d21; color: #eee; min-height: 44px; min-width: 44px; touch-action: manipulation; }
-  button:disabled { opacity: .5; }
-  .keys { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin: 10px 0; }
-  #typebox { width: 100%; font: inherit; padding: 10px; border-radius: 6px; border: 1px solid #444; background: #0b0c0e; color: #eee; min-height: 44px; }
+  html { min-height: 100%; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; background: var(--bg); }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    padding: 20px max(14px, env(safe-area-inset-left)) calc(20px + var(--safe-bottom)) max(14px, env(safe-area-inset-right));
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { width: min(100%, 1040px); margin: 0 auto; }
+  header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+  h1 { margin: 0 0 5px; font-size: clamp(1.25rem, 4vw, 1.8rem); line-height: 1.2; letter-spacing: -.025em; }
+  p { margin: 6px 0 12px; color: var(--muted); overflow-wrap: anywhere; }
+  a { color: var(--accent); }
+  .intro { max-width: 720px; margin: 0; }
+  .eyebrow { margin: 0 0 5px; color: var(--accent); font-size: .72rem; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; }
+  .player {
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: #08090b;
+    box-shadow: 0 14px 38px #0005;
+  }
+  .player-top {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    min-height: 48px; padding: 8px 12px; background: #17191d; border-bottom: 1px solid var(--line);
+  }
+  .player-name { display: flex; align-items: center; gap: 9px; font-size: .88rem; font-weight: 650; }
+  .led { width: 8px; height: 8px; border-radius: 50%; background: #78808d; box-shadow: 0 0 0 3px #78808d22; }
+  .led.ready { background: #72c99a; box-shadow: 0 0 0 3px #72c99a22; }
+  .top-actions { display: flex; gap: 8px; }
+  #screen {
+    display: grid; place-items: center; width: 100%; min-height: 190px; padding: clamp(5px, 1.5vw, 14px);
+    overflow: auto; background: #000; overscroll-behavior: contain;
+    touch-action: pan-x pan-y;
+  }
+  #screen_container {
+    width: 100%; max-width: 100%; min-width: 0; margin: 0 auto;
+    display: flex; justify-content: center; align-items: center;
+    overflow: hidden; white-space: pre; color: #ddd;
+    font: 14px/14px monospace; -webkit-text-size-adjust: none; text-size-adjust: none;
+  }
+  #screen_container canvas {
+    display: block; width: 100%; height: auto; max-width: 100%; max-height: min(72vh, 720px);
+    object-fit: contain; image-rendering: pixelated; touch-action: none;
+  }
+  #screen_container > div {
+    max-width: 100%; overflow: auto; font: 14px/14px monospace;
+    white-space: pre; -webkit-text-size-adjust: none; text-size-adjust: none;
+  }
+  .status { min-height: 1.5em; margin: 9px 2px 0; color: #9ca8b8; font-size: .88rem; }
+  .status-row { display: flex; align-items: center; gap: 9px; padding: 0 3px 10px; }
+  .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px; border-top: 1px solid var(--line); background: #15171a; }
+  .toolbar-label { width: 100%; margin: 0; color: var(--muted); font-size: .75rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+  button {
+    min-width: 44px; min-height: 44px; padding: 9px 13px;
+    border: 1px solid #414650; border-radius: 9px;
+    background: var(--panel-raised); color: var(--text); font: inherit; font-size: .9rem;
+    cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+  }
+  button:hover:not(:disabled) { border-color: #65738a; background: #292e37; }
+  button:active:not(:disabled) { background: #303847; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.primary { border-color: #5475b3; background: #253653; }
+  button:focus-visible, input:focus-visible, #touchpad:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
+  .controls { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(260px, .85fr); gap: 12px; margin-top: 12px; }
+  .card { min-width: 0; padding: 13px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+  .card h2 { margin: 0 0 10px; font-size: .95rem; }
+  .keys { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; }
+  .keys button { width: 100%; padding-inline: 5px; }
+  .type-label { display: block; margin: 0 0 7px; color: var(--muted); font-size: .85rem; }
+  #typebox {
+    width: 100%; min-height: 46px; padding: 10px 12px;
+    border: 1px solid #414650; border-radius: 9px; background: #0b0c0e; color: var(--text);
+    font: inherit; font-size: 16px;
+  }
   #typebox:disabled { opacity: .5; }
-  button:focus-visible, #typebox:focus-visible { outline: 2px solid #7aa2ff; outline-offset: 2px; }
-  code { color: #e8e8e8; overflow-wrap: anywhere; }
+  .hint { margin: 9px 0 0; font-size: .8rem; }
+  .touch-card { margin-top: 12px; }
+  .touch-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 9px; }
+  .touch-head h2 { margin: 0; }
+  .touch-head span { color: var(--muted); font-size: .78rem; }
+  #touchpad {
+    position: relative; display: grid; place-items: center; width: 100%; min-height: 124px;
+    border: 1px solid #414650; border-radius: 11px;
+    background: repeating-linear-gradient(135deg, #202329, #202329 12px, #22262d 12px, #22262d 24px);
+    color: #aeb8c8; user-select: none; -webkit-user-select: none;
+    touch-action: none; cursor: crosshair; overflow: hidden;
+  }
+  #touchpad::after { content: ""; position: absolute; inset: 9px; border: 1px dashed #69748766; border-radius: 7px; pointer-events: none; }
+  #touchpad p { z-index: 1; margin: 0; padding: 8px; text-align: center; font-size: .84rem; pointer-events: none; }
+  .mouse-buttons { display: flex; gap: 8px; margin-top: 8px; }
+  .mouse-buttons button { flex: 1; }
+  .foot { margin-top: 16px; font-size: .82rem; }
+  .player:fullscreen, .player:-webkit-full-screen {
+    width: 100%; height: 100%; max-width: none; border: 0; border-radius: 0;
+    display: flex; flex-direction: column; background: #050506;
+  }
+  .player:fullscreen #screen, .player:-webkit-full-screen #screen { flex: 1; min-height: 0; }
+  .player:fullscreen #screen_container, .player:-webkit-full-screen #screen_container { max-height: 100%; }
+  .player:fullscreen #screen_container canvas, .player:-webkit-full-screen #screen_container canvas { max-height: 100%; width: auto; max-width: 100%; }
+  .player:fullscreen .toolbar, .player:-webkit-full-screen .toolbar { padding-bottom: max(12px, var(--safe-bottom)); }
+  @media (max-width: 680px) {
+    body { padding: 12px 10px calc(16px + var(--safe-bottom)); }
+    header { margin-bottom: 12px; }
+    .controls { grid-template-columns: 1fr; }
+    .player-top { min-height: 44px; }
+    #screen { min-height: 160px; padding: 4px; }
+    #screen_container canvas { max-height: 58vh; }
+    .keys { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .touch-card { margin-top: 10px; }
+    #touchpad { min-height: 112px; }
+  }
+  @media (max-width: 380px) {
+    body { padding-inline: 8px; }
+    button { padding-inline: 10px; }
+    .player-top { padding-inline: 9px; }
+    .toolbar { padding: 9px; gap: 6px; }
+  }
+  @media (orientation: landscape) and (max-height: 520px) {
+    body { padding: 6px; }
+    header, .foot, .controls, .touch-card { display: none; }
+    .player { height: calc(100dvh - 12px); }
+    #screen { flex: 1; min-height: 0; }
+    #screen_container canvas { max-height: 100%; width: auto; max-width: 100%; }
+  }
 </style>
 </head>
 <body>
 <main>
-  <h1>FlareOS, running in your browser</h1>
-  <p>Tap the black screen, then type. This is the FlareOS kernel from the repo, running inside an x86 emulator (v86). Nothing to install.</p>
-  <div id='screen'><div id='screen_container'><div></div><canvas></canvas></div></div>
-  <p class='status' id='status' role='status'>Loading the emulator...</p>
-  <div class='keys'>
-    <button type='button' data-key='esc' disabled>Esc</button>
-    <button type='button' data-key='tab' disabled>Tab</button>
-    <button type='button' data-key='enter' disabled>Enter</button>
-    <button type='button' data-key='backspace' disabled>Backspace</button>
-    <button type='button' data-key='up' disabled>Up</button>
-    <button type='button' data-key='down' disabled>Down</button>
-    <button type='button' data-key='left' disabled>Left</button>
-    <button type='button' data-key='right' disabled>Right</button>
-    <button type='button' data-key='devmode' disabled>Ctrl+Alt+D</button>
+  <header>
+    <div>
+      <p class="eyebrow">OpenFiddles · Web emulator</p>
+      <h1>FlareOS, running in your browser</h1>
+      <p class="intro">The real FlareOS kernel, running inside an x86 emulator. Nothing to install.</p>
+    </div>
+  </header>
+
+  <section class="player" id="player" aria-label="FlareOS virtual machine">
+    <div class="player-top">
+      <div class="player-name"><span class="led" id="led"></span><span>FlareOS · x86 machine</span></div>
+      <div class="top-actions">
+        <button id="fullscreen" type="button" aria-label="Enter fullscreen" title="Fullscreen">⛶ Fullscreen</button>
+        <button id="reset" type="button" disabled>Restart</button>
+      </div>
+    </div>
+    <div id="screen" aria-label="Virtual machine display">
+      <div id="screen_container"><div></div><canvas></canvas></div>
+    </div>
+    <div class="toolbar">
+      <p class="toolbar-label">Quick keys</p>
+      <button type="button" data-key="esc" disabled>Esc</button>
+      <button type="button" data-key="tab" disabled>Tab</button>
+      <button type="button" data-key="enter" disabled>Enter</button>
+      <button type="button" data-key="backspace" disabled>⌫</button>
+      <button type="button" data-key="up" disabled>↑</button>
+      <button type="button" data-key="down" disabled>↓</button>
+      <button type="button" data-key="left" disabled>←</button>
+      <button type="button" data-key="right" disabled>→</button>
+      <button type="button" data-key="devmode" disabled>Ctrl+Alt+D</button>
+    </div>
+  </section>
+
+  <div class="status-row">
+    <span class="led" id="status-led"></span>
+    <p class="status" id="status" role="status" aria-live="polite">Loading the emulator...</p>
   </div>
-  <p><label for='typebox'>Type box. Tap it to open the keyboard on a phone or iPad:</label></p>
-  <input id='typebox' type='text' inputmode='text' enterkeyhint='enter' autocapitalize='off' autocorrect='off' spellcheck='false' autocomplete='off' placeholder='Tap here, then type' disabled>
-  <p><button id='reset' type='button' disabled>Restart the OS</button></p>
-  <p>Press Ctrl+Alt+D to switch between the desktop and text mode. On the desktop, the Terminal window runs commands. Try: <code>help</code>, <code>time</code>, <code>uptime</code>, <code>in 60</code>, <code>echo hello</code>, <code>mouse 15 10</code>, <code>beep 440 200</code>.</p>
-  <p>Source: <a href='https://gitlab.com/openfiddles/airos'>gitlab.com/openfiddles/airos</a></p>
+
+  <section class="controls" aria-label="Keyboard controls">
+    <div class="card">
+      <h2>Keyboard</h2>
+      <label class="type-label" for="typebox">Tap here to open your phone or tablet keyboard</label>
+      <input id="typebox" type="text" inputmode="text" enterkeyhint="enter" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off" placeholder="Type into FlareOS..." disabled>
+      <p class="hint">Enter sends a command. Arrow keys and Backspace are forwarded to the VM.</p>
+    </div>
+    <div class="card">
+      <h2>Pointer</h2>
+      <div id="touchpad" role="application" tabindex="0" aria-label="Touchpad. Drag to move the virtual mouse and tap to click.">
+        <p>Drag to move the pointer<br>Tap to click · Two-finger tap = right-click</p>
+      </div>
+      <div class="mouse-buttons">
+        <button id="left-click" type="button" disabled>Left click</button>
+        <button id="right-click" type="button" disabled>Right click</button>
+      </div>
+    </div>
+  </section>
+
+  <p class="foot">Press Ctrl+Alt+D to switch between the desktop and text mode. In the desktop Terminal, try <code>help</code>, <code>time</code>, <code>uptime</code>, or <code>echo hello</code>.</p>
+  <p class="foot">Source: <a href="https://gitlab.com/openfiddles/FlairOS">OpenFiddles / FlairOS</a></p>
 </main>
-<script src='v86/libv86.js'></script>
+
+<script src="v86/libv86.js"></script>
 <script>
-  const statusLine = document.getElementById('status');
-  const resetButton = document.getElementById('reset');
-  const screenWrap = document.getElementById('screen');
-  const screenContainer = document.getElementById('screen_container');
-  const typebox = document.getElementById('typebox');
-  const keyButtons = document.querySelectorAll('[data-key]');
+(() => {
+  const statusLine = document.getElementById("status");
+  const statusLed = document.getElementById("status-led");
+  const led = document.getElementById("led");
+  const resetButton = document.getElementById("reset");
+  const player = document.getElementById("player");
+  const screen = document.getElementById("screen");
+  const screenContainer = document.getElementById("screen_container");
+  const typebox = document.getElementById("typebox");
+  const touchpad = document.getElementById("touchpad");
+  const leftClick = document.getElementById("left-click");
+  const rightClick = document.getElementById("right-click");
+  const fullscreenButton = document.getElementById("fullscreen");
+  const keyButtons = document.querySelectorAll("[data-key]");
+  const SENTINEL = " ";
 
   const SC = {
     esc: [0x01, 0x81], tab: [0x0F, 0x8F], enter: [0x1C, 0x9C], backspace: [0x0E, 0x8E],
@@ -65,133 +235,200 @@
     devmode: [0x1D, 0x38, 0x20, 0xA0, 0xB8, 0x9D]
   };
   const KEY_NAMES = {
-    Escape: 'esc', Tab: 'tab', Enter: 'enter', Backspace: 'backspace',
-    ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right'
+    Escape: "esc", Tab: "tab", Enter: "enter", Backspace: "backspace",
+    ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right"
   };
-  const SENTINEL = ' ';
 
   const emulator = new V86({
-    wasm_path: 'v86/v86.wasm',
+    wasm_path: "v86/v86.wasm",
     memory_size: 32 * 1024 * 1024,
     vga_memory_size: 2 * 1024 * 1024,
     screen_container: screenContainer,
-    bios: { url: 'v86/seabios.bin' },
-    vga_bios: { url: 'v86/vgabios.bin' },
-    fda: { url: 'textile.img', size: 1474560 },
+    bios: { url: "v86/seabios.bin" },
+    vga_bios: { url: "v86/vgabios.bin" },
+    fda: { url: "textile.img", size: 1474560 },
     autostart: true,
-    net_device: {
-      type: 'ne2k',
-      relay_url: 'inbrowser'
-    }
+    net_device: { type: "ne2k", relay_url: "inbrowser" }
   });
 
+  const running = () => emulator.is_running();
   const sendKey = (name) => {
-    if (emulator.is_running()) emulator.keyboard_send_scancodes(SC[name]);
+    if (running() && SC[name]) emulator.keyboard_send_scancodes(SC[name]);
   };
-
   const resetTypebox = () => { typebox.value = SENTINEL; };
-
   const flushTypebox = () => {
-    const text = typebox.value.startsWith(SENTINEL) ? typebox.value.slice(SENTINEL.length) : typebox.value;
-    if (text && emulator.is_running()) emulator.keyboard_send_text(text);
+    const value = typebox.value.startsWith(SENTINEL) ? typebox.value.slice(1) : typebox.value;
+    if (value && running()) emulator.keyboard_send_text(value);
     resetTypebox();
   };
-
-  const setKeysEnabled = (on) => {
-    keyButtons.forEach((b) => { b.disabled = !on; });
+  const setControlsEnabled = (on) => {
+    keyButtons.forEach((button) => { button.disabled = !on; });
     typebox.disabled = !on;
+    leftClick.disabled = !on;
+    rightClick.disabled = !on;
+  };
+  const setStatus = (message, ready = false) => {
+    statusLine.textContent = message;
+    statusLed.classList.toggle("ready", ready);
+    led.classList.toggle("ready", ready);
   };
 
+  // v86 renders the guest's native framebuffer. Let CSS scale the canvas
+  // proportionally instead of transforming the whole screen container.
   const fitScreen = () => {
-    const width = screenContainer.offsetWidth;
-    const height = screenContainer.offsetHeight;
-    if (!width || !height) {
-      screenContainer.style.transform = '';
-      screenWrap.style.height = '';
-      return;
+    const canvas = screenContainer.querySelector("canvas");
+    if (canvas) {
+      canvas.style.maxWidth = "100%";
+      canvas.style.height = "auto";
     }
-    const style = getComputedStyle(screenWrap);
-    const sidePadding = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
-    const verticalPadding = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
-    const available = screenWrap.clientWidth - sidePadding;
-    const scale = Math.min(1, available / width);
-    screenContainer.style.transform = scale < 1 ? `scale(${scale})` : '';
-    screenWrap.style.height = Math.ceil(height * scale + verticalPadding) + 'px';
   };
+  if ("ResizeObserver" in window) new ResizeObserver(fitScreen).observe(screen);
+  window.addEventListener("resize", fitScreen);
+  window.addEventListener("orientationchange", fitScreen);
 
-  if ('ResizeObserver' in window) {
-    new ResizeObserver(fitScreen).observe(screenContainer);
-  }
-  window.addEventListener('resize', fitScreen);
-  window.addEventListener('orientationchange', fitScreen);
-  window.addEventListener('load', fitScreen);
+  const isFullscreen = () => document.fullscreenElement === player || document.webkitFullscreenElement === player;
+  const updateFullscreenLabel = () => {
+    const active = isFullscreen();
+    fullscreenButton.textContent = active ? "⛶ Exit fullscreen" : "⛶ Fullscreen";
+    fullscreenButton.setAttribute("aria-label", active ? "Exit fullscreen" : "Enter fullscreen");
+  };
+  fullscreenButton.addEventListener("click", async () => {
+    try {
+      if (isFullscreen()) {
+        if (document.exitFullscreen) await document.exitFullscreen();
+        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+      } else if (player.requestFullscreen) {
+        await player.requestFullscreen();
+      } else if (player.webkitRequestFullscreen) {
+        player.webkitRequestFullscreen();
+      } else {
+        setStatus("Fullscreen is not supported by this browser. You can still use the responsive display.", running());
+      }
+    } catch (error) {
+      setStatus("Fullscreen could not be opened: " + (error.message || "browser restriction"), running());
+    }
+  });
+  document.addEventListener("fullscreenchange", updateFullscreenLabel);
+  document.addEventListener("webkitfullscreenchange", updateFullscreenLabel);
 
-  emulator.add_listener('emulator-ready', () => {
-    statusLine.textContent = 'Booting FlareOS...';
-    resetButton.disabled = false;
-    setKeysEnabled(true);
-    resetTypebox();
-    fitScreen();
+  // Touchpad pointer events are translated into mouse events at the matching
+  // point on the guest canvas. This stays entirely in the browser wrapper.
+  let pointer = null;
+  let virtualX = 0.5;
+  let virtualY = 0.5;
+  let moved = false;
+  let lastTap = 0;
+  const canvasPoint = () => {
+    const canvas = screenContainer.querySelector("canvas");
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    return { x: rect.left + virtualX * rect.width, y: rect.top + virtualY * rect.height };
+  };
+  const guestMouse = (type, button = 0, buttons = 0) => {
+    if (!running()) return;
+    const point = canvasPoint();
+    if (!point) return;
+    emulator.mouse_set_status(true);
+    screenContainer.dispatchEvent(new MouseEvent(type, {
+      bubbles: true, cancelable: true, view: window,
+      clientX: point.x, clientY: point.y,
+      button, buttons
+    }));
+  };
+  const clamp01 = (value) => Math.max(0, Math.min(1, value));
+  touchpad.addEventListener("pointerdown", (event) => {
+    if (!running() || pointer) return;
+    event.preventDefault();
+    touchpad.setPointerCapture(event.pointerId);
+    pointer = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, time: performance.now(), type: event.pointerType };
+    moved = false;
+  });
+  touchpad.addEventListener("pointermove", (event) => {
+    if (!pointer || pointer.id !== event.pointerId) return;
+    event.preventDefault();
+    const rect = touchpad.getBoundingClientRect();
+    const dx = event.clientX - pointer.x;
+    const dy = event.clientY - pointer.y;
+    pointer.x = event.clientX;
+    pointer.y = event.clientY;
+    if (Math.abs(event.clientX - pointer.startX) + Math.abs(event.clientY - pointer.startY) > 7) moved = true;
+    virtualX = clamp01(virtualX + dx / Math.max(1, rect.width) * 2.2);
+    virtualY = clamp01(virtualY + dy / Math.max(1, rect.height) * 2.2);
+    guestMouse("mousemove");
+  });
+  const endTouchpadPointer = (event) => {
+    if (!pointer || pointer.id !== event.pointerId) return;
+    event.preventDefault();
+    const elapsed = performance.now() - pointer.time;
+    const wasTap = !moved && elapsed < 450;
+    pointer = null;
+    if (wasTap) {
+      const now = performance.now();
+      const right = now - lastTap < 330 && event.pointerType === "touch";
+      guestMouse("mousedown", right ? 2 : 0, right ? 2 : 1);
+      guestMouse("mouseup", right ? 2 : 0, 0);
+      lastTap = right ? 0 : now;
+    }
+  };
+  touchpad.addEventListener("pointerup", endTouchpadPointer);
+  touchpad.addEventListener("pointercancel", endTouchpadPointer);
+  leftClick.addEventListener("click", () => {
+    guestMouse("mousedown", 0, 1);
+    guestMouse("mouseup", 0, 0);
+  });
+  rightClick.addEventListener("click", () => {
+    guestMouse("mousedown", 2, 2);
+    guestMouse("mouseup", 2, 0);
   });
 
-  emulator.add_listener('emulator-started', () => {
-    statusLine.textContent = 'Running. Tap the screen to type, or use the Type box on a phone.';
-    fitScreen();
-    setTimeout(fitScreen, 300);
-    setTimeout(fitScreen, 1500);
-  });
-
-  screenContainer.addEventListener('click', () => {
-    if (!emulator.is_running()) return;
+  screenContainer.addEventListener("click", () => {
+    if (!running()) return;
     emulator.mouse_set_status(true);
     typebox.focus({ preventScroll: true });
   });
-
-  resetButton.addEventListener('click', () => {
+  resetButton.addEventListener("click", () => {
     emulator.restart();
     resetTypebox();
   });
-
-  keyButtons.forEach((b) => {
-    b.addEventListener('click', () => sendKey(b.dataset.key));
-  });
+  keyButtons.forEach((button) => button.addEventListener("click", () => sendKey(button.dataset.key)));
 
   resetTypebox();
-
-  typebox.addEventListener('keydown', (e) => {
-    if (e.ctrlKey && e.altKey && e.key.toLowerCase() === 'd') {
-      e.preventDefault();
-      sendKey('devmode');
-      return;
+  typebox.addEventListener("keydown", (event) => {
+    if (event.ctrlKey && event.altKey && event.key.toLowerCase() === "d") {
+      event.preventDefault(); sendKey("devmode"); return;
     }
-    if (e.ctrlKey || e.altKey || e.metaKey) return;
-    const name = KEY_NAMES[e.key];
-    if (name) {
-      e.preventDefault();
-      sendKey(name);
-    }
+    if (event.ctrlKey || event.altKey || event.metaKey) return;
+    const name = KEY_NAMES[event.key];
+    if (name) { event.preventDefault(); sendKey(name); }
   });
-
-  typebox.addEventListener('input', (e) => {
-    if (e.isComposing) return;
-    if (e.inputType === 'deleteContentBackward') {
-      sendKey('backspace');
-      resetTypebox();
-    } else if (e.inputType === 'insertLineBreak' || e.inputType === 'insertParagraph') {
-      sendKey('enter');
-      resetTypebox();
+  typebox.addEventListener("input", (event) => {
+    if (event.isComposing) return;
+    if (event.inputType === "deleteContentBackward") {
+      sendKey("backspace"); resetTypebox();
+    } else if (event.inputType === "insertLineBreak" || event.inputType === "insertParagraph") {
+      sendKey("enter"); resetTypebox();
     } else {
       flushTypebox();
     }
   });
+  typebox.addEventListener("compositionend", flushTypebox);
 
-  typebox.addEventListener('compositionend', () => {
-    flushTypebox();
+  emulator.add_listener("emulator-ready", () => {
+    resetButton.disabled = false;
+    setControlsEnabled(true);
+    resetTypebox();
+    fitScreen();
+    setStatus("Emulator ready. Booting FlareOS...", true);
   });
-
-  window.addEventListener('error', (e) => {
-    statusLine.textContent = 'The emulator failed to load: ' + e.message;
+  emulator.add_listener("emulator-started", () => {
+    setStatus("Running. Use the touchpad, quick keys, or your device keyboard.", true);
+    fitScreen();
   });
+  window.addEventListener("error", (event) => {
+    setStatus("The emulator failed to load: " + event.message, false);
+  });
+})();
 </script>
 </body>
 </html>
