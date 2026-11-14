@@ -129,6 +129,24 @@ void ag_fill_rect(struct ag_device *device, struct ag_surface *surface,
     }
 }
 
+
+void ag_frame_rect(struct ag_device *device, struct ag_surface *surface,
+                   int32_t x, int32_t y, int32_t w, int32_t h, uint32_t color) {
+    if (!clip_rect(surface, &x, &y, &w, &h))
+        return;
+    ag_fill_rect(device, surface, x, y, w, 1, color);
+    if (h > 1)
+        ag_fill_rect(device, surface, x, y + h - 1, w, 1, color);
+    if (h > 2) {
+        ag_fill_rect(device, surface, x, y + 1, 1, h - 2, color);
+        if (w > 1)
+            ag_fill_rect(device, surface, x + w - 1, y + 1, 1, h - 2, color);
+    } else if (w > 1) {
+        ag_fill_rect(device, surface, x, y, 1, h, color);
+        ag_fill_rect(device, surface, x + w - 1, y, 1, h, color);
+    }
+}
+
 void ag_blend_rect(struct ag_device *device, struct ag_surface *surface,
                    int32_t x, int32_t y, int32_t w, int32_t h, uint32_t color) {
     if (!clip_rect(surface, &x, &y, &w, &h))

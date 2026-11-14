@@ -61,6 +61,8 @@ void ag_clear(struct ag_surface *surface, uint32_t color);
 void ag_put_pixel(struct ag_surface *surface, int32_t x, int32_t y, uint32_t color);
 void ag_fill_rect(struct ag_device *device, struct ag_surface *surface,
                   int32_t x, int32_t y, int32_t w, int32_t h, uint32_t color);
+void ag_frame_rect(struct ag_device *device, struct ag_surface *surface,
+                   int32_t x, int32_t y, int32_t w, int32_t h, uint32_t color);
 void ag_blend_rect(struct ag_device *device, struct ag_surface *surface,
                    int32_t x, int32_t y, int32_t w, int32_t h, uint32_t color);
 void ag_blit(struct ag_device *device, struct ag_surface *surface,

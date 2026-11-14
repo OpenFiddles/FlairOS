@@ -2,6 +2,7 @@
 
 #include "textile.h"
 #include "../include/vbe.h"
+#include "../include/airgraph.h"
 #include "../include/pmm.h"
 
 typedef unsigned char u8;
@@ -936,15 +937,19 @@ static void vbe_test_pattern(const struct fb *f) {
         0xFFFFFF, 0xFFFF00, 0x00FFFF, 0x00FF00,
         0xFF00FF, 0xFF0000, 0x0000FF, 0x202020
     };
+    struct ag_surface target;
+    if (ag_surface_init(&target, f->base, f->width, f->height,
+                        f->pitch, AG_PIXEL_XRGB8888) != 0)
+        return;
     i32 bar_w = f->width / 8;
     i32 top_h = f->height * 2 / 3;
-    fb_clear(f, 0x101828);
+    ag_clear(&target, 0x00101828);
     for (i32 i = 0; i < 8; i++) {
         i32 x = i * bar_w;
         i32 w = (i == 7) ? f->width - x : bar_w;
-        fb_fill_rect(f, x, 0, w, top_h, bars[i]);
+        ag_fill_rect(0, &target, x, 0, w, top_h, bars[i]);
     }
-    fb_frame_rect(f, 0, 0, f->width, f->height, 0xFFFFFF);
+    ag_frame_rect(0, &target, 0, 0, f->width, f->height, 0x00FFFFFF);
 }
 
 /* Sets the linear mode at boot. On success it shows the test pattern until a
