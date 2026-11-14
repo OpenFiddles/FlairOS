@@ -21,13 +21,13 @@ try:
     time.sleep(7)
     # Exercise the shared desktop click dispatcher through keyboard activation.
     # QEMU's headless display does not provide a physical pointer event source.
-    cmd('sendkey ret', 0.8)
     cmd('mouse_move -200 -200', 0.6)
     cmd('mouse_move 20 16', 0.6)
     cmd('mouse_button 1', 0.3)
     cmd('mouse_button 0', 0.8)
     cmd('sendkey tab', 0.5)
     cmd('sendkey 2', 0.8)  # Select Clock from the Start menu.
+    cmd('sendkey ret', 0.8)  # Activate through the shared click dispatcher after focus leaves Terminal.
     cmd('sendkey ctrl-alt-d', 1.5)
     for k in ['h', 'e', 'l', 'p']:
         cmd('sendkey ' + k, 0.3)
