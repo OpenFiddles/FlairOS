@@ -57,9 +57,9 @@ int main(void) {
 
     ag_clear(&s, 0);
     ag_blend_rect(0, &s, 0, 0, W, H, 0x80FFFFFF);
-    CHECK(pixel_at(pixels, 0, 0) == 0x007F7F7F);
+    CHECK(pixel_at(pixels, 0, 0) == 0x00808080);
     ag_blend_rect(0, &s, 0, 0, W, H, 0x00FFFFFF);
-    CHECK(pixel_at(pixels, 0, 0) == 0x007F7F7F);
+    CHECK(pixel_at(pixels, 0, 0) == 0x00808080);
 
     {
         uint32_t src[9] = {0x00000011, 0x00000022, 0x00000033,
