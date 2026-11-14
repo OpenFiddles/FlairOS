@@ -377,7 +377,7 @@ void app_main(void) {
         return;
     }
 
-    s->win = ax_open(8, 2, 40, 12, "FlairOS Explorer");
+    s->win = ax_open(8, 2, 40, 13, "FlairOS Explorer");
     if (s->win == AX_FAIL) {
         free(s->buffer);
         free(s);
