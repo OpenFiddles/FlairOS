@@ -10,16 +10,13 @@
 #define BTN_OPEN 0x87
 #define BTN_TOP 0x1F
 #define ICON_ATTR 0x70
-#define KEY_ATTR 0x4F
-#define PIANO_KEYS 8
-#define PIANO_FLASH 12
 #define FRAME_TICKS 2
 #define CURSOR_ATTR 0x0F
 #define FILES_ROW 10
 #define START_MENU_X 1
 #define START_MENU_Y (TASK_ROW - 7)
 #define START_MENU_W 25
-#define START_MENU_H 7
+#define START_MENU_H 6
 #define EXPLORER_STAGE ((const u8 *)0x50000)
 #define EXPLORER_STAGE_LEN 4608
 #define APP_STACK_TOP 0x5F000u
@@ -28,7 +25,7 @@ int airp_load(const u8 *file, u32 len, u32 *entry);
 void enter_user(u32 entry, u32 user_esp);
 int vm_run_app(u32 entry, u32 user_esp);
 
-enum { WIN_HELLO, WIN_PIANO, WIN_CLOCK, WIN_TERM, WIN_COUNT };
+enum { WIN_HELLO, WIN_CLOCK, WIN_TERM, WIN_COUNT };
 
 struct window {
     int open;
@@ -38,26 +35,20 @@ struct window {
 
 static struct window wins[WIN_COUNT] = {
     {0, 22, 3, 38, 9, "Hello"},
-    {0, 12, 12, 40, 7, "Piano"},
     {0, 60, 4, 18, 5, "Clock"},
     {0, 4, 2, 60, 17, "Terminal"},
 };
 
-static const char *const icon_label[WIN_COUNT] = {"Hello", "Piano", "Clock", "Term"};
-static const char *const log_name[WIN_COUNT] = {"hello", "piano", "clock", "terminal"};
-static const i32 icon_row[WIN_COUNT] = {2, 4, 6, 8};
-static const char piano_keys[PIANO_KEYS + 1] = "asdfghjk";
-static const char piano_notes[PIANO_KEYS + 1] = "CDEFGABC";
-static const u32 piano_hz[PIANO_KEYS] = {262, 294, 330, 349, 392, 440, 494, 523};
+static const char *const icon_label[WIN_COUNT] = {"Hello", "Clock", "Term"};
+static const char *const log_name[WIN_COUNT] = {"hello", "clock", "terminal"};
+static const i32 icon_row[WIN_COUNT] = {2, 4, 6};
 
 static u16 back[VGA_ROWS * VGA_COLS];
-static int z[WIN_COUNT] = {WIN_HELLO, WIN_PIANO, WIN_CLOCK, WIN_TERM};
+static int z[WIN_COUNT] = {WIN_HELLO, WIN_CLOCK, WIN_TERM};
 static int drag_win = -1;
 static int keyboard_focus = -1;
 static i32 drag_dx, drag_dy;
 static u8 prev_buttons;
-static int piano_last = -1;
-static int piano_flash;
 static int start_open;
 
 static void cell(int r, int c, u8 ch, u8 attr) {
@@ -152,13 +143,6 @@ static void open_win(int k) {
     serial_str("\n");
 }
 
-static void piano_play(int i) {
-    piano_last = i;
-    piano_flash = PIANO_FLASH;
-    log_point("piano: key", i, 0);
-    sound_tone(piano_hz[i], 120);
-}
-
 static void launch_explorer(void) {
     u32 entry = 0;
     if (airp_load(EXPLORER_STAGE, EXPLORER_STAGE_LEN, &entry) != 0) {
@@ -245,19 +229,6 @@ static void draw_content(int k) {
         text(w->y + 4, w->x + 2, "or a button on the taskbar.", BODY_ATTR, w->w - 4);
         text(w->y + 6, w->x + 2, "Ctrl+Alt+D opens developer mode.", BODY_ATTR, w->w - 4);
         text(w->y + 7, w->x + 2, "Arrow keys move the pointer.", BODY_ATTR, w->w - 4);
-    } else if (k == WIN_PIANO) {
-        text(w->y + 2, w->x + 2, "Click or type a s d f g h j k", BODY_ATTR, w->w - 4);
-        for (int i = 0; i < PIANO_KEYS; i++) {
-            u8 a = (piano_flash > 0 && piano_last == i) ? KEY_ATTR : BODY_ATTR;
-            cell(w->y + 3, w->x + 2 + i * 4, (u8)piano_keys[i], a);
-            cell(w->y + 4, w->x + 2 + i * 4, (u8)piano_notes[i], a);
-        }
-        if (piano_last >= 0) {
-            text(w->y + 5, w->x + 2, "Last key:", BODY_ATTR, 9);
-            cell(w->y + 5, w->x + 12, (u8)piano_keys[piano_last], BODY_ATTR);
-        } else {
-            text(w->y + 5, w->x + 2, "Nothing played yet", BODY_ATTR, w->w - 4);
-        }
     } else {
         u8 t[6];
         int c = w->x + (w->w - 8) / 2;
@@ -287,13 +258,13 @@ static void draw_window(int k) {
 
 static void draw_start_menu(void) {
     static const char *const items[5] = {
-        "1  Welcome", "2  Piano", "3  Clock", "4  Terminal", "5  Files"
+        "1  Welcome", "2  Clock", "3  Terminal", "4  Files"
     };
     if (!start_open) return;
     fill(START_MENU_Y, START_MENU_X, START_MENU_H, START_MENU_W, ' ', 0x70);
     fill(START_MENU_Y, START_MENU_X, 1, START_MENU_W, ' ', 0x1F);
     text(START_MENU_Y, START_MENU_X + 2, "FlareOS", 0x1F, START_MENU_W - 4);
-    for (int i = 0; i < 5; i++)
+    for (int i = 0; i < 4; i++)
         text(START_MENU_Y + 1 + i, START_MENU_X + 2, items[i], 0x70, START_MENU_W - 4);
     fill(START_MENU_Y + START_MENU_H - 1, START_MENU_X, 1, START_MENU_W, ' ', 0x17);
     text(START_MENU_Y + START_MENU_H - 1, START_MENU_X + 2, "Tab / Esc to close", 0x17, START_MENU_W - 4);
@@ -358,7 +329,7 @@ static void click(i32 mx, i32 my) {
     }
     if (start_open) {
         if (mx >= START_MENU_X && mx < START_MENU_X + START_MENU_W &&
-            my >= START_MENU_Y + 1 && my < START_MENU_Y + 6) {
+            my >= START_MENU_Y + 1 && my < START_MENU_Y + 5) {
             start_select(my - START_MENU_Y - 1);
             return;
         }
@@ -389,11 +360,6 @@ static void click(i32 mx, i32 my) {
             drag_dx = mx - w->x;
             drag_dy = my - w->y;
             return;
-        }
-        if (k == WIN_PIANO && my == w->y + 3) {
-            i32 rx = mx - (w->x + 2);
-            if (rx >= 0 && rx % 4 == 0 && rx / 4 < PIANO_KEYS)
-                piano_play(rx / 4);
         }
         return;
     }
@@ -479,9 +445,6 @@ static void handle_key(int c) {
         click((i32)cursor_x, (i32)cursor_y);
         return;
     }
-    if (keyboard_focus != WIN_PIANO || !wins[WIN_PIANO].open) return;
-    for (int i = 0; i < PIANO_KEYS; i++)
-        if (piano_keys[i] == c) { piano_play(i); return; }
 }
 
 int desktop_run(void) {
@@ -515,7 +478,6 @@ int desktop_run(void) {
             }
         }
         handle_mouse();
-        if (piano_flash > 0) piano_flash--;
         draw_frame();
         /* Drain queued input before honoring Ctrl+Alt+D. */
         if (kbd_toggle_take())

@@ -27,15 +27,7 @@ try:
     cmd('mouse_button 1', 0.3)
     cmd('mouse_button 0', 0.8)
     cmd('sendkey tab', 0.5)
-    cmd('sendkey 2', 0.8)
-    # The GUI Terminal is focused on desktop startup, so the first Enter
-    # is terminal input. After selecting Piano, Enter is routed through the
-    # desktop click dispatcher. Move off the Files icon before activating.
-    cmd('sendkey right', 0.3)
-    cmd('sendkey down', 0.3)
-    cmd('sendkey ret', 0.5)
-    for k in ['a', 's', 'd']:
-        cmd('sendkey ' + k, 0.4)
+    cmd('sendkey 2', 0.8)  # Select Clock from the Start menu.
     cmd('sendkey ctrl-alt-d', 1.5)
     for k in ['h', 'e', 'l', 'p']:
         cmd('sendkey ' + k, 0.3)
@@ -53,8 +45,7 @@ checks = [
  ('desktop starts', 'desktop: start' in text),
  ('desktop activation reaches click handler', 'desktop: click' in text),
  ('start menu opens by keyboard', 'desktop: start menu open' in text),
- ('start menu selects an app', 'desktop: start menu select' in text and 'desktop: open piano' in text),
- ('piano keys by keyboard', 'piano: key' in text),
+ ('start menu selects Clock', 'desktop: start menu select' in text and 'desktop: open clock' in text),
  ('esc returns to shell', 'desktop: exit' in text),
  ('help after esc', 'Commands:' in text.split('desktop: exit')[-1]),
  ('no panic', 'PANIC' not in text.upper()),
