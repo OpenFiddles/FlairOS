@@ -52,6 +52,7 @@ try:
 finally:
     if proc.poll() is None:
         proc.kill()
+        proc.wait(timeout=5)
     if monitor is not None:
         monitor.close()
 
