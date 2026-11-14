@@ -1,7 +1,7 @@
 /*
 FILE PATH: drivers/drv_ata.c
 PURPOSE: Polling ATA PIO driver with discovery for primary/secondary master/slave.
-        Legacy ata_read_sector/write_sector use the first detected LBA28 disk.
+        Legacy ata_read_sector/write_sector remain pinned to primary master.
         IDENTIFY and device discovery do not write to disks.
 */
 #include "../include/airos_types.h"
@@ -130,7 +130,7 @@ int ata_init(void) {
             if (ata_identify_device(channel, drive, &found) == 0) {
                 if (ata_devices_found < ATA_DEVICE_MAX) {
                     ata_devices[ata_devices_found] = found;
-                    if (ata_default_device < 0)
+                    if (channel == 0 && drive == 0)
                         ata_default_device = ata_devices_found;
                     ++ata_devices_found;
                 }

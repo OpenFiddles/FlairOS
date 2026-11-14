@@ -1,6 +1,6 @@
 /*
 FILE PATH: include/drv_ata.h
-PURPOSE: Public interface for polling ATA PIO disks on the four legacy IDE positions.
+PURPOSE: Public interface for polling ATA PIO disks on the four legacy IDE positions. Legacy API stays on primary master.
 */
 #ifndef AIROS_DRV_ATA_H
 #define AIROS_DRV_ATA_H
