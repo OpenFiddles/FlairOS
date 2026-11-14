@@ -168,8 +168,49 @@ static void launch_explorer(void) {
 }
 
 #define TERM_IN_MAX 50
+#define TERM_HISTORY 8
 static char term_in[TERM_IN_MAX + 1];
 static int term_in_len;
+static int term_cursor;
+static char term_history[TERM_HISTORY][TERM_IN_MAX + 1];
+static int term_history_count;
+static int term_history_next;
+static int term_history_view = -1;
+
+static void term_history_save(void) {
+    if (!term_in_len) return;
+    if (term_history_count &&
+        term_history[(term_history_next + TERM_HISTORY - 1) % TERM_HISTORY][0] &&
+        term_in_len == 0) return;
+    for (int i = 0; i < term_in_len; i++)
+        term_history[term_history_next][i] = term_in[i];
+    term_history[term_history_next][term_in_len] = 0;
+    term_history_next = (term_history_next + 1) % TERM_HISTORY;
+    if (term_history_count < TERM_HISTORY) term_history_count++;
+    term_history_view = -1;
+}
+
+static void term_history_load(int offset) {
+    if (!term_history_count) return;
+    if (term_history_view < 0) term_history_view = 0;
+    else term_history_view += offset;
+    if (term_history_view < 0) term_history_view = 0;
+    if (term_history_view >= term_history_count) {
+        term_history_view = -1;
+        term_in_len = 0;
+        term_cursor = 0;
+        term_in[0] = 0;
+        return;
+    }
+    int index = (term_history_next + TERM_HISTORY - 1 - term_history_view) % TERM_HISTORY;
+    term_in_len = 0;
+    while (term_history[index][term_in_len] && term_in_len < TERM_IN_MAX) {
+        term_in[term_in_len] = term_history[index][term_in_len];
+        term_in_len++;
+    }
+    term_in[term_in_len] = 0;
+    term_cursor = term_in_len;
+}
 
 static void draw_terminal(const struct window *w) {
     int rows = w->h - 2;
@@ -187,7 +228,7 @@ static void draw_terminal(const struct window *w) {
     term_in[term_in_len] = 0;
     text(py, w->x + 2, "> ", BODY_ATTR, 2);
     text(py, w->x + 4, term_in, BODY_ATTR, w->w - 6);
-    cell(py, w->x + 4 + term_in_len, '_', BODY_ATTR);
+    cell(py, w->x + 4 + term_cursor, 0xDB, 0x70);
 }
 
 static void draw_content(int k) {
@@ -372,17 +413,44 @@ static void handle_mouse(void) {
 static void term_key(int c) {
     if (c == '\n') {
         term_in[term_in_len] = 0;
+        term_history_save();
         terminal_exec(term_in);
         term_in_len = 0;
+        term_cursor = 0;
+        term_in[0] = 0;
+        term_history_view = -1;
         return;
     }
     if (c == '\b') {
-        if (term_in_len > 0)
+        if (term_cursor > 0) {
+            for (int i = term_cursor - 1; i < term_in_len - 1; i++)
+                term_in[i] = term_in[i + 1];
+            term_cursor--;
             term_in_len--;
+            term_in[term_in_len] = 0;
+        }
         return;
     }
-    if (c >= 32 && c < 127 && term_in_len < TERM_IN_MAX)
-        term_in[term_in_len++] = (char)c;
+    if (c >= 32 && c < 127 && term_in_len < TERM_IN_MAX) {
+        for (int i = term_in_len; i > term_cursor; i--)
+            term_in[i] = term_in[i - 1];
+        term_in[term_cursor++] = (char)c;
+        term_in_len++;
+        term_in[term_in_len] = 0;
+        term_history_view = -1;
+    }
+}
+
+static void term_arrow(int a) {
+    if (a == ARROW_UP) {
+        term_history_load(1);
+    } else if (a == ARROW_DOWN) {
+        term_history_load(-1);
+    } else if (a == ARROW_LEFT) {
+        if (term_cursor > 0) term_cursor--;
+    } else if (a == ARROW_RIGHT) {
+        if (term_cursor < term_in_len) term_cursor++;
+    }
 }
 
 static void handle_key(int c) {
@@ -412,7 +480,13 @@ static void handle_key(int c) {
 }
 
 int desktop_run(void) {
+    static int first_desktop_start = 1;
     serial_str("desktop: start\n");
+    if (first_desktop_start) {
+        first_desktop_start = 0;
+        open_win(WIN_TERM);
+        terminal_exec("help");
+    }
     outb(0x3D4, 0x0A);
     outb(0x3D5, 0x20);
     prev_buttons = mouse_buttons;
@@ -424,12 +498,16 @@ int desktop_run(void) {
             handle_key(c);
         int a;
         while ((a = kbd_arrow_read()) >= 0) {
-            i32 dx = 0, dy = 0;
-            if (a == ARROW_UP) dy = -1;
-            else if (a == ARROW_DOWN) dy = 1;
-            else if (a == ARROW_LEFT) dx = -1;
-            else dx = 1;
-            cursor_nudge(dx, dy);
+            if (top_win() == WIN_TERM) {
+                term_arrow(a);
+            } else {
+                i32 dx = 0, dy = 0;
+                if (a == ARROW_UP) dy = -1;
+                else if (a == ARROW_DOWN) dy = 1;
+                else if (a == ARROW_LEFT) dx = -1;
+                else dx = 1;
+                cursor_nudge(dx, dy);
+            }
         }
         handle_mouse();
         if (piano_flash > 0) piano_flash--;
