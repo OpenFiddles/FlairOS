@@ -19,7 +19,7 @@ OBJCOPY = objcopy
 QEMU ?= qemu-system-i386
 BUILD = build
 
-DRV_SRCS = $(wildcard drivers/*.c)
+DRV_SRCS = $(shell find drivers -type f -name '*.c' -print)
 DRV_OBJS = $(patsubst drivers/%.c,$(BUILD)/d_%.o,$(DRV_SRCS))
 
 CFLAGS = $(ARCH_CFLAGS) -std=gnu99 -ffreestanding -mno-sse -mno-sse2 -mno-mmx -fno-pic -fno-stack-protector -fno-builtin -fno-common -fno-tree-loop-distribute-patterns -fcf-protection=none -fno-asynchronous-unwind-tables -O2 -Wall -Wextra
@@ -126,6 +126,7 @@ $(BUILD)/drv_pic.o: drivers/drv_pic.c include/drv_pic.h include/hw.h | $(BUILD)
 	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
 
 $(BUILD)/d_%.o: drivers/%.c kernel/kernel.h kernel/textile.h include/*.h | $(BUILD)
+	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
 
 # --- Linking and Image Creation ---
