@@ -16,6 +16,10 @@
 #define FRAME_TICKS 2
 #define CURSOR_ATTR 0x0F
 #define FILES_ROW 10
+#define START_MENU_X 1
+#define START_MENU_Y (TASK_ROW - 7)
+#define START_MENU_W 25
+#define START_MENU_H 7
 #define EXPLORER_STAGE ((const u8 *)0x50000)
 #define EXPLORER_STAGE_LEN 4608
 #define APP_STACK_TOP 0x5F000u
@@ -53,6 +57,7 @@ static i32 drag_dx, drag_dy;
 static u8 prev_buttons;
 static int piano_last = -1;
 static int piano_flash;
+static int start_open;
 
 static void cell(int r, int c, u8 ch, u8 attr) {
     if (r < 0 || r >= VGA_ROWS || c < 0 || c >= VGA_COLS)
@@ -110,7 +115,7 @@ static void log_point(const char *tag, i32 a, i32 b) {
     serial_str(buf);
 }
 
-static int btn_col(int i) { return 8 + i * 10; }
+static int btn_col(int i) { return 12 + i * 10; }
 
 static void raise_win(int k) {
     int i = 0;
@@ -232,15 +237,38 @@ static void draw_window(int k) {
     fill(w->y + 1, w->x, w->h - 1, w->w, ' ', BODY_ATTR);
     fill(w->y, w->x, 1, w->w, ' ', ta);
     text(w->y, w->x + 1, wins[k].title, ta, w->w - 6);
+    text(w->y, w->x + w->w - 8, "[_]", ta, 3);
     text(w->y, w->x + w->w - 4, "[x]", ta, 3);
     draw_content(k);
+}
+
+static void draw_start_menu(void) {
+    static const char *const items[5] = {
+        "1  Welcome", "2  Piano", "3  Clock", "4  Terminal", "5  Files"
+    };
+    if (!start_open) return;
+    fill(START_MENU_Y, START_MENU_X, START_MENU_H, START_MENU_W, ' ', 0x70);
+    fill(START_MENU_Y, START_MENU_X, 1, START_MENU_W, ' ', 0x1F);
+    text(START_MENU_Y, START_MENU_X + 2, "FlareOS", 0x1F, START_MENU_W - 4);
+    for (int i = 0; i < 5; i++)
+        text(START_MENU_Y + 1 + i, START_MENU_X + 2, items[i], 0x70, START_MENU_W - 4);
+    fill(START_MENU_Y + START_MENU_H - 1, START_MENU_X, 1, START_MENU_W, ' ', 0x17);
+    text(START_MENU_Y + START_MENU_H - 1, START_MENU_X + 2, "Tab / Esc to close", 0x17, START_MENU_W - 4);
+}
+
+static void start_select(int item) {
+    start_open = 0;
+    if (item >= 0 && item < WIN_COUNT) open_win(item);
+    else if (item == WIN_COUNT) launch_explorer();
+    serial_str("desktop: start menu select ");
+    log_point("item", item + 1, 0);
 }
 
 static void draw_taskbar(void) {
     u8 t[6];
     int top = top_win();
     fill(TASK_ROW, 0, 1, VGA_COLS, ' ', TASK_ATTR);
-    text(TASK_ROW, 1, "FlareOS", TASK_ATTR, 7);
+    text(TASK_ROW, 1, "Start", 0x1F, 5);
     for (int i = 0; i < WIN_COUNT; i++) {
         u8 a = !wins[i].open ? TASK_ATTR : (top == i ? BTN_TOP : BTN_OPEN);
         fill(TASK_ROW, btn_col(i), 1, 9, ' ', a);
@@ -259,7 +287,10 @@ static void draw_cursor(void) {
 
 static void draw_frame(void) {
     fill(0, 0, TASK_ROW, VGA_COLS, BG_CHAR, BG_ATTR);
-    text(0, 2, "FlareOS home", 0x1E, 12);
+    fill(0, 0, 1, VGA_COLS, ' ', 0x1F);
+    text(0, 2, "FlareOS  |  Workspace 1", 0x1F, 26);
+    text(0, VGA_COLS - 16, "SYSTEM READY", 0x1F, 14);
+    text(1, 3, "Applications", 0x1E, 12);
     for (int i = 0; i < WIN_COUNT; i++) {
         fill(icon_row[i], 2, 1, 9, ' ', ICON_ATTR);
         text(icon_row[i], 3, icon_label[i], ICON_ATTR, 7);
@@ -269,6 +300,7 @@ static void draw_frame(void) {
     for (int i = 0; i < WIN_COUNT; i++)
         if (wins[z[i]].open) draw_window(z[i]);
     draw_taskbar();
+    draw_start_menu();
     draw_cursor();
     for (int i = 0; i < VGA_ROWS * VGA_COLS; i++)
         VGA_MEM[i] = back[i];
@@ -276,6 +308,19 @@ static void draw_frame(void) {
 
 static void click(i32 mx, i32 my) {
     log_point("desktop: click", mx, my);
+    if (my == TASK_ROW && mx >= 0 && mx < 10) {
+        start_open = !start_open;
+        serial_str(start_open ? "desktop: start menu open\\n" : "desktop: start menu close\\n");
+        return;
+    }
+    if (start_open) {
+        if (mx >= START_MENU_X && mx < START_MENU_X + START_MENU_W &&
+            my >= START_MENU_Y + 1 && my < START_MENU_Y + 6) {
+            start_select(my - START_MENU_Y - 1);
+            return;
+        }
+        start_open = 0;
+    }
     if (my == TASK_ROW) {
         for (int i = 0; i < WIN_COUNT; i++)
             if (mx >= btn_col(i) && mx < btn_col(i) + 9) { open_win(i); return; }
@@ -286,6 +331,11 @@ static void click(i32 mx, i32 my) {
         struct window *w = &wins[k];
         if (my == w->y && mx >= w->x + w->w - 4 && mx <= w->x + w->w - 2) {
             w->open = 0; return;
+        }
+        if (my == w->y && mx >= w->x + w->w - 8 && mx <= w->x + w->w - 6) {
+            w->open = 0;
+            serial_str("desktop: minimize\\n");
+            return;
         }
         raise_win(k);
         if (my == w->y) {
@@ -336,6 +386,18 @@ static void term_key(int c) {
 }
 
 static void handle_key(int c) {
+    if (c == '\t') {
+        start_open = !start_open;
+        serial_str(start_open ? "desktop: start menu open\\n" : "desktop: start menu close\\n");
+        return;
+    }
+    if (start_open) {
+        if (c >= '1' && c <= '5') {
+            start_select(c - '1');
+            return;
+        }
+        if (c == 27) { start_open = 0; return; }
+    }
     if (top_win() == WIN_TERM) {
         term_key(c);
         return;
@@ -355,6 +417,7 @@ int desktop_run(void) {
     outb(0x3D5, 0x20);
     prev_buttons = mouse_buttons;
     drag_win = -1;
+    start_open = 0;
     for (;;) {
         if (kbd_toggle_take())
             break;

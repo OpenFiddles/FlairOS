@@ -23,6 +23,8 @@ try:
     cmd('mouse_move 20 16', 0.6)
     cmd('mouse_button 1', 0.3)
     cmd('mouse_button 0', 0.8)
+    cmd('sendkey tab', 0.5)
+    cmd('sendkey 1', 0.8)
     for k in ['a', 's', 'd']:
         cmd('sendkey ' + k, 0.4)
     cmd('sendkey ctrl-alt-d', 1.5)
@@ -41,6 +43,8 @@ checks = [
  ('mouse ready', 'mouse: ps/2 ready' in text),
  ('desktop starts', 'desktop: start' in text),
  ('mouse clicks reach desktop', 'desktop: click' in text),
+ ('start menu opens by keyboard', 'desktop: start menu open' in text),
+ ('start menu launches an app', 'desktop: open hello' in text),
  ('piano keys by keyboard', 'piano: key' in text),
  ('esc returns to shell', 'desktop: exit' in text),
  ('help after esc', 'Commands:' in text.split('desktop: exit')[-1]),
