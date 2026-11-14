@@ -180,7 +180,7 @@ jobs:
       - name: Install i386 toolchain
         run: |
           sudo apt-get update -qq
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nasm gcc-multilib binutils make python3 git > /dev/null
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nasm gcc-multilib binutils make python3 git qemu-system-x86 > /dev/null
 
       - name: Fetch and build MicroPython
         run: make python-image
@@ -193,6 +193,9 @@ jobs:
           test "$size" -le 131072
           test -s build/micropython/flareos.airp
           test -s build/textile-python.img
+
+      - name: Boot MicroPython and return to desktop
+        run: python3 tests/micropython_boot_test.py build/textile-python.img
 
       - name: Upload MicroPython build
         uses: actions/upload-artifact@v4

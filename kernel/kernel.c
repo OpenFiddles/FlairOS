@@ -763,7 +763,7 @@ static int run_app(void) {
 
 #define MICROPYTHON_STAGE_ADDR 0x60000u
 #define MICROPYTHON_AIRP_BYTES (257u * 512u)
-#define MICROPYTHON_STAGE_BYTES 0x20000u
+#define MICROPYTHON_STAGE_BYTES MICROPYTHON_AIRP_BYTES
 static u32 micropython_package_addr;
 int airp_load(const u8 *file, u32 len, u32 *entry);
 
