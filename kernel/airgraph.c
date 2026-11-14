@@ -234,13 +234,17 @@ int ag_present(struct ag_device *device, const struct ag_surface *surface) {
 static int32_t round_inset(int32_t y, int32_t h, int32_t radius) {
     int32_t cy = y < radius ? radius - 1 - y : (y >= h - radius ? y - (h - radius) : 0);
     if (cy <= 0) return 0;
-    /* Integer circle approximation: inset = r - floor(sqrt(r*r-dy*dy)). */
-    int32_t rr = radius * radius;
-    int32_t yy = cy * cy;
-    int32_t xx = rr - yy;
-    int32_t root = 0;
-    while ((root + 1) * (root + 1) <= xx) root++;
-    return radius - root;
+    /* 64-bit binary integer square root avoids overflow and radius-sized loops. */
+    uint64_t rr = (uint64_t)radius * (uint64_t)radius;
+    uint64_t yy = (uint64_t)cy * (uint64_t)cy;
+    uint64_t xx = rr - yy;
+    uint64_t lo = 0, hi = (uint64_t)radius;
+    while (lo < hi) {
+        uint64_t mid = lo + (hi - lo + 1u) / 2u;
+        if (mid * mid <= xx) lo = mid;
+        else hi = mid - 1u;
+    }
+    return radius - (int32_t)lo;
 }
 
 void ag_round_rect(struct ag_device *device, struct ag_surface *surface,

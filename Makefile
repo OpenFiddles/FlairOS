@@ -206,8 +206,12 @@ $(BUILD)/airgraph_host_test: tests/airgraph_host_test.c kernel/airgraph.c kernel
 $(BUILD)/driver_host_test: tests/driver_host_test.c drivers/drv_core.c include/drv.h include/drv_pic.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/driver_host_test.c drivers/drv_core.c
 
-test: $(BUILD)/textile.img $(BUILD)/airgraph_host_test $(BUILD)/driver_host_test
+$(BUILD)/fb_host_test: tests/fb_host_test.c kernel/fb.c include/fb.h | $(BUILD)
+	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/fb_host_test.c kernel/fb.c
+
+test: $(BUILD)/textile.img $(BUILD)/airgraph_host_test $(BUILD)/driver_host_test $(BUILD)/fb_host_test
 	$(BUILD)/airgraph_host_test
+	$(BUILD)/fb_host_test
 	$(BUILD)/driver_host_test
 	python3 tests/smoke.py $(BUILD)/textile.img
 
