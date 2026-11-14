@@ -72,7 +72,7 @@ $(BUILD)/usermode.o: kernel/usermode.asm | $(BUILD)
 $(BUILD)/desktop.o: kernel/desktop.c kernel/kernel.h kernel/textile.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/kernel.o: kernel/kernel.c kernel/kernel.h kernel/textile.h include/fb.h include/vbe.h | $(BUILD)
+$(BUILD)/kernel.o: kernel/kernel.c kernel/kernel.h kernel/textile.h include/fb.h include/vbe.h include/airgraph.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD)/drivers.o: kernel/drivers.c kernel/kernel.h kernel/textile.h | $(BUILD)

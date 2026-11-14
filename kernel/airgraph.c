@@ -179,7 +179,7 @@ void ag_blend_rect(struct ag_device *device, struct ag_surface *surface,
         device->backend->blend_rect(device, surface, x, y, w, h, color) == 0)
         return;
     if ((color >> 24) == 255u) {
-        ag_fill_rect(0, surface, x, y, w, h, color);
+        ag_fill_rect(device, surface, x, y, w, h, color);
         return;
     }
     if ((color >> 24) == 0u)
