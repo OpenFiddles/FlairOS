@@ -251,3 +251,21 @@ fs-test: | $(BUILD)
 	$(BUILD)/fs_host_test
 
 .PHONY: fs-test
+
+# --- Standalone GUI Terminal userland application ---
+$(BUILD)/terminal.o: userland/terminal/terminal.c include/axi.h include/fs.h kernel/textile.h sdk/stdlib.h sdk/string.h | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD)/terminal.elf: $(BUILD)/terminal.o $(BUILD)/rt.o userland/app.ld
+	$(LD) $(ARCH_LDFLAGS) -nostdlib -T userland/app.ld -o $@ $(BUILD)/terminal.o $(BUILD)/rt.o
+
+$(BUILD)/terminal.bin: $(BUILD)/terminal.elf
+	$(OBJCOPY) -O binary $< $@
+	test `stat -c %s $@` -le 65536
+
+$(BUILD)/terminal.airp: $(BUILD)/terminal.bin tools/airpack.py
+	python3 tools/airpack.py $(BUILD)/terminal.bin $@ terminal
+
+terminal-app: $(BUILD)/terminal.airp
+
+.PHONY: terminal-app
