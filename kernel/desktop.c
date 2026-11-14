@@ -36,7 +36,7 @@ struct window {
 static struct window wins[WIN_COUNT] = {
     {0, 22, 3, 38, 9, "Hello"},
     {0, 60, 4, 18, 5, "Clock"},
-    {0, 4, 2, 60, 17, "Terminal"},
+    {0, 12, 2, 68, 17, "Terminal"},
 };
 
 static const char *const icon_label[WIN_COUNT] = {"Hello", "Clock", "Term"};
