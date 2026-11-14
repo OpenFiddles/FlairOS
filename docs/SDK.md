@@ -1,4 +1,4 @@
-# FlareOS app SDK (v1.2)
+# FlareOS app SDK (v1.3)
 
 Apps are flat x86 binaries. They run in ring 3 and call the kernel with `int 0x80`.
 
@@ -39,7 +39,7 @@ Apps are flat x86 binaries. They run in ring 3 and call the kernel with `int 0x8
 
 | Function | What it does |
 | --- | --- |
-| `flare_fs_open(name, mode)` | Open with `FLARE_FS_READ`, `FLARE_FS_WRITE` (truncates) or `FLARE_FS_APPEND`. Returns a handle (1 to 4) or `FLARE_FS_FAIL` |
+| `flare_fs_open(name, mode)` | Open with `FLARE_FS_READ`, `FLARE_FS_WRITE` (truncates) or `FLARE_FS_APPEND`. Returns a handle (1 to 8) or `FLARE_FS_FAIL` |
 | `flare_fs_read(h, buf, max)` | Read up to `max` bytes; returns the count read |
 | `flare_fs_write(h, buf, count)` | Write; returns the count written |
 | `flare_fs_seek(h, pos)` | Move to `pos` (0 to size) |
@@ -49,7 +49,7 @@ Apps are flat x86 binaries. They run in ring 3 and call the kernel with `int 0x8
 | `flare_fs_rename(old, new)` | Rename; fails if `new` exists or `old` is open |
 | `flare_fs_exists(name)` | 1 if the file exists, else 0 |
 | `flare_fs_list(index, name_out)` | Size of the file at `index`; `name_out` needs 13 bytes |
-| `flare_fs_slots()` | Unused file slots out of 8 |
+| `flare_fs_slots()` | Unused file slots out of 16 |
 
 ## Strings and memory (`flare_string.h`)
 
@@ -88,12 +88,12 @@ This is a bump allocator. There is no per-block free. It is not the kernel's mem
 
 ## Storage
 
-Files live in RAM. After the disk has been formatted with the shell's `format` command, files are written through to the primary ATA disk (file slot N at LBA 129 + N). Refuse to format a disk you want to keep: `format` overwrites the directory sector at LBA 128. The format path is covered by the smoke test; file write-through to disk is not yet smoke-tested.
+Files are held in kernel memory and, when a supported ATA disk with a valid FlareOS directory is present, written through to disk. The directory is at LBA 398; file slot N owns a fixed 128-sector (64 KiB) region beginning at LBA 399 + N × 128. The filesystem has 16 slots, supports files up to 65536 bytes, and exposes 8 simultaneous handles. `format` initializes the directory and is destructive to any existing FlareOS filesystem metadata at LBA 398; do not run it on a disk whose contents you want to preserve.
 
 ## Limits
 
 - 65536 bytes per app. The image is a flat binary, so zero-initialized static data (`.bss`) is not stored in it. Do not rely on a static buffer starting zeroed; use `flare_heap_zalloc` or write before you read.
-- Names are up to 12 characters. A file holds up to 512 bytes. There are 8 files and 4 open handles, with one open handle per file.
+- Names are up to 12 characters. A file holds up to 65536 bytes. There are 16 files and 8 open handles, with one open handle per file.
 - The heap is bump-only and is only as big as the buffer you give it (the demo uses 512 bytes). A Python interpreter needs real freeing, a bigger image and the kernel memory and loader work.
 - The window API (`include/axi.h`) is not in the SDK yet.
 - Strings passed to kernel calls are read by the kernel. Passing a stack or heap buffer has not been tested on the device.
