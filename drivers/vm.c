@@ -244,11 +244,11 @@ static int build_app_space(void) {
         !(npt[APP_LO >> 12] & FLAG_US) ||
         (npt[APP_HI >> 12] & FLAG_US) ||
         (npd[1] & FLAG_US)) {
-        serial_str("vm: app permission check FAILED\\n");
+        serial_str("vm: app permission check FAILED\n");
         release_app_space();
         return -1;
     }
-    serial_str("vm: app permissions isolated\\n");
+    serial_str("vm: app permissions isolated\n");
     heap_top = HEAP_BASE;
     return 0;
 }
