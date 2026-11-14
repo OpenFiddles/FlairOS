@@ -94,10 +94,10 @@ Files are held in kernel memory and, when a supported ATA disk with a valid Flar
 
 - 65536 bytes per app. The image is a flat binary, so zero-initialized static data (`.bss`) is not stored in it. Do not rely on a static buffer starting zeroed; use `flare_heap_zalloc` or write before you read.
 - Names are up to 12 characters. A file holds up to 65536 bytes. There are 16 files and 8 open handles, with one open handle per file.
-- The heap is bump-only and is only as big as the buffer you give it (the demo uses 512 bytes). A Python interpreter needs real freeing, a bigger image and the kernel memory and loader work.
-- The window API (`include/axi.h`) is not in the SDK yet.
-- Strings passed to kernel calls are read by the kernel. Passing a stack or heap buffer has not been tested on the device.
-- Python: not yet. Running CPython needs a multi-slot program loader, a heap with free and paging.
+- The SDK's example heap is bump-only. The experimental MicroPython port uses its own garbage-collected arena from the kernel's `SYS_BRK` heap instead.
+- The window API (`include/axi.h`) is available to kernel/userland code but is not yet wrapped by the small C SDK.
+- Strings passed to kernel calls are read by the kernel. Passing a stack or heap buffer has not been tested on physical hardware.
+- MicroPython: an experimental i386 port exists under `ports/micropython`. It is built separately with `make micropython-port`; it is not yet installed into the boot image or launchable from the desktop. It still needs a successful upstream build and a compatible application-image size/loader path. This is MicroPython, not CPython.
 
 ## Checks
 

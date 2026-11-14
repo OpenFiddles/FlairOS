@@ -89,7 +89,8 @@ static MP_DEFINE_CONST_FUN_OBJ_0(flareos_fs_list_obj, flareos_fs_list);
 static mp_obj_t flareos_fs_open(mp_obj_t name_obj, mp_obj_t mode_obj) {
     mp_int_t mode = mp_obj_get_int(mode_obj);
     uint32_t handle;
-    if (mode < FS_READ || mode > FS_APPEND)
+    if (mode != (mp_int_t)FS_READ && mode != (mp_int_t)FS_WRITE &&
+        mode != (mp_int_t)FS_APPEND)
         mp_raise_ValueError(MP_ERROR_TEXT("mode must be FS_READ, FS_WRITE, or FS_APPEND"));
     handle = fs_open(checked_name(name_obj), (uint32_t)mode);
     if (handle == FS_FAIL)
