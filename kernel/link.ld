@@ -20,4 +20,5 @@ SECTIONS
     /DISCARD/ : { *(.comment) *(.note*) *(.eh_frame*) }
 }
 
+ASSERT(__bss_end <= 0x30000, "kernel bss overlaps the reserved PMM bitmap and Explorer staging gap")
 ASSERT(__bss_end <= 0x40000, "kernel image plus bss overlaps the app slot at 0x40000")

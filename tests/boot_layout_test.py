@@ -21,6 +21,7 @@ vm = source("drivers/vm.c")
 pmm = source("drivers/pmm.c")
 desktop = source("kernel/desktop.c")
 kernel = source("kernel/kernel.c")
+linker = source("kernel/link.ld")
 makefile = source("Makefile")
 
 def number(pattern, text, label):
@@ -62,6 +63,7 @@ assert managed + bitmap_bytes <= 0x34000
 assert "0x34000" in desktop and "0x7F000" in desktop
 assert "micropython_stage_init();" in kernel
 assert "pmm_alloc_contig(frames)" in kernel
+assert "__bss_end <= 0x30000" in linker
 
 # Exercise the exact maximum AIRP image size and reject the first byte over it.
 with tempfile.TemporaryDirectory() as tmp:
