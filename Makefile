@@ -210,10 +210,14 @@ $(BUILD)/driver_host_test: tests/driver_host_test.c drivers/drv_core.c include/d
 $(BUILD)/fb_host_test: tests/fb_host_test.c kernel/fb.c include/fb.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/fb_host_test.c kernel/fb.c
 
-test: $(BUILD)/textile.img $(BUILD)/airgraph_host_test $(BUILD)/driver_host_test $(BUILD)/fb_host_test
+$(BUILD)/ata_identify_host_test: tests/ata_identify_host_test.c drivers/ata_identify.c include/ata_identify.h | $(BUILD)
+	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/ata_identify_host_test.c drivers/ata_identify.c
+
+test: $(BUILD)/textile.img $(BUILD)/airgraph_host_test $(BUILD)/driver_host_test $(BUILD)/fb_host_test $(BUILD)/ata_identify_host_test
 	$(BUILD)/airgraph_host_test
 	$(BUILD)/fb_host_test
 	$(BUILD)/driver_host_test
+	$(BUILD)/ata_identify_host_test
 	python3 tests/smoke.py $(BUILD)/textile.img
 
 clean:
@@ -236,7 +240,7 @@ $(BUILD)/libc_demo.o: examples/libc_demo/libc_demo.c sdk/flareos.h sdk/flare_lib
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD)/libc_demo.elf: $(BUILD)/libc_demo.o $(BUILD)/rt.o userland/app.ld
-	$(LD) $(ARCH_LDFLAGS) -nostdlib -T userland/app.ld -o $@ $(BUILD)/libc_demo.o $(BUILD)/rt.o
+	$(CC) $(CFLAGS) -nostdlib -T userland/app.ld -o $@ $(BUILD)/libc_demo.o $(BUILD)/rt.o
 
 $(BUILD)/libc_demo.bin: $(BUILD)/libc_demo.elf
 	$(OBJCOPY) -O binary $< $@
