@@ -10,9 +10,9 @@
 #include "../../sdk/string.h"
 
 #define TERM_ROWS 12
-#define TERM_COLS 40
+#define TERM_COLS 64
 #define LOG_LINES 64
-#define INPUT_MAX 72
+#define INPUT_MAX 61
 #define HISTORY 8
 #define ATTR_BODY 0x70
 #define ATTR_HEAD 0x2F
@@ -198,7 +198,7 @@ static void app_entry(void) {
 }
 void app_main(void) {
     int key, arrow;
-    win = ax_open(8, 3, TERM_COLS, TERM_ROWS, "Terminal");
+    win = ax_open(12, 3, TERM_COLS, TERM_ROWS, "Terminal");
     if (win == AX_FAIL) return;
     log_line("FlareOS Terminal - userland shell");
     log_line("Type help to list commands.");

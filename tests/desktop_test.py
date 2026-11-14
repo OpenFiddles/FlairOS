@@ -28,6 +28,9 @@ try:
     cmd('sendkey tab', 0.5)
     cmd('sendkey 2', 0.8)  # Select Clock from the Start menu.
     cmd('sendkey ret', 0.8)  # Activate through the shared click dispatcher after focus leaves Terminal.
+    # The Terminal is opt-in: launch it from Start, not during the boot sequence.
+    cmd('sendkey tab', 0.5)
+    cmd('sendkey 3', 0.8)
     cmd('sendkey ctrl-alt-d', 1.5)
     for k in ['h', 'e', 'l', 'p']:
         cmd('sendkey ' + k, 0.3)

@@ -448,13 +448,9 @@ static void handle_key(int c) {
 }
 
 int desktop_run(void) {
-    static int first_desktop_start = 1;
+    /* Start with a clean workspace. The built-in Terminal remains available
+       from its desktop icon and the Start menu; it is not restored on boot. */
     serial_str("desktop: start\n");
-    if (first_desktop_start) {
-        first_desktop_start = 0;
-        open_win(WIN_TERM);
-        terminal_exec("help");
-    }
     outb(0x3D4, 0x0A);
     outb(0x3D5, 0x20);
     prev_buttons = mouse_buttons;

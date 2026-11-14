@@ -14,7 +14,7 @@
 #define SYS_WIN_ALIVE   20  /* ebx = handle; 1 while the user has not closed it */
 
 #define AX_FAIL 0xFFFFFFFFu
-#define AX_MAX_BODY_W 40
+#define AX_MAX_BODY_W 64
 #define AX_MAX_BODY_H 12
 #define AX_CLICK_ROW(v) ((v) & 0xFFFFu)
 #define AX_CLICK_COL(v) ((v) >> 16)

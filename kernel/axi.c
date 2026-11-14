@@ -48,7 +48,7 @@ static u32 axk_open(u32 xy, u32 wh, const char *title) {
     i32 w = (i32)(wh & 0xFFFF), h = (i32)(wh >> 16);
     if (w < AXK_MIN_W || w > AX_MAX_BODY_W || h < AXK_MIN_H || h - 1 > AX_MAX_BODY_H)
         return AX_FAIL;
-    if (x + w > VGA_COLS || y + h > AXK_DESKTOP_ROWS)
+    if (x < 0 || y < 0 || x + w > VGA_COLS || y + h > AXK_DESKTOP_ROWS)
         return AX_FAIL;
     for (int i = 0; i < AXK_SLOTS; i++) {
         struct axk_win *s = &axk_wins[i];
