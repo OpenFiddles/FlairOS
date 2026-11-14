@@ -1,4 +1,5 @@
 #include "../kernel/kernel.h"
+#include "../include/drv_pic.h"
 
 #define MOUSE_SUB 4
 #define MOUSE_MAX_X (VGA_COLS * MOUSE_SUB - 1)
@@ -61,6 +62,10 @@ int mouse_init(void) {
     if (!mouse_send(0xF4))
         return 0;
     phase = 0;
+
+    /* IRQ12 is masked by the early PIC setup; enable it only after the
+       controller and mouse have been configured successfully. */
+    drv_pic_unmask(12);
     return 1;
 }
 
