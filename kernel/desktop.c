@@ -419,8 +419,6 @@ int desktop_run(void) {
     drag_win = -1;
     start_open = 0;
     for (;;) {
-        if (kbd_toggle_take())
-            break;
         int c;
         while ((c = kbd_read()) >= 0)
             handle_key(c);
@@ -436,6 +434,9 @@ int desktop_run(void) {
         handle_mouse();
         if (piano_flash > 0) piano_flash--;
         draw_frame();
+        /* Drain queued input before honoring Ctrl+Alt+D. */
+        if (kbd_toggle_take())
+            break;
         wait_ticks(FRAME_TICKS);
     }
     outb(0x3D4, 0x0A);

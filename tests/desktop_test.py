@@ -52,3 +52,5 @@ checks = [
 ]
 for n, ok in checks:
     print(('PASS ' if ok else 'FAIL ') + n)
+if not all(ok for _, ok in checks):
+    sys.exit(1)
