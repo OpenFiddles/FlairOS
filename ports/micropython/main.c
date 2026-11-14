@@ -7,6 +7,7 @@
 #include "py/obj.h"
 #include "py/runtime.h"
 #include "py/mphal.h"
+#include "mphalport.h"
 #include "py/repl.h"
 #include "py/stackctrl.h"
 #include "shared/runtime/pyexec.h"
