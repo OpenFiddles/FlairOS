@@ -2,7 +2,7 @@
 FILE PATH: kernel/fs.c
 CONTRIBUTOR: Textile
 PURPOSE: Dynamic filesystem for FlareOS. Files are variable-size (up to 64 KB),
-  held in kernel heap buffers and written through to the ATA disk. Sector 398
+  held in kernel heap buffers and written through to the ATA disk. Sector FS_DIR_LBA
   holds the directory; file slot N owns a fixed 128-sector region starting at
   sector 399 + N * 128, so a file that grows never overlaps another file.
   Paging is not involved: data buffers come from kmalloc, not the app address space.

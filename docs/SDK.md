@@ -88,11 +88,11 @@ This is a bump allocator. There is no per-block free. It is not the kernel's mem
 
 ## Storage
 
-Files are held in kernel memory and, when a supported ATA disk with a valid FlareOS directory is present, written through to disk. The directory is at LBA 398; file slot N owns a fixed 128-sector (64 KiB) region beginning at LBA 399 + N × 128. The filesystem has 16 slots, supports files up to 65536 bytes, and exposes 8 simultaneous handles. `format` initializes the directory and is destructive to any existing FlareOS filesystem metadata at LBA 398; do not run it on a disk whose contents you want to preserve.
+Files are held in kernel memory and, when a supported ATA disk with a valid FlareOS directory is present, written through to disk. The directory is at LBA 526 (after the 128 KiB app slot and Explorer boot payload); file slot N owns a fixed 128-sector (64 KiB) region beginning at LBA 399 + N × 128. The filesystem has 16 slots, supports files up to 65536 bytes, and exposes 8 simultaneous handles. `format` initializes the directory and is destructive to any existing FlareOS filesystem metadata at LBA 526; do not run it on a disk whose contents you want to preserve.
 
 ## Limits
 
-- 65536 bytes per app. The image is a flat binary, so zero-initialized static data (`.bss`) is not stored in it. Do not rely on a static buffer starting zeroed; use `flare_heap_zalloc` or write before you read.
+- 131072 bytes (128 KiB) per app. The image is a flat binary, so zero-initialized static data (`.bss`) is not stored in it. Do not rely on a static buffer starting zeroed; use `flare_heap_zalloc` or write before you read.
 - Names are up to 12 characters. A file holds up to 65536 bytes. There are 16 files and 8 open handles, with one open handle per file.
 - The SDK's example heap is bump-only. The experimental MicroPython port uses its own garbage-collected arena from the kernel's `SYS_BRK` heap instead.
 - The window API (`include/axi.h`) is available to kernel/userland code but is not yet wrapped by the small C SDK.

@@ -30,7 +30,7 @@ PURPOSE: FlareOS dynamic filesystem syscall numbers, limits and the int 0x80
 #define FS_FILE_MAX    65536
 #define FS_FILES       16
 #define FS_HANDLES     8
-#define FS_DIR_LBA     398
+#define FS_DIR_LBA     526
 #define FS_MAGIC       0x46534459u
 #define FS_ENTRY_SIZE  24
 #define FS_MAX_ENTRIES 16

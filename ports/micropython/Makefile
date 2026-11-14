@@ -50,7 +50,7 @@ $(BUILD)/flareos.elf: $(OBJ) app.ld
 
 $(BUILD)/flareos.bin: $(BUILD)/flareos.elf
 	$(Q)$(OBJCOPY) -O binary $< $@
-	@echo "FlareOS MicroPython image size: $$(stat -c %s $@) bytes (AIRP v1 limit: 65536 bytes)"
+	@echo "FlareOS MicroPython image size: $$(stat -c %s $@) bytes (AIRP v1 limit: 131072 bytes)"
 
 include $(TOP)/py/mkrules.mk
 

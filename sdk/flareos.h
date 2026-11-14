@@ -14,7 +14,7 @@ typedef int flare_i32;
 
 #define FLARE_APP_MAGIC 0x54505041u
 #define FLARE_APP_BASE 0x40000u
-#define FLARE_APP_MAX_BYTES 65536u
+#define FLARE_APP_MAX_BYTES 131072u
 
 #define FLARE_SYS_PUTC 1u
 #define FLARE_SYS_PUTAT 2u

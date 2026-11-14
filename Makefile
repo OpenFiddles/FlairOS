@@ -150,10 +150,10 @@ $(BUILD)/app.elf: $(BUILD)/app.o $(BUILD)/rt.o userland/app.ld
 
 $(BUILD)/app.bin: $(BUILD)/app.elf
 	$(OBJCOPY) -O binary $< $@
-	test `stat -c %s $@` -le 65536
-	truncate -s 65536 $@
+	test `stat -c %s $@` -le 131072
+	truncate -s 131072 $@
 
-# --- Explorer as .airp (stage 1 loads it from LBA 389 to 0x50000) ---
+# --- Explorer as .airp (stage 1 loads it from LBA 517 to 0x60000) ---
 $(BUILD)/explorer.o: userland/explorer.c include/axi.h include/fs.h kernel/textile.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
@@ -173,8 +173,8 @@ $(BUILD)/textile.img: $(BUILD)/stage1.bin $(BUILD)/stage2.bin $(BUILD)/kernel.bi
 	dd if=$(BUILD)/stage1.bin of=$@ bs=512 count=1 conv=notrunc status=none
 	dd if=$(BUILD)/stage2.bin of=$@ bs=512 seek=1 count=4 conv=notrunc status=none
 	dd if=$(BUILD)/kernel.bin of=$@ bs=512 seek=5 count=256 conv=notrunc status=none
-	dd if=$(BUILD)/app.bin of=$@ bs=512 seek=261 count=128 conv=notrunc status=none
-	dd if=$(BUILD)/explorer.airp of=$@ bs=512 seek=389 count=9 conv=notrunc status=none
+	dd if=$(BUILD)/app.bin of=$@ bs=512 seek=261 count=256 conv=notrunc status=none
+	dd if=$(BUILD)/explorer.airp of=$@ bs=512 seek=517 count=9 conv=notrunc status=none
 
 # --- Window API demo: same image layout, app slot holds userland/win_app.c ---
 $(BUILD)/win_app.o: userland/win_app.c include/axi.h kernel/textile.h | $(BUILD)
@@ -294,7 +294,7 @@ micropython-port: micropython-fetch
 	$(MAKE) -C "$(MICROPYTHON_DIR)/ports/flareos" BUILD="$(MICROPYTHON_BUILD)"
 
 micropython-package: micropython-port
-	test $$(stat -c %s "$(MICROPYTHON_BUILD)/flareos.bin") -le 65536
+	test $(stat -c %s "$(MICROPYTHON_BUILD)/flareos.bin") -le 131072
 	python3 tools/airpack.py "$(MICROPYTHON_BUILD)/flareos.bin" "$(MICROPYTHON_BUILD)/flareos.airp" micropython
 
 .PHONY: micropython-fetch micropython-port micropython-package
