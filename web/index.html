@@ -355,7 +355,7 @@
     screenObserver.observe(screenContainer);
   }
   const canvasObserver = new MutationObserver(fitScreen);
-  canvasObserver.observe(screenContainer, { subtree: true, childList: true, attributes: true, attributeFilter: ["width", "height", "style"] });
+  canvasObserver.observe(screenContainer, { subtree: true, childList: true, attributes: true, attributeFilter: ["width", "height"] });
   window.addEventListener("resize", fitScreen);
   window.addEventListener("orientationchange", fitScreen);
   document.addEventListener("fullscreenchange", fitScreen);
