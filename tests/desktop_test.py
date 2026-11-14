@@ -30,7 +30,9 @@ try:
     cmd('sendkey 2', 0.8)
     # The GUI Terminal is focused on desktop startup, so the first Enter
     # is terminal input. After selecting Piano, Enter is routed through the
-    # desktop click dispatcher. This is deterministic in headless QEMU.
+    # desktop click dispatcher. Move off the Files icon before activating.
+    cmd('sendkey right', 0.3)
+    cmd('sendkey down', 0.3)
     cmd('sendkey ret', 0.5)
     for k in ['a', 's', 'd']:
         cmd('sendkey ' + k, 0.4)
