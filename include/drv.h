@@ -1,5 +1,5 @@
-#ifndef AIROS_DRV_H
-#define AIROS_DRV_H
+#ifndef DRV_H
+#define DRV_H
 
 #include "airos_types.h"
 
@@ -18,7 +18,10 @@ enum drv_class {
     DRV_CLASS_CHAR,
     DRV_CLASS_INPUT,
     DRV_CLASS_RTC,
-    DRV_CLASS_AUDIO
+    DRV_CLASS_AUDIO,
+    DRV_CLASS_GPU,
+    DRV_CLASS_DISPLAY,
+    DRV_CLASS_MAX = DRV_CLASS_DISPLAY
 };
 
 struct drv_ops {
@@ -41,6 +44,7 @@ void drv_shutdown_all(void);
 void drv_dispatch_irq(int line);
 int drv_count(void);
 const struct drv *drv_find(const char *name);
+const struct drv *drv_find_class(enum drv_class cls);
 int drv_register_builtin(void);
 
 #endif

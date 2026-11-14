@@ -13,7 +13,9 @@ static int str_eq(const char *a, const char *b) {
 }
 
 int drv_register(struct drv *d) {
-    if (!d || !d->name || table_n >= DRV_MAX)
+    if (!d || !d->name || !d->name[0] || table_n >= DRV_MAX)
+        return -1;
+    if (d->cls < DRV_CLASS_INTC || d->cls > DRV_CLASS_MAX)
         return -1;
     if (d->irq_line != DRV_NO_IRQ && (d->irq_line < 0 || d->irq_line >= DRV_IRQ_LINES))
         return -1;
@@ -65,8 +67,19 @@ int drv_count(void) {
 }
 
 const struct drv *drv_find(const char *name) {
+    if (!name)
+        return 0;
     for (int i = 0; i < table_n; i++)
         if (str_eq(table[i]->name, name))
+            return table[i];
+    return 0;
+}
+
+const struct drv *drv_find_class(enum drv_class cls) {
+    if (cls < DRV_CLASS_INTC || cls > DRV_CLASS_MAX)
+        return 0;
+    for (int i = 0; i < table_n; i++)
+        if (table[i]->cls == cls && table[i]->ready)
             return table[i];
     return 0;
 }
