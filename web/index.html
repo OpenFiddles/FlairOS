@@ -347,7 +347,7 @@
     // v86 uses a DOM text framebuffer in VGA text mode and a canvas in
     // graphics modes. Scale both from native dimensions; max-width alone
     // clips the 80-column text display on narrow portrait screens.
-    const textScreen = screenContainer.firstElementChild;
+    const textScreen = Array.from(screenContainer.children).find(child => child.tagName === "DIV") || null;
     const textVisible = textScreen &&
       textScreen.childNodes.length > 0 &&
       getComputedStyle(textScreen).display !== "none";
