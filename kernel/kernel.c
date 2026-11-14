@@ -533,6 +533,31 @@ static int parse_hex(const char *s, u32 *out) {
     return 1;
 }
 
+static int parse_ipv4(const char *s, u8 out[4]) {
+    for (int part = 0; part < 4; ++part) {
+        u32 value = 0;
+        int digits = 0;
+        while (*s >= '0' && *s <= '9') {
+            value = value * 10u + (u32)(*s++ - '0');
+            if (value > 255u) return 0;
+            ++digits;
+        }
+        if (!digits) return 0;
+        out[part] = (u8)value;
+        if (part < 3) {
+            if (*s++ != '.') return 0;
+        } else if (*s) return 0;
+    }
+    return 1;
+}
+
+static void put_ipv4(const u8 ip[4]) {
+    for (int i = 0; i < 4; ++i) {
+        put_dec(ip[i]);
+        if (i != 3) putc('.');
+    }
+}
+
 static int parse_dec(const char *s, u32 *out) {
     u32 v = 0;
     int digits = 0;
@@ -823,6 +848,26 @@ static void run_command(char *input) {
             put_dec(dev->mtu);
             puts(net_link_up(dev) ? "  link up\n" : "  link down\n");
         }
+    } else if (str_eq(argv[0], "ping")) {
+        u8 target[4];
+        if (argc < 2 || !parse_ipv4(argv[1], target)) {
+            say_error("usage: ping IPv4   (e.g. ping 1.1.1.1)\\n");
+            return;
+        }
+        puts("ping ");
+        put_ipv4(target);
+        puts(": ");
+        int result = net_ping_ipv4(target);
+        if (result == 0)
+            puts("reply received\\n");
+        else if (result == -1)
+            say_error("no network device\\n");
+        else if (result == -2)
+            say_error("DHCP failed: no address lease\\n");
+        else if (result == -3)
+            say_error("ARP failed: destination gateway did not respond\\n");
+        else
+            say_error("request timed out\\n");
     } else if (str_eq(argv[0], "sqr")) {
         u32 x, y;
         if (argc < 3 || !parse_dec(argv[1], &x) || !parse_dec(argv[2], &y) ||

@@ -35,4 +35,7 @@ int net_link_up(struct net_device *dev);
 int net_send(struct net_device *dev, const void *frame, u16 length);
 int net_receive(struct net_device *dev, void *frame, u16 capacity);
 
+/* Minimal IPv4 DHCP/ARP/ICMP path used by the text-mode ping command. */
+int net_ping_ipv4(const u8 target[4]);
+
 #endif

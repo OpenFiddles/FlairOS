@@ -112,6 +112,14 @@
   #touchpad p { z-index: 1; margin: 0; padding: 8px; text-align: center; font-size: .84rem; pointer-events: none; }
   .mouse-buttons { display: flex; gap: 8px; margin-top: 8px; }
   .mouse-buttons button { flex: 1; }
+  .network-card { margin: 14px 0 0; padding: 15px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+  .network-card h2 { margin: 0 0 8px; font-size: 1rem; }
+  .network-card p, .network-card li { color: var(--muted); font-size: .86rem; line-height: 1.5; }
+  .network-card ol { margin: 8px 0 12px; padding-left: 21px; }
+  .network-card a { color: #a9c4ff; }
+  .relay-row { display: flex; gap: 8px; margin-top: 10px; }
+  #relay-url { flex: 1; min-width: 0; min-height: 44px; padding: 9px 11px; border: 1px solid #414650; border-radius: 9px; background: #0b0c0e; color: var(--text); font: inherit; font-size: .9rem; }
+  #relay-hint { margin: 8px 0 0; font-size: .8rem; }
   .foot { margin-top: 16px; font-size: .82rem; }
   .player:fullscreen, .player:-webkit-full-screen {
     width: 100%; height: 100%; max-width: none; border: 0; border-radius: 0;
@@ -210,7 +218,23 @@
     <p class="status" id="status" role="status" aria-live="polite">Loading the emulator...</p>
   </div>
 
-  <p class="foot">Press Ctrl+Alt+D to switch between the desktop and text mode. In the desktop Terminal, try <code>help</code>, <code>time</code>, <code>uptime</code>, or <code>echo hello</code>.</p>
+  <section class="network-card" aria-labelledby="network-title">
+    <h2 id="network-title">Private network access</h2>
+    <p>FlareOS uses v86's NE2000 virtual Ethernet card. To reach the private relay, each user needs their own Tailscale account and must be invited into the OpenFiddles tailnet.</p>
+    <ol>
+      <li><a href="https://tailscale.com/docs/how-to/quickstart" target="_blank" rel="noopener noreferrer">Create a Tailscale account and install Tailscale</a> on the device running this browser.</li>
+      <li>Ask an OpenFiddles network administrator for an invitation, then accept it and connect Tailscale.</li>
+      <li>Paste the private relay's secure WebSocket address below. The relay must be reachable from the OpenFiddles tailnet.</li>
+    </ol>
+    <label class="type-label" for="relay-url">Private relay WebSocket URL</label>
+    <div class="relay-row">
+      <input id="relay-url" type="url" inputmode="url" autocomplete="url" placeholder="wss://relay-host.your-tailnet.ts.net/" aria-describedby="relay-hint">
+      <button class="primary" id="apply-relay" type="button">Save &amp; restart</button>
+    </div>
+    <p id="relay-hint">Leave blank to use v86's in-browser network, which connects VMs in the same browser but does not provide internet access. The relay URL is saved only in this browser.</p>
+  </section>
+
+  <p class="foot">Press Ctrl+Alt+D to switch between the desktop and text mode. In the desktop Terminal, try <code>help</code>, <code>time</code>, <code>uptime</code>, <code>net</code>, or <code>ping 1.1.1.1</code>.</p>
   <p class="foot">Source: <a href="https://gitlab.com/openfiddles/FlairOS">OpenFiddles / FlairOS</a></p>
 </main>
 
@@ -230,6 +254,11 @@
   const rightClick = document.getElementById("right-click");
   const fullscreenButton = document.getElementById("fullscreen");
   const keyButtons = document.querySelectorAll("[data-key]");
+  const relayInput = document.getElementById("relay-url");
+  const applyRelayButton = document.getElementById("apply-relay");
+  const relayHint = document.getElementById("relay-hint");
+  const savedRelay = localStorage.getItem("flareos.relayUrl") || "inbrowser";
+  if (relayInput && savedRelay !== "inbrowser") relayInput.value = savedRelay;
   const SENTINEL = " ";
 
   const SC = {
@@ -252,10 +281,29 @@
     vga_bios: { url: "v86/vgabios.bin" },
     fda: { url: "textile.img", size: 1474560 },
     autostart: true,
-    net_device: { type: "ne2k", relay_url: "inbrowser" }
+    net_device: { type: "ne2k", relay_url: savedRelay }
   });
 
   const running = () => emulator.is_running();
+  applyRelayButton.addEventListener("click", () => {
+    const value = relayInput.value.trim();
+    if (!value) {
+      localStorage.removeItem("flareos.relayUrl");
+      window.location.reload();
+      return;
+    }
+    let parsed;
+    try { parsed = new URL(value); } catch (_) {
+      relayHint.textContent = "Enter a valid secure WebSocket URL beginning with wss://.";
+      return;
+    }
+    if (parsed.protocol !== "wss:" || parsed.username || parsed.password) {
+      relayHint.textContent = "For the hosted emulator, use a wss:// URL. Do not paste passwords, auth keys, or other secrets here.";
+      return;
+    }
+    localStorage.setItem("flareos.relayUrl", parsed.href);
+    window.location.reload();
+  });
   const sendKey = (name) => {
     if (running() && SC[name]) emulator.keyboard_send_scancodes(SC[name]);
   };

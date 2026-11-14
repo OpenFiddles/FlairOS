@@ -34,7 +34,7 @@ foreach(src IN ITEMS kernel/entry.asm kernel/isr.asm kernel/usermode.asm)
 endforeach()
 set_source_files_properties(${AIROS_ASM_OBJS} PROPERTIES EXTERNAL_OBJECT TRUE GENERATED TRUE)
 
-file(GLOB AIROS_DRIVER_SRCS CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/drivers/*.c)
+file(GLOB_RECURSE AIROS_DRIVER_SRCS CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/drivers/*.c)
 set(AIROS_KERNEL_SRCS
   kernel/desktop.c kernel/kernel.c kernel/drivers.c kernel/keyboard.c
   kernel/panic.c kernel/mouse_cursor.c kernel/mouse_init.c kernel/pit_timer.c
