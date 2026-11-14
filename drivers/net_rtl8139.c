@@ -197,10 +197,10 @@ static void rtl_shutdown(void) {
         hw_outb(rtl.io + RTL_CR, 0);
     }
     rtl.io = 0;
-    rtl_device.ready = 0;
+    net_unregister(&rtl_device);
 }
 
 static const struct drv_ops rtl_driver_ops = { rtl_init, 0, rtl_shutdown };
 struct drv drv_rtl8139 = {
-    "rtl8139", DRV_CLASS_CHAR, &rtl_driver_ops, DRV_NO_IRQ, 0
+    "rtl8139", DRV_CLASS_NET, &rtl_driver_ops, DRV_NO_IRQ, 0
 };

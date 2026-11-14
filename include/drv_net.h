@@ -27,6 +27,7 @@ struct net_device {
 
 /* Hardware drivers register devices; the protocol stack uses only this API. */
 int net_register(struct net_device *dev);
+int net_unregister(struct net_device *dev);
 int net_device_count(void);
 struct net_device *net_default(void);
 struct net_device *net_device_at(unsigned int index);

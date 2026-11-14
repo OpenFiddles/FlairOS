@@ -19,6 +19,19 @@ int net_register(struct net_device *dev) {
     return 0;
 }
 
+int net_unregister(struct net_device *dev) {
+    for (unsigned int i = 0; i < device_count; ++i) {
+        if (devices[i] == dev) {
+            for (unsigned int j = i + 1; j < device_count; ++j)
+                devices[j - 1] = devices[j];
+            devices[--device_count] = 0;
+            dev->ready = 0;
+            return 0;
+        }
+    }
+    return -1;
+}
+
 int net_device_count(void) { return (int)device_count; }
 
 struct net_device *net_device_at(unsigned int index) {

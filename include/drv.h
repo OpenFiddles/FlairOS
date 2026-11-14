@@ -21,7 +21,8 @@ enum drv_class {
     DRV_CLASS_AUDIO,
     DRV_CLASS_GPU,
     DRV_CLASS_DISPLAY,
-    DRV_CLASS_MAX = DRV_CLASS_DISPLAY
+    DRV_CLASS_NET,
+    DRV_CLASS_MAX = DRV_CLASS_NET
 };
 
 struct drv_ops {
