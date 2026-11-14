@@ -219,19 +219,19 @@
   </div>
 
   <section class="network-card" aria-labelledby="network-title">
-    <h2 id="network-title">Private network access</h2>
-    <p>FlareOS uses v86's NE2000 virtual Ethernet card. To reach the private relay, each user needs their own Tailscale account and must be invited into the OpenFiddles tailnet.</p>
+    <h2 id="network-title">Internet access</h2>
+    <p>FlareOS uses v86's NE2000 virtual Ethernet card with the Wisp WebSocket protocol. The hosted relay provides outbound TCP connectivity for web traffic without requiring a VPN or a local network adapter.</p>
     <ol>
-      <li><a href="https://tailscale.com/docs/how-to/quickstart" target="_blank" rel="noopener noreferrer">Create a Tailscale account and install Tailscale</a> on the device running this browser.</li>
-      <li>Ask an OpenFiddles network administrator for an invitation, then accept it and connect Tailscale.</li>
-      <li>Paste the private relay's secure WebSocket address below. The relay must be reachable from the OpenFiddles tailnet.</li>
+      <li>Paste the OpenFiddles Wisp address below.</li>
+      <li>Choose <code>Save &amp; restart</code> to reconnect the virtual network.</li>
+      <li>Inside FlareOS, test with <code>ping 1.1.1.1</code> or open a TCP-based web client.</li>
     </ol>
     <label class="type-label" for="relay-url">Private relay WebSocket URL</label>
     <div class="relay-row">
-      <input id="relay-url" type="url" inputmode="url" autocomplete="url" placeholder="wss://relay-host.your-tailnet.ts.net/" aria-describedby="relay-hint">
+      <input id="relay-url" type="url" inputmode="url" autocomplete="url" placeholder="wisps://flareos-wisp-relay.openfiddles.workers.dev/wisp/…/" aria-describedby="relay-hint">
       <button class="primary" id="apply-relay" type="button">Save &amp; restart</button>
     </div>
-    <p id="relay-hint">Leave blank to use v86's in-browser network, which connects VMs in the same browser but does not provide internet access. The relay URL is saved only in this browser.</p>
+    <p id="relay-hint">Wisp supports outbound TCP web traffic on ports 80 and 443. Arbitrary UDP, inbound connections, and access to private networks are intentionally disabled. Leave blank to use the isolated in-browser network. The relay URL is saved only in this browser.</p>
   </section>
 
   <p class="foot">Press Ctrl+Alt+D to switch between the desktop and text mode. In the desktop Terminal, try <code>help</code>, <code>time</code>, <code>uptime</code>, <code>net</code>, or <code>ping 1.1.1.1</code>.</p>
@@ -297,8 +297,8 @@
       relayHint.textContent = "Enter a valid secure WebSocket URL beginning with wss://.";
       return;
     }
-    if (parsed.protocol !== "wss:" || parsed.username || parsed.password) {
-      relayHint.textContent = "For the hosted emulator, use a wss:// URL. Do not paste passwords, auth keys, or other secrets here.";
+    if (parsed.protocol !== "wisps:" || parsed.username || parsed.password) {
+      relayHint.textContent = "For the hosted emulator, use a secure Wisp URL beginning with wisps://. Do not paste passwords or credentials into the URL.";
       return;
     }
     localStorage.setItem("flareos.relayUrl", parsed.href);
