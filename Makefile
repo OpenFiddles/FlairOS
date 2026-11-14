@@ -240,7 +240,7 @@ $(BUILD)/libc_demo.o: examples/libc_demo/libc_demo.c sdk/flareos.h sdk/flare_lib
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD)/libc_demo.elf: $(BUILD)/libc_demo.o $(BUILD)/rt.o userland/app.ld
-	$(CC) $(CFLAGS) -nostdlib -T userland/app.ld -o $@ $(BUILD)/libc_demo.o $(BUILD)/rt.o
+	$(LD) $(ARCH_LDFLAGS) -nostdlib -T userland/app.ld -o $@ $(BUILD)/libc_demo.o $(BUILD)/rt.o
 
 $(BUILD)/libc_demo.bin: $(BUILD)/libc_demo.elf
 	$(OBJCOPY) -O binary $< $@
