@@ -87,11 +87,12 @@ static int ne_dma_read(u16 address, void *buffer, u16 length) {
     u8 *dst = (u8 *)buffer;
     u16 i = 0;
     if (!length) return 0;
-    hw_outb(ne2k.io + NE_CMD, 0x0A);
+    ne_page0();
     hw_outb(ne2k.io + NE_RSAR0, (u8)address);
     hw_outb(ne2k.io + NE_RSAR1, (u8)(address >> 8));
     hw_outb(ne2k.io + NE_RBCR0, (u8)length);
     hw_outb(ne2k.io + NE_RBCR1, (u8)(length >> 8));
+    hw_outb(ne2k.io + NE_CMD, 0x0A);
     while (i < length) {
         u16 word = hw_inw(ne2k.io + NE_DATA);
         dst[i++] = (u8)word;
@@ -104,11 +105,12 @@ static int ne_dma_write(u16 address, const void *buffer, u16 length) {
     const u8 *src = (const u8 *)buffer;
     u16 i = 0;
     if (!length) return 0;
-    hw_outb(ne2k.io + NE_CMD, 0x12);
+    ne_page0();
     hw_outb(ne2k.io + NE_RSAR0, (u8)address);
     hw_outb(ne2k.io + NE_RSAR1, (u8)(address >> 8));
     hw_outb(ne2k.io + NE_RBCR0, (u8)length);
     hw_outb(ne2k.io + NE_RBCR1, (u8)(length >> 8));
+    hw_outb(ne2k.io + NE_CMD, 0x12);
     while (i < length) {
         u16 word = src[i++];
         if (i < length) word |= (u16)src[i++] << 8;
