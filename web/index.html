@@ -19,16 +19,18 @@
     --safe-bottom: env(safe-area-inset-bottom, 0px);
   }
   *, *::before, *::after { box-sizing: border-box; }
-  html { min-height: 100%; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; background: var(--bg); }
+  html { min-height: 100%; overflow-x: clip; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; background: var(--bg); }
   body {
     margin: 0;
     min-height: 100vh;
+    max-width: 100%;
+    overflow-x: clip;
     padding: 20px max(14px, env(safe-area-inset-left)) calc(20px + var(--safe-bottom)) max(14px, env(safe-area-inset-right));
     background: var(--bg);
     color: var(--text);
     font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   }
-  main { width: min(100%, 1040px); margin: 0 auto; }
+  main { width: min(100%, 1040px); min-width: 0; margin: 0 auto; }
   header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
   h1 { margin: 0 0 5px; font-size: clamp(1.25rem, 4vw, 1.8rem); line-height: 1.2; letter-spacing: -.025em; }
   p { margin: 6px 0 12px; color: var(--muted); overflow-wrap: anywhere; }
@@ -51,22 +53,22 @@
   .led.ready { background: #72c99a; box-shadow: 0 0 0 3px #72c99a22; }
   .top-actions { display: flex; gap: 8px; }
   #screen {
-    display: grid; place-items: center; width: 100%; min-height: 190px; padding: clamp(5px, 1.5vw, 14px);
-    overflow: auto; background: #000; overscroll-behavior: contain;
-    touch-action: pan-x pan-y;
+    display: flex; align-items: center; justify-content: center; width: 100%; min-width: 0; min-height: 190px; padding: clamp(5px, 1.5vw, 14px);
+    overflow: hidden; background: #000; overscroll-behavior: none;
+    touch-action: manipulation;
   }
   #screen_container {
-    width: 100%; max-width: 100%; min-width: 0; margin: 0 auto;
+    flex: 0 1 auto; width: 100%; max-width: 100%; min-width: 0; min-height: 0; margin: 0 auto;
     display: flex; justify-content: center; align-items: center;
     overflow: hidden; white-space: pre; color: #ddd;
     font: 14px/14px monospace; -webkit-text-size-adjust: none; text-size-adjust: none;
   }
   #screen_container canvas {
-    display: block; width: 100%; height: auto; max-width: 100%; max-height: min(72vh, 720px);
+    display: block; flex: 0 1 auto; width: auto; height: auto; max-width: 100%; max-height: min(72vh, 720px);
     object-fit: contain; image-rendering: pixelated; touch-action: none;
   }
   #screen_container > div {
-    max-width: 100%; overflow: auto; font: 14px/14px monospace;
+    max-width: 100%; overflow: hidden; font: 14px/14px monospace;
     white-space: pre; -webkit-text-size-adjust: none; text-size-adjust: none;
   }
   .status { min-height: 1.5em; margin: 9px 2px 0; color: #9ca8b8; font-size: .88rem; }
