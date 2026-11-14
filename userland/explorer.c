@@ -272,7 +272,7 @@ static void ex_create(struct ex_state *s) {
             ex_status(s, "Could not create the file.");
             return;
         }
-        if (fs_write(handle, ex_welcome, sizeof(ex_welcome) - 1) == FS_FAIL) {
+        if (fs_write(handle, ex_welcome, sizeof(ex_welcome) - 1) != sizeof(ex_welcome) - 1) {
             fs_close(handle);
             fs_delete(name);
             ex_status(s, "Write failed; partial file removed.");
@@ -366,6 +366,7 @@ void app_main(void) {
     struct ex_state *s;
     int key;
     unsigned int click;
+    int arrow;
 
     s = (struct ex_state *)malloc(sizeof(*s));
     if (!s) return;
@@ -393,6 +394,8 @@ void app_main(void) {
 
         key = (int)ax_call(SYS_GETKEY, 0, 0, 0);
         if (key > 0) ex_key(s, key);
+        arrow = (int)ax_call(SYS_GETARROW, 0, 0, 0);
+        if (arrow >= ARROW_UP && arrow <= ARROW_RIGHT) ex_key(s, arrow);
         click = ax_click(s->win);
         if (click != AX_FAIL)
             ex_click(s, AX_CLICK_ROW(click), AX_CLICK_COL(click));
