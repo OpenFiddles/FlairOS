@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <string.h>
 #include "airgraph.h"
+#include "sprunkui.h"
 
 #define W 8
 #define H 6
@@ -83,6 +84,29 @@ int main(void) {
     CHECK(padding_ok(display_mem));
     ag_device_shutdown(&dev);
     CHECK(ag_present(&dev, &s) != 0);
+
+
+    /* Rounded surfaces: corner pixels stay clear, centre and edges are filled. */
+    ag_clear(&s, 0);
+    ag_round_rect(0, &s, 1, 1, 6, 4, 2, 0x00ABCDEF);
+    CHECK(pixel_at(pixels, 1, 1) == 0);
+    CHECK(pixel_at(pixels, 2, 1) == 0x00ABCDEF);
+    CHECK(pixel_at(pixels, 3, 2) == 0x00ABCDEF);
+    ag_round_frame(0, &s, 0, 0, 8, 6, 2, 0x0000FF);
+    CHECK(pixel_at(pixels, 0, 0) == 0);
+    CHECK(pixel_at(pixels, 2, 0) == 0x0000FF);
+
+    {
+        struct sp_theme theme;
+        struct sp_context ui;
+        sp_theme_default(&theme);
+        ui.device = 0; ui.surface = &s; ui.theme = &theme; ui.draw_text = 0;
+        ag_clear(&s, theme.color.background);
+        sp_panel(&ui, 1, 1, 6, 4);
+        sp_button(&ui, 2, 2, 4, 2, 0, 1);
+        sp_progress(&ui, 1, 5, 6, 1, 50);
+        CHECK(pixel_at(pixels, 3, 3) == theme.color.accent);
+    }
 
     if (!fails)
         puts("AirGraph host test: all checks passed");

@@ -232,7 +232,7 @@ int ag_present(struct ag_device *device, const struct ag_surface *surface) {
 /* Rounded rectangles are scanline-rendered and clipped by the normal surface
    primitives. Radius is clamped so tiny widgets remain well-defined. */
 static int32_t round_inset(int32_t y, int32_t h, int32_t radius) {
-    int32_t cy = y < radius ? radius - y : (y >= h - radius ? y - (h - radius - 1) : 0);
+    int32_t cy = y < radius ? radius - 1 - y : (y >= h - radius ? y - (h - radius) : 0);
     if (cy <= 0) return 0;
     /* Integer circle approximation: inset = r - floor(sqrt(r*r-dy*dy)). */
     int32_t rr = radius * radius;
