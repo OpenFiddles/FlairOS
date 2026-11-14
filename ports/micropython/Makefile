@@ -18,9 +18,10 @@ INC += -I$(BUILD)
 CFLAGS += $(INC) -m32 -std=gnu99 -Os -ffreestanding -fno-pic \
 	-fno-stack-protector -fno-builtin -fno-common \
 	-fno-asynchronous-unwind-tables -fcf-protection=none \
-	-fno-tree-loop-distribute-patterns -Wall -Wextra
+	-fno-tree-loop-distribute-patterns -ffunction-sections -fdata-sections \
+	-DNDEBUG -Wall -Wextra
 
-LDFLAGS += -m32 -nostdlib -Wl,-T,app.ld -Wl,--build-id=none
+LDFLAGS += -m32 -nostdlib -Wl,-T,app.ld -Wl,--build-id=none -Wl,--gc-sections
 LIBS += $(shell $(CC) -m32 -print-libgcc-file-name)
 
 SRC_C = \
