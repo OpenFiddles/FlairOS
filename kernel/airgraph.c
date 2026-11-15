@@ -305,6 +305,7 @@ int ag_viewport_init_adaptive(struct ag_viewport *vp, int32_t dw, int32_t dh,
     vp->logical_width = lw; vp->logical_height = lh; vp->policy = policy;
     sx = ((uint64_t)(uint32_t)dw << 16) / (uint32_t)lw;
     sy = ((uint64_t)(uint32_t)dh << 16) / (uint32_t)lh;
+    if (!sx || !sy) return -1;
     if (policy == AG_SCALE_STRETCH) {
         vp->scale_x_16 = (uint32_t)sx; vp->scale_y_16 = (uint32_t)sy;
         vp->x = vp->y = 0; vp->width = dw; vp->height = dh;
@@ -352,7 +353,8 @@ int ag_get_resource_info(const struct ag_device *device, struct ag_resource_info
         info->renderer_capabilities = device->backend->capabilities;
         info->backend_flags = device->backend->flags;
         if (device->backend->flags & AG_BACKEND_GPU) {
-            info->gpu_available = 1; info->gpu_accelerated = 1;
+            info->gpu_available = 1;
+            info->gpu_accelerated = device->backend->capabilities != 0;
         }
     }
     return 0;
