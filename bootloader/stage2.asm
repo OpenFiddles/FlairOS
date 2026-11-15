@@ -1,16 +1,21 @@
-; Stage 2 bootloader: reads the BIOS memory map, sets up protected mode, A20, and jumps to kernel.
+; FlairOS stage 2: E820 memory map, A20, protected-mode handoff.
+; FORCE_BOOT_MODE: 0 normal, 1 LiveCD, 2 Setup media.
 [BITS 16]
 [ORG 0x9000]
 
-; E820 map for the kernel: entry count at 0x5000, 24-byte entries from 0x5010.
-E820_COUNT   equ 0x5000
-E820_ENTRIES equ 0x5010
-E820_MAX     equ 32
+%ifndef FORCE_BOOT_MODE
+%define FORCE_BOOT_MODE 0
+%endif
+
+BOOT_INFO_ADDR    equ 0x4FF0
+BOOT_INFO_MAGIC   equ 0x544F4F42
+BOOT_INFO_VERSION equ 1
+E820_COUNT        equ 0x5000
+E820_ENTRIES      equ 0x5010
+E820_MAX          equ 32
 
 stage2_start:
     mov [boot_drive], dl
-
-    ; Stage 1 leaves ES at 0x3000, so reset the segments before the BIOS call.
     xor ax, ax
     mov ds, ax
     mov es, ax
@@ -34,12 +39,15 @@ stage2_start:
     jb .e820
 .e820_done:
 
-    ; Enable A20 Line via Fast A20 method (System Control Port A)
+    ; Versioned handoff sits directly before the E820 buffer.
+    mov dword [BOOT_INFO_ADDR], BOOT_INFO_MAGIC
+    mov dword [BOOT_INFO_ADDR + 4], BOOT_INFO_VERSION
+    mov dword [BOOT_INFO_ADDR + 8], FORCE_BOOT_MODE
+
     in al, 0x92
     or al, 2
     out 0x92, al
 
-    ; Switch to 32-bit Protected Mode
     cli
     lgdt [gdt_descriptor]
     mov eax, cr0
@@ -71,7 +79,5 @@ protected_entry:
     mov gs, ax
     mov ss, ax
     mov esp, 0x90000
-
-    ; Pass control to FlairOS Kernel Entry point at physical 0x10000
     mov eax, 0x10000
     jmp eax
