@@ -4,7 +4,6 @@
 
 static const unsigned char *wallpaper_data;
 static unsigned int wallpaper_length;
-static struct bmp_info wallpaper_info;
 
 int desktop_render_set_wallpaper(const unsigned char *data, unsigned int length) {
     struct bmp_info info;
@@ -12,7 +11,6 @@ int desktop_render_set_wallpaper(const unsigned char *data, unsigned int length)
         return -1;
     wallpaper_data = data;
     wallpaper_length = length;
-    wallpaper_info = info;
     return 0;
 }
 
@@ -21,25 +19,31 @@ void desktop_render_clear_wallpaper(void) {
     wallpaper_length = 0;
 }
 
-static void draw_wallpaper_cell(struct ag_surface *surface, int x, int y, int w, int h) {
+
+static void draw_wallpaper(struct ag_surface *surface,
+                           const struct bmp_info *info) {
     int crop_x = 0, crop_y = 0;
-    int visible_w = wallpaper_info.width;
-    int visible_h = wallpaper_info.height;
-    if ((int64_t)wallpaper_info.width * h > (int64_t)wallpaper_info.height * w) {
-        visible_w = (int)((int64_t)wallpaper_info.height * w / h);
-        crop_x = (wallpaper_info.width - visible_w) / 2;
+    int visible_w = info->width;
+    int visible_h = info->height;
+    int width = surface->width;
+    int height = surface->height;
+
+    if (info->width * height > info->height * width) {
+        visible_w = info->height * width / height;
+        crop_x = (info->width - visible_w) / 2;
     } else {
-        visible_h = (int)((int64_t)wallpaper_info.width * h / w);
-        crop_y = (wallpaper_info.height - visible_h) / 2;
+        visible_h = info->width * height / width;
+        crop_y = (info->height - visible_h) / 2;
     }
-    for (int py = 0; py < h; ++py) {
-        int sy = crop_y + (int)((int64_t)py * visible_h / h);
-        for (int px = 0; px < w; ++px) {
-            int sx = crop_x + (int)((int64_t)px * visible_w / w);
+
+    for (int y = 0; y < height; ++y) {
+        int sy = crop_y + y * visible_h / height;
+        for (int x = 0; x < width; ++x) {
+            int sx = crop_x + x * visible_w / width;
             unsigned int rgb;
-            if (bmp_pixel(wallpaper_data, wallpaper_length, &wallpaper_info,
+            if (bmp_pixel(wallpaper_data, wallpaper_length, info,
                           sx, sy, &rgb) == BMP_OK)
-                ag_put_pixel(surface, x + px, y + py, rgb);
+                ag_put_pixel(surface, x, y, rgb);
         }
     }
 }
@@ -58,10 +62,16 @@ int desktop_render_cells(struct ag_device *device, struct ag_surface *surface,
         columns > surface->width || rows > surface->height)
         return -1;
 
+    struct bmp_info active_wallpaper;
+    int use_wallpaper = wallpaper_data &&
+        bmp_parse(wallpaper_data, wallpaper_length, &active_wallpaper) == BMP_OK;
     int cell_width = surface->width / columns;
     int cell_height = surface->height / rows;
     if (cell_width < 5 || cell_height < 7)
         return -1;
+
+    if (use_wallpaper)
+        draw_wallpaper(surface, &active_wallpaper);
 
     for (int row = 0; row < rows; ++row) {
         int y = (row * surface->height) / rows;
@@ -78,8 +88,8 @@ int desktop_render_cells(struct ag_device *device, struct ag_surface *surface,
             int width = x_end - x;
             int height = y_end - y;
 
-            if (character == 0xB0u && wallpaper_data) {
-                draw_wallpaper_cell(surface, x, y, width, height);
+            if (character == 0xB0u && use_wallpaper) {
+                /* The full-frame wallpaper has already been painted. */
             } else {
                 ag_fill_rect(device, surface, x, y, width, height, background);
             }

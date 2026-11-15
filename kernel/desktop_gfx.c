@@ -48,17 +48,17 @@ static void draw_bmp_cover(const struct bmp_info *info, unsigned int length) {
     int crop_x = 0, crop_y = 0;
     int visible_w = info->width;
     int visible_h = info->height;
-    if ((int64_t)info->width * height > (int64_t)info->height * width) {
-        visible_w = (int)((int64_t)info->height * width / height);
+    if ((int)info->width * height > (int)info->height * width) {
+        visible_w = (int)((int)info->height * width / height);
         crop_x = (info->width - visible_w) / 2;
     } else {
-        visible_h = (int)((int64_t)info->width * height / width);
+        visible_h = (int)((int)info->width * height / width);
         crop_y = (info->height - visible_h) / 2;
     }
     for (int y = 0; y < height; ++y) {
-        int sy = crop_y + (int)((int64_t)y * visible_h / height);
+        int sy = crop_y + (int)((int)y * visible_h / height);
         for (int x = 0; x < width; ++x) {
-            int sx = crop_x + (int)((int64_t)x * visible_w / width);
+            int sx = crop_x + (int)((int)x * visible_w / width);
             unsigned int rgb;
             if (bmp_pixel(desktop_bmp_buffer, length, info, sx, sy, &rgb) == BMP_OK)
                 ag_put_pixel(&display_surface, x, y, rgb);
@@ -138,8 +138,8 @@ int desktop_gfx_map_pointer(uint32_t normalized_x, uint32_t normalized_y,
     if (normalized_x > 65535u) normalized_x = 65535u;
     if (normalized_y > 65535u) normalized_y = 65535u;
 
-    pixel_x = (int32_t)(((uint64_t)normalized_x * display_surface.width) >> 16);
-    pixel_y = (int32_t)(((uint64_t)normalized_y * display_surface.height) >> 16);
+    pixel_x = (int32_t)(((uint32_t)normalized_x * display_surface.width) >> 16);
+    pixel_y = (int32_t)(((uint32_t)normalized_y * display_surface.height) >> 16);
     return ag_viewport_unmap_point(&display_viewport, pixel_x, pixel_y,
                                    grid_x, grid_y);
 }

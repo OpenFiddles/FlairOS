@@ -1,5 +1,12 @@
 #include "../include/sprunkui.h"
 
+static int32_t percent_of(int32_t span, unsigned int value) {
+    if (span <= 0) return 0;
+    if (value > 100) value = 100;
+    return (span / 100) * (int32_t)value +
+           ((span % 100) * (int32_t)value) / 100;
+}
+
 static void rounded(struct sp_context *ui, int32_t x, int32_t y, int32_t w,
                     int32_t h, int32_t radius, uint32_t color) {
     if (!ui || !ui->surface || w <= 0 || h <= 0) return;
@@ -81,7 +88,7 @@ void sp_progress(struct sp_context *ui, int32_t x, int32_t y, int32_t w,
     if (!ui || !ui->theme || !ui->surface || w < 5 || h < 5) return;
     if (value > 100) value = 100;
     rounded(ui, x, y, w, h, h / 2, ui->theme->color.border);
-    inner = (int32_t)(((int64_t)(w - 4) * value) / 100);
+    inner = percent_of(w - 4, value);
     if (inner > 0)
         rounded(ui, x + 2, y + 2, inner, h - 4, (h - 4) / 2,
                 ui->theme->color.accent);
@@ -136,7 +143,7 @@ void sp_slider(struct sp_context *ui, int32_t x, int32_t y, int32_t w,
     if (!ui || !ui->theme || !ui->surface || w < 8 || h <= 0) return;
     if (value > 100) value = 100;
     rounded(ui, x, y + h / 2 - 2, w, 4, 2, ui->theme->color.border);
-    filled = (int32_t)(((int64_t)(w - 4) * value) / 100);
+    filled = percent_of(w - 4, value);
     if (filled > 0)
         rounded(ui, x, y + h / 2 - 2, filled + 4, 4, 2, ui->theme->color.accent);
     rounded(ui, x + 2 + filled, y, h, h, h / 2, ui->theme->color.accent);
