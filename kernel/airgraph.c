@@ -294,17 +294,19 @@ int ag_viewport_init_adaptive(struct ag_viewport *vp, int32_t dw, int32_t dh,
                               int32_t lsw, int32_t lsh, int32_t psw, int32_t psh,
                               enum ag_scale_policy policy) {
     int32_t lw, lh;
-    uint64_t sx, sy, scale;
+    uint32_t sx, sy, scale;
     if (!vp || dw <= 0 || dh <= 0 || lsw <= 0 || lsh <= 0 ||
-        psw <= 0 || psh <= 0 || policy < AG_SCALE_FIT || policy > AG_SCALE_STRETCH)
+        psw <= 0 || psh <= 0 || dw > 8192 || dh > 8192 ||
+        lsw > 8192 || lsh > 8192 || psw > 8192 || psh > 8192 ||
+        policy < AG_SCALE_FIT || policy > AG_SCALE_STRETCH)
         return -1;
     vp->orientation = dw < dh ? AG_ORIENTATION_PORTRAIT : AG_ORIENTATION_LANDSCAPE;
     lw = vp->orientation == AG_ORIENTATION_PORTRAIT ? psw : lsw;
     lh = vp->orientation == AG_ORIENTATION_PORTRAIT ? psh : lsh;
     vp->display_width = dw; vp->display_height = dh;
     vp->logical_width = lw; vp->logical_height = lh; vp->policy = policy;
-    sx = ((uint64_t)(uint32_t)dw << 16) / (uint32_t)lw;
-    sy = ((uint64_t)(uint32_t)dh << 16) / (uint32_t)lh;
+    sx = ((uint32_t)dw << 16) / (uint32_t)lw;
+    sy = ((uint32_t)dh << 16) / (uint32_t)lh;
     if (!sx || !sy) return -1;
     if (policy == AG_SCALE_STRETCH) {
         vp->scale_x_16 = (uint32_t)sx; vp->scale_y_16 = (uint32_t)sy;
@@ -312,7 +314,7 @@ int ag_viewport_init_adaptive(struct ag_viewport *vp, int32_t dw, int32_t dh,
         return 0;
     }
     scale = policy == AG_SCALE_FIT ? (sx < sy ? sx : sy) : (sx > sy ? sx : sy);
-    if (!scale || scale > 0xFFFFFFFFu) return -1;
+    if (!scale) return -1;
     vp->scale_x_16 = vp->scale_y_16 = (uint32_t)scale;
     vp->width = ag_clamp_i64(((int64_t)lw * (int64_t)scale) >> 16);
     vp->height = ag_clamp_i64(((int64_t)lh * (int64_t)scale) >> 16);

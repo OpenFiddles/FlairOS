@@ -101,7 +101,7 @@ int main(void) {
     CHECK(ag_present(&dev, &s) != 0);
     CHECK(ag_viewport_init_adaptive(&vp, 360, 800, 800, 480, 360, 800, AG_SCALE_FIT) == 0);
     CHECK(vp.orientation == AG_ORIENTATION_PORTRAIT);
-    CHECK(vp.logical_width == 480 && vp.logical_height == 800);
+    CHECK(vp.logical_width == 360 && vp.logical_height == 800);
     {
         int32_t x, y, w, h;
         CHECK(ag_viewport_map_point(&vp, 240, 400, &x, &y) == 0);
