@@ -83,8 +83,17 @@ $(BUILD)/usermode.o: kernel/usermode.asm | $(BUILD)
 	$(AS) $(ARCH_ASFLAGS) $< -o $@
 
 # --- Kernel Core C Objects ---
-$(BUILD)/desktop.o: kernel/desktop.c kernel/kernel.h kernel/textile.h | $(BUILD)
+$(BUILD)/desktop.o: kernel/desktop.c kernel/kernel.h kernel/textile.h include/desktop_gfx.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD)/desktop_gfx.o: kernel/desktop_gfx.c include/desktop_gfx.h include/desktop_render.h include/vbe.h include/airgraph.h | $(BUILD)
+	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
+
+$(BUILD)/desktop_render.o: kernel/desktop_render.c include/desktop_render.h include/font5x7.h include/airgraph.h | $(BUILD)
+	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
+
+$(BUILD)/font5x7.o: kernel/font5x7.c include/font5x7.h | $(BUILD)
+	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
 
 $(BUILD)/kernel.o: kernel/kernel.c kernel/kernel.h kernel/textile.h include/fb.h include/vbe.h include/airgraph.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -254,6 +263,9 @@ win-demo: $(BUILD)/win-demo.img
 
 $(BUILD)/airgraph_host_test: tests/airgraph_host_test.c kernel/airgraph.c kernel/sprunkui.c kernel/fb.c include/airgraph.h include/sprunkui.h include/fb.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/airgraph_host_test.c kernel/airgraph.c kernel/sprunkui.c kernel/fb.c
+
+$(BUILD)/desktop_render_host_test: tests/desktop_render_host_test.c kernel/desktop_render.c kernel/font5x7.c kernel/airgraph.c kernel/fb.c include/desktop_render.h include/font5x7.h | $(BUILD)
+	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/desktop_render_host_test.c kernel/desktop_render.c kernel/font5x7.c kernel/airgraph.c kernel/fb.c
 
 $(BUILD)/driver_host_test: tests/driver_host_test.c drivers/drv_core.c include/drv.h include/drv_pic.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/driver_host_test.c drivers/drv_core.c

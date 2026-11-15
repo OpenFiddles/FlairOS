@@ -1049,51 +1049,6 @@ static void text_shell_run(void) {
     }
 }
 
-#define VBE_W 800
-#define VBE_H 600
-#define VBE_HOLD_TICKS 500
-
-/* Test pattern: eight colour bars over the top two thirds, a dark band below,
-   and a white border. Drawn with the framebuffer API only. */
-static void vbe_test_pattern(const struct fb *f) {
-    static const u32 bars[8] = {
-        0xFFFFFF, 0xFFFF00, 0x00FFFF, 0x00FF00,
-        0xFF00FF, 0xFF0000, 0x0000FF, 0x202020
-    };
-    struct ag_surface target;
-    if (ag_surface_init(&target, f->base, f->width, f->height,
-                        f->pitch, AG_PIXEL_XRGB8888) != 0)
-        return;
-    i32 bar_w = f->width / 8;
-    i32 top_h = f->height * 2 / 3;
-    ag_clear(&target, 0x00101828);
-    for (i32 i = 0; i < 8; i++) {
-        i32 x = i * bar_w;
-        i32 w = (i == 7) ? f->width - x : bar_w;
-        ag_fill_rect(0, &target, x, 0, w, top_h, bars[i]);
-    }
-    ag_frame_rect(0, &target, 0, 0, f->width, f->height, 0x00FFFFFF);
-}
-
-/* Sets the linear mode at boot. On success it shows the test pattern until a
-   key is pressed or VBE_HOLD_TICKS pass, then returns to text mode so the
-   existing boot splash and shell run as before. If the adapter is missing,
-   nothing changes. */
-static void vbe_boot_check(void) {
-    struct fb screen;
-    if (!vbe_init(&screen, VBE_W, VBE_H)) {
-        serial_str("vbe: no linear mode, staying in text mode\n");
-        return;
-    }
-    serial_str("vbe: 800x600 32bpp linear mode on\n");
-    vbe_test_pattern(&screen);
-    u32 start = ticks;
-    while (ticks - start < VBE_HOLD_TICKS && kbd_read() < 0)
-        halt();
-    vbe_text_mode();
-    serial_str("vbe: back to text mode\n");
-}
-
 void kmain(void) {
     boot_init();
     serial_init();
@@ -1120,7 +1075,6 @@ void kmain(void) {
     if (boot_mode() == FLAIR_BOOT_SETUP)
         setup_run();
     if (!boot_is_live_session()) {
-        vbe_boot_check();
         boot_splash();
         run_app();
     }

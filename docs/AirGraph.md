@@ -33,11 +33,12 @@ interface in a later change.
 
 ## Current hardware status
 
-The current kernel still initializes the existing Bochs/QEMU linear framebuffer
-through vbe_init(). The boot-time color-bar test now draws through AirGraph's
-software path. This proves the API is linked into and used by the kernel, but
-it is NOT GPU acceleration: no accelerated GPU backend is registered yet.
-The CPU path remains the reliable fallback for v86 and older 32-bit machines.
+The desktop now initializes a persistent 800x600 Bochs/QEMU linear framebuffer
+through vbe_init() and renders its scene through AirGraph's CPU pixel path. The
+legacy VGA text renderer is retained only as a recovery path when framebuffer
+or AirGraph initialization fails. The current display is a framebuffer target,
+not GPU acceleration: no accelerated GPU backend is registered yet. The CPU
+path remains the reliable renderer for v86 and older 32-bit machines.
 
 ## Build and tests
 
