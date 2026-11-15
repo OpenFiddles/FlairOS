@@ -11,7 +11,7 @@ The browser emulator boots `flair-livecd.iso` through a virtual CD-ROM drive rat
 
 ## Live session guarantees
 
-Live mode initializes the existing flat filesystem as a RAM-only session. It does not read the on-disk filesystem directory, does not commit filesystem changes to ATA, and refuses the `format` operation. Files created during the session are temporary and disappear on reboot.
+Live mode initializes the existing flat filesystem as a RAM-only session. It does not read the on-disk filesystem directory, does not commit filesystem changes to ATA, and refuses the `format` operation. The ATA sector-write API rejects writes while Live mode is active, and the privileged Terminal blocks direct writes to the legacy primary/secondary IDE I/O ports. Files created during the session are temporary and disappear on reboot.
 
 The filesystem APIs `fs_is_volatile()` and `fs_disk_writes_enabled()` report the active mode. Their syscall IDs are 35 and 36.
 

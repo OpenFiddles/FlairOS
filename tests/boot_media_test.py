@@ -30,6 +30,8 @@ root = pathlib.Path(__file__).resolve().parents[1]
 stage2 = (root / "bootloader/stage2.asm").read_text()
 boot_c = (root / "kernel/boot.c").read_text()
 fs_c = (root / "kernel/fs.c").read_text()
+ata_c = (root / "drivers/drv_ata.c").read_text()
+kernel_c = (root / "kernel/kernel.c").read_text()
 fs_h = (root / "include/fs.h").read_text()
 web = (root / "web/index.html").read_text()
 assert "FORCE_BOOT_MODE" in stage2 and "BOOT_INFO_ADDR + 8" in stage2
@@ -37,6 +39,9 @@ assert "FLAIR_BOOT_LIVE" in boot_c and "FLAIR_BOOT_SETUP" in boot_c
 assert "boot_is_live_session()" in fs_c
 assert "if (fsk_volatile || !fsk_disk)" in fs_c
 assert "if (fsk_volatile)" in fs_c[fs_c.index("int fs_format(void)"):]
+assert "if (boot_is_live_session())" in ata_c[ata_c.index("int ata_write_device_sector"):]
+assert "port >= 0x1F0 && port <= 0x1F7" in kernel_c
+assert "port >= 0x170 && port <= 0x177" in kernel_c
 assert "SYS_FS_IS_VOLATILE 35" in fs_h and "SYS_FS_DISK_WRITES  36" in fs_h
 assert 'cdrom: { url: "flair-livecd.iso" }' in web
 assert 'fda: { url: "textile.img"' not in web
