@@ -22,7 +22,16 @@ BUILD = build
 DRV_SRCS = $(shell find drivers -type f -name '*.c' -print)
 DRV_OBJS = $(patsubst drivers/%.c,$(BUILD)/d_%.o,$(DRV_SRCS))
 
-CFLAGS = $(ARCH_CFLAGS) -std=gnu99 -ffreestanding -mno-sse -mno-sse2 -mno-mmx -fno-pic -fno-stack-protector -fno-builtin -fno-common -fno-tree-loop-distribute-patterns -fcf-protection=none -fno-asynchronous-unwind-tables -O2 -Wall -Wextra
+DISPLAY ?= landscape
+ifeq ($(DISPLAY),portrait)
+CFLAGS_DISPLAY = -DFLAIROS_DISPLAY_PORTRAIT
+else ifeq ($(DISPLAY),wide)
+CFLAGS_DISPLAY = -DFLAIROS_DISPLAY_WIDE
+else
+CFLAGS_DISPLAY =
+endif
+
+CFLAGS = $(CFLAGS_DISPLAY) $(ARCH_CFLAGS) -std=gnu99 -ffreestanding -mno-sse -mno-sse2 -mno-mmx -fno-pic -fno-stack-protector -fno-builtin -fno-common -fno-tree-loop-distribute-patterns -fcf-protection=none -fno-asynchronous-unwind-tables -O2 -Wall -Wextra
 
 # Expanded to compile all the core kernel files visible in your tree
 OBJS = $(BUILD)/entry.o \

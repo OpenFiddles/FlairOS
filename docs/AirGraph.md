@@ -79,3 +79,14 @@ linear framebuffer is a display target, not a GPU compute or 3D accelerator.
 A real GPU driver must register a backend before GPU availability can report
 true. Applications do not receive unrestricted CPU/GPU register access;
 hardware access remains behind kernel drivers and validated backend calls.
+
+
+## Display profiles (responsive framebuffer sizing)
+
+The pixel desktop supports three compile-time Bochs DISPI framebuffer profiles:
+
+- `make DISPLAY=landscape`: 800x600 (default)
+- `make DISPLAY=portrait`: 600x750 portrait
+- `make DISPLAY=wide`: 1024x768 wide
+
+The renderer rasterizes the same 80x25 transitional scene to the selected physical surface; cell dimensions are derived from the surface at runtime. Cursor and hit testing still use the 80x25 logical coordinate space. This is display-size adaptation, not yet a freeform/pixel-native layout or automatic host-window orientation detection. VGA remains recovery-only.
