@@ -9,6 +9,7 @@
 #include "../include/setup.h"
 #include "../include/desktop_gfx.h"
 #include "../include/hwinfo.h"
+#include "../include/io.h"
 
 typedef unsigned char u8;
 typedef unsigned short u16;
@@ -1073,6 +1074,7 @@ void kmain(void) {
     pit_init();
     drv_register_builtin();
     drv_init_all();
+    io_manager_init();
     if (ata_is_ready())
         serial_str("ata: primary disk ready\n");
     if (boot_handoff_valid())
