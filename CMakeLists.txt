@@ -13,7 +13,7 @@ find_program(AIROS_QEMU qemu-system-i386)
 set(B ${CMAKE_BINARY_DIR})
 set(AIROS_INCLUDES ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/kernel)
 set(AIROS_CFLAGS -std=gnu99 -ffreestanding -mno-sse -mno-sse2 -mno-mmx -fno-pic -fno-stack-protector -fno-builtin
-    -fno-common -fcf-protection=none -fno-asynchronous-unwind-tables -O2 -Wall -Wextra)
+    -fno-common -fcf-protection=none -fno-asynchronous-unwind-tables -Os -ffunction-sections -fdata-sections -Wall -Wextra)
 
 add_custom_command(OUTPUT ${B}/stage1.bin
   COMMAND ${AIROS_NASM} -f bin ${CMAKE_SOURCE_DIR}/bootloader/stage1.asm -o ${B}/stage1.bin
@@ -51,7 +51,7 @@ target_include_directories(airos_kernel_c PRIVATE ${AIROS_INCLUDES})
 add_executable(kernel ${AIROS_ASM_OBJS} $<TARGET_OBJECTS:airos_kernel_c>)
 set_target_properties(kernel PROPERTIES OUTPUT_NAME kernel SUFFIX .elf
   LINK_DEPENDS ${CMAKE_SOURCE_DIR}/kernel/link.ld)
-target_link_options(kernel PRIVATE -T ${CMAKE_SOURCE_DIR}/kernel/link.ld)
+target_link_options(kernel PRIVATE --gc-sections -T ${CMAKE_SOURCE_DIR}/kernel/link.ld)
 
 add_custom_command(OUTPUT ${B}/kernel.bin
   COMMAND ${AIROS_OBJCOPY} -O binary $<TARGET_FILE:kernel> ${B}/kernel.bin

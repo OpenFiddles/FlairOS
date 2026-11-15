@@ -31,7 +31,7 @@ else
 CFLAGS_DISPLAY =
 endif
 
-CFLAGS = $(CFLAGS_DISPLAY) $(ARCH_CFLAGS) -std=gnu99 -ffreestanding -mno-sse -mno-sse2 -mno-mmx -fno-pic -fno-stack-protector -fno-builtin -fno-common -fno-tree-loop-distribute-patterns -fcf-protection=none -fno-asynchronous-unwind-tables -O2 -Wall -Wextra
+CFLAGS = $(CFLAGS_DISPLAY) $(ARCH_CFLAGS) -std=gnu99 -ffreestanding -mno-sse -mno-sse2 -mno-mmx -fno-pic -fno-stack-protector -fno-builtin -fno-common -fno-tree-loop-distribute-patterns -fcf-protection=none -fno-asynchronous-unwind-tables -Os -ffunction-sections -fdata-sections -Wall -Wextra
 
 # Expanded to compile all the core kernel files visible in your tree
 OBJS = $(BUILD)/entry.o \
@@ -179,7 +179,7 @@ $(BUILD)/d_%.o: drivers/%.c kernel/kernel.h kernel/textile.h include/*.h | $(BUI
 
 # --- Linking and Image Creation ---
 $(BUILD)/kernel.elf: $(OBJS) kernel/link.ld
-	$(LD) $(ARCH_LDFLAGS) -nostdlib -T kernel/link.ld -o $@ $(OBJS)
+	$(LD) $(ARCH_LDFLAGS) -nostdlib --gc-sections -T kernel/link.ld -o $@ $(OBJS)
 
 $(BUILD)/kernel.bin: $(BUILD)/kernel.elf
 	$(OBJCOPY) -O binary $< $@
