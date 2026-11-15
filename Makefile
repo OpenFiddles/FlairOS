@@ -98,7 +98,7 @@ $(BUILD)/desktop_render.o: kernel/desktop_render.c include/desktop_render.h incl
 $(BUILD)/font5x7.o: kernel/font5x7.c include/font5x7.h | $(BUILD)
 	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
 
-$(BUILD)/kernel.o: kernel/kernel.c kernel/kernel.h kernel/textile.h include/fb.h include/vbe.h include/airgraph.h | $(BUILD)
+$(BUILD)/kernel.o: kernel/kernel.c kernel/kernel.h kernel/textile.h include/desktop_gfx.h include/fb.h include/vbe.h include/airgraph.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD)/drivers.o: kernel/drivers.c kernel/kernel.h kernel/textile.h | $(BUILD)

@@ -7,6 +7,7 @@
 #include "../include/drv_net.h"
 #include "../include/boot.h"
 #include "../include/setup.h"
+#include "../include/desktop_gfx.h"
 
 typedef unsigned char u8;
 typedef unsigned short u16;
@@ -795,6 +796,10 @@ static void micropython_stage_init(void) {
 
 int run_micropython(void) {
     u32 entry = 0;
+    if (desktop_gfx_active()) {
+        serial_str("python: legacy text app is unavailable in pixel mode\n");
+        return -1;
+    }
     if (!vm_is_ready()) {
         serial_str("python: paging unavailable\n");
         return -1;
@@ -1074,11 +1079,13 @@ void kmain(void) {
     irq_on();
     if (boot_mode() == FLAIR_BOOT_SETUP)
         setup_run();
-    if (!boot_is_live_session()) {
+    desktop_gfx_init();
+    if (!boot_is_live_session() && !desktop_gfx_active()) {
         boot_splash();
         run_app();
     }
-    clear_screen();
+    if (!desktop_gfx_active())
+        clear_screen();
 
     for (;;) {
         desktop_run();

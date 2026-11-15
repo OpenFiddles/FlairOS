@@ -275,7 +275,14 @@ static void start_select(int item) {
     start_open = 0;
     if (item >= 0 && item < WIN_COUNT) open_win(item);
     else if (item == WIN_COUNT) launch_explorer();
-    else if (item == WIN_COUNT + 1) run_micropython();
+    else if (item == WIN_COUNT + 1) {
+        if (desktop_gfx_active()) {
+            open_win(WIN_TERM);
+            terminal_exec("echo Python needs a pixel-native app; legacy VGA app disabled");
+        } else {
+            run_micropython();
+        }
+    }
     serial_str("desktop: start menu select ");
     log_point("item", item + 1, 0);
 }
