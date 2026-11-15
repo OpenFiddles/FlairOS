@@ -332,11 +332,14 @@ int ag_viewport_map_point(const struct ag_viewport *vp, int32_t lx, int32_t ly,
 
 int ag_viewport_unmap_point(const struct ag_viewport *vp, int32_t dx, int32_t dy,
                             int32_t *lx, int32_t *ly) {
-    int64_t right, bottom, logical_x, logical_y;
+    uint32_t offset_x, offset_y, logical_x, logical_y;
+    int64_t right, bottom;
 
     if (!vp || !lx || !ly || !vp->scale_x_16 || !vp->scale_y_16 ||
         vp->width <= 0 || vp->height <= 0 ||
-        vp->logical_width <= 0 || vp->logical_height <= 0)
+        vp->logical_width <= 0 || vp->logical_height <= 0 ||
+        vp->width > 8192 || vp->height > 8192 ||
+        vp->logical_width > 8192 || vp->logical_height > 8192)
         return -1;
 
     right = (int64_t)vp->x + vp->width;
@@ -345,12 +348,18 @@ int ag_viewport_unmap_point(const struct ag_viewport *vp, int32_t dx, int32_t dy
         (int64_t)dx >= right || (int64_t)dy >= bottom)
         return -1;
 
-    /* Invert the same floor-rounded cell edges used by the renderer:
-       pixel p belongs to the greatest logical cell whose start edge <= p. */
-    logical_x = (((int64_t)dx - vp->x + 1) * vp->logical_width - 1) / vp->width;
-    logical_y = (((int64_t)dy - vp->y + 1) * vp->logical_height - 1) / vp->height;
-    if (logical_x < 0 || logical_y < 0 ||
-        logical_x >= vp->logical_width || logical_y >= vp->logical_height)
+    /* Adaptive viewports are capped at 8192 pixels per axis. That bound
+       keeps this inverse mapping in 32-bit arithmetic and avoids pulling
+       the compiler's 64-bit division runtime into the freestanding kernel.
+       Pixel p maps to the greatest logical cell whose start edge is <= p. */
+    offset_x = (uint32_t)(dx - vp->x);
+    offset_y = (uint32_t)(dy - vp->y);
+    logical_x = ((offset_x + 1u) * (uint32_t)vp->logical_width - 1u) /
+                (uint32_t)vp->width;
+    logical_y = ((offset_y + 1u) * (uint32_t)vp->logical_height - 1u) /
+                (uint32_t)vp->height;
+    if (logical_x >= (uint32_t)vp->logical_width ||
+        logical_y >= (uint32_t)vp->logical_height)
         return -1;
 
     *lx = (int32_t)logical_x;

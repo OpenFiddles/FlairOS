@@ -132,6 +132,8 @@ int main(void) {
         CHECK(x == 79 && y == 24);
     }
     CHECK(ag_viewport_init_adaptive(&vp, 0, 800, 800, 480, 480, 800, AG_SCALE_FIT) != 0);
+    CHECK(ag_viewport_init_adaptive(&vp, 8193, 600, 800, 480, 480, 800, AG_SCALE_FIT) != 0);
+    CHECK(ag_viewport_init_adaptive(&vp, 8192, 600, 8193, 480, 480, 800, AG_SCALE_FIT) != 0);
 
     ag_clear(&s, 0);
     ag_round_rect(0, &s, 1, 1, 6, 4, 2, 0x00ABCDEF);
