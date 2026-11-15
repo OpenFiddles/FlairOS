@@ -22,13 +22,25 @@ BUILD = build
 DRV_SRCS = $(shell find drivers -type f -name '*.c' -print)
 DRV_OBJS = $(patsubst drivers/%.c,$(BUILD)/d_%.o,$(DRV_SRCS))
 
-CFLAGS = $(ARCH_CFLAGS) -std=gnu99 -ffreestanding -mno-sse -mno-sse2 -mno-mmx -fno-pic -fno-stack-protector -fno-builtin -fno-common -fno-tree-loop-distribute-patterns -fcf-protection=none -fno-asynchronous-unwind-tables -O2 -Wall -Wextra
+DISPLAY ?= landscape
+ifeq ($(DISPLAY),portrait)
+CFLAGS_DISPLAY = -DFLAIROS_DISPLAY_PORTRAIT
+else ifeq ($(DISPLAY),wide)
+CFLAGS_DISPLAY = -DFLAIROS_DISPLAY_WIDE
+else
+CFLAGS_DISPLAY =
+endif
+
+CFLAGS = $(CFLAGS_DISPLAY) $(ARCH_CFLAGS) -std=gnu99 -ffreestanding -mno-sse -mno-sse2 -mno-mmx -fno-pic -fno-stack-protector -fno-builtin -fno-common -fno-tree-loop-distribute-patterns -fcf-protection=none -fno-asynchronous-unwind-tables -O2 -Wall -Wextra
 
 # Expanded to compile all the core kernel files visible in your tree
 OBJS = $(BUILD)/entry.o \
        $(BUILD)/isr.o \
        $(BUILD)/usermode.o \
        $(BUILD)/desktop.o \
+       $(BUILD)/desktop_gfx.o \
+       $(BUILD)/desktop_render.o \
+       $(BUILD)/font5x7.o \
        $(BUILD)/kernel.o \
        $(BUILD)/drivers.o \
        $(BUILD)/keyboard.o \
@@ -40,6 +52,9 @@ OBJS = $(BUILD)/entry.o \
        $(BUILD)/axi.o \
        $(BUILD)/fs.o \
        $(BUILD)/sysdispatch.o \
+       $(BUILD)/boot.o \
+       $(BUILD)/hwinfo.o \
+       $(BUILD)/setup.o \
        $(BUILD)/airp.o \
        $(BUILD)/fb.o \
        $(BUILD)/vbe.o \
@@ -56,7 +71,18 @@ $(BUILD)/stage1.bin: bootloader/stage1.asm | $(BUILD)
 	$(AS) -f bin $< -o $@
 
 $(BUILD)/stage2.bin: bootloader/stage2.asm | $(BUILD)
-	$(AS) -f bin $< -o $@
+	$(AS) -f bin -D FORCE_BOOT_MODE=0 $< -o $@
+	test `stat -c %s $@` -le 2048
+	truncate -s 2048 $@
+
+$(BUILD)/stage2-live.bin: bootloader/stage2.asm | $(BUILD)
+	$(AS) -f bin -D FORCE_BOOT_MODE=1 $< -o $@
+	test `stat -c %s $@` -le 2048
+	truncate -s 2048 $@
+
+$(BUILD)/stage2-setup.bin: bootloader/stage2.asm | $(BUILD)
+	$(AS) -f bin -D FORCE_BOOT_MODE=2 $< -o $@
+	test `stat -c %s $@` -le 2048
 	truncate -s 2048 $@
 
 # --- Kernel Core Assembly Objects ---
@@ -70,10 +96,19 @@ $(BUILD)/usermode.o: kernel/usermode.asm | $(BUILD)
 	$(AS) $(ARCH_ASFLAGS) $< -o $@
 
 # --- Kernel Core C Objects ---
-$(BUILD)/desktop.o: kernel/desktop.c kernel/kernel.h kernel/textile.h | $(BUILD)
+$(BUILD)/desktop.o: kernel/desktop.c kernel/kernel.h kernel/textile.h include/desktop_gfx.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/kernel.o: kernel/kernel.c kernel/kernel.h kernel/textile.h include/fb.h include/vbe.h include/airgraph.h | $(BUILD)
+$(BUILD)/desktop_gfx.o: kernel/desktop_gfx.c kernel/kernel.h kernel/textile.h include/desktop_gfx.h include/desktop_render.h include/vbe.h include/airgraph.h | $(BUILD)
+	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
+
+$(BUILD)/desktop_render.o: kernel/desktop_render.c include/desktop_render.h include/font5x7.h include/airgraph.h | $(BUILD)
+	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
+
+$(BUILD)/font5x7.o: kernel/font5x7.c include/font5x7.h | $(BUILD)
+	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
+
+$(BUILD)/kernel.o: kernel/kernel.c kernel/kernel.h kernel/textile.h include/desktop_gfx.h include/fb.h include/vbe.h include/airgraph.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD)/drivers.o: kernel/drivers.c kernel/kernel.h kernel/textile.h | $(BUILD)
@@ -96,6 +131,15 @@ $(BUILD)/fs.o: kernel/fs.c include/fs.h include/drv_ata.h include/kheap.h kernel
 
 $(BUILD)/sysdispatch.o: kernel/sysdispatch.c include/axi.h include/fs.h kernel/kernel.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD)/boot.o: kernel/boot.c include/boot.h | $(BUILD)
+	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
+
+$(BUILD)/hwinfo.o: kernel/hwinfo.c include/hwinfo.h include/boot.h include/hw.h | $(BUILD)
+	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
+
+$(BUILD)/setup.o: kernel/setup.c include/setup.h include/boot.h include/drv_ata.h kernel/kernel.h | $(BUILD)
+	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
 
 $(BUILD)/airp.o: kernel/airp.c include/airp.h kernel/textile.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -176,6 +220,38 @@ $(BUILD)/textile.img: $(BUILD)/stage1.bin $(BUILD)/stage2.bin $(BUILD)/kernel.bi
 	dd if=$(BUILD)/app.bin of=$@ bs=512 seek=261 count=128 conv=notrunc status=none
 	dd if=$(BUILD)/explorer.airp of=$@ bs=512 seek=389 count=9 conv=notrunc status=none
 
+$(BUILD)/livecd.img: $(BUILD)/stage1.bin $(BUILD)/stage2-live.bin $(BUILD)/kernel.bin $(BUILD)/app.bin $(BUILD)/explorer.airp
+	dd if=/dev/zero of=$@ bs=512 count=2880 status=none
+	dd if=$(BUILD)/stage1.bin of=$@ bs=512 count=1 conv=notrunc status=none
+	dd if=$(BUILD)/stage2-live.bin of=$@ bs=512 seek=1 count=4 conv=notrunc status=none
+	dd if=$(BUILD)/kernel.bin of=$@ bs=512 seek=5 count=256 conv=notrunc status=none
+	dd if=$(BUILD)/app.bin of=$@ bs=512 seek=261 count=128 conv=notrunc status=none
+	dd if=$(BUILD)/explorer.airp of=$@ bs=512 seek=389 count=9 conv=notrunc status=none
+
+$(BUILD)/bootcd.img: $(BUILD)/stage1.bin $(BUILD)/stage2-setup.bin $(BUILD)/kernel.bin $(BUILD)/app.bin $(BUILD)/explorer.airp
+	dd if=/dev/zero of=$@ bs=512 count=2880 status=none
+	dd if=$(BUILD)/stage1.bin of=$@ bs=512 count=1 conv=notrunc status=none
+	dd if=$(BUILD)/stage2-setup.bin of=$@ bs=512 seek=1 count=4 conv=notrunc status=none
+	dd if=$(BUILD)/kernel.bin of=$@ bs=512 seek=5 count=256 conv=notrunc status=none
+	dd if=$(BUILD)/app.bin of=$@ bs=512 seek=261 count=128 conv=notrunc status=none
+	dd if=$(BUILD)/explorer.airp of=$@ bs=512 seek=389 count=9 conv=notrunc status=none
+
+$(BUILD)/livecd.iso: $(BUILD)/livecd.img
+	mkdir -p $(BUILD)/livecd-root
+	cp $(BUILD)/livecd.img $(BUILD)/livecd-root/flair-livecd.img
+	xorriso -as mkisofs -quiet -V FLAIROS_LIVE -b flair-livecd.img -c boot.catalog -o $@ $(BUILD)/livecd-root
+
+$(BUILD)/bootcd.iso: $(BUILD)/bootcd.img
+	mkdir -p $(BUILD)/bootcd-root
+	cp $(BUILD)/bootcd.img $(BUILD)/bootcd-root/flair-bootcd.img
+	xorriso -as mkisofs -quiet -V FLAIROS_SETUP -b flair-bootcd.img -c boot.catalog -o $@ $(BUILD)/bootcd-root
+
+livecd: $(BUILD)/livecd.iso
+
+bootcd: $(BUILD)/bootcd.iso
+
+boot-media: $(BUILD)/textile.img $(BUILD)/livecd.iso $(BUILD)/bootcd.iso
+
 # --- Window API demo: same image layout, app slot holds userland/win_app.c ---
 $(BUILD)/win_app.o: userland/win_app.c include/axi.h kernel/textile.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -204,22 +280,31 @@ win-demo: $(BUILD)/win-demo.img
 $(BUILD)/airgraph_host_test: tests/airgraph_host_test.c kernel/airgraph.c kernel/sprunkui.c kernel/fb.c include/airgraph.h include/sprunkui.h include/fb.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/airgraph_host_test.c kernel/airgraph.c kernel/sprunkui.c kernel/fb.c
 
+$(BUILD)/desktop_render_host_test: tests/desktop_render_host_test.c kernel/desktop_render.c kernel/font5x7.c kernel/airgraph.c kernel/fb.c include/desktop_render.h include/font5x7.h | $(BUILD)
+	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/desktop_render_host_test.c kernel/desktop_render.c kernel/font5x7.c kernel/airgraph.c kernel/fb.c
+
 $(BUILD)/driver_host_test: tests/driver_host_test.c drivers/drv_core.c include/drv.h include/drv_pic.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/driver_host_test.c drivers/drv_core.c
 
 $(BUILD)/fb_host_test: tests/fb_host_test.c kernel/fb.c include/fb.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/fb_host_test.c kernel/fb.c
 
-test: $(BUILD)/textile.img $(BUILD)/airgraph_host_test $(BUILD)/driver_host_test $(BUILD)/fb_host_test
+$(BUILD)/ata_identify_host_test: tests/ata_identify_host_test.c drivers/ata_identify.c include/ata_identify.h | $(BUILD)
+	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/ata_identify_host_test.c drivers/ata_identify.c
+
+test: $(BUILD)/textile.img $(BUILD)/livecd.iso $(BUILD)/bootcd.iso $(BUILD)/airgraph_host_test $(BUILD)/driver_host_test $(BUILD)/fb_host_test $(BUILD)/ata_identify_host_test $(BUILD)/desktop_render_host_test
 	$(BUILD)/airgraph_host_test
 	$(BUILD)/fb_host_test
 	$(BUILD)/driver_host_test
+	$(BUILD)/ata_identify_host_test
+	$(BUILD)/desktop_render_host_test
 	python3 tests/smoke.py $(BUILD)/textile.img
+	python3 tests/boot_media_test.py $(BUILD)/livecd.iso $(BUILD)/bootcd.iso
 
 clean:
 	rm -rf $(BUILD)
 
-.PHONY: all run win-demo test clean
+.PHONY: all run win-demo test clean livecd bootcd boot-media
 
 # --- SDK example app (built on request, not on the disk image) ---
 $(BUILD)/hello.o: examples/hello/hello.c sdk/flareos.h | $(BUILD)

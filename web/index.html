@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#101113">
-<title>FlareOS in the browser</title>
+<title>FlairOS LiveCD in the browser</title>
 <style>
   :root {
     color-scheme: dark;
@@ -283,7 +283,7 @@
     screen_container: screenContainer,
     bios: { url: "v86/seabios.bin" },
     vga_bios: { url: "v86/vgabios.bin" },
-    fda: { url: "textile.img", size: 1474560 },
+    cdrom: { url: "flair-livecd.iso" },
     autostart: true,
     net_device: { type: "ne2k", relay_url: savedRelay }
   });
@@ -539,7 +539,7 @@
     setControlsEnabled(true);
     resetTypebox();
     fitScreen();
-    setStatus("Emulator ready. Booting FlareOS...", true);
+    setStatus("Emulator ready. Booting FlairOS LiveCD...", true);
   });
   emulator.add_listener("emulator-started", () => {
     setStatus("Running. Use the touchpad, quick keys, or your device keyboard.", true);

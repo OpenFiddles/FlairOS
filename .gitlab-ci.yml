@@ -13,10 +13,12 @@ pages:
   script:
     - apt-get update -qq
     - DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nasm gcc-multilib binutils make seabios vgabios xorriso python3 > /dev/null
-    - make ARCH=i386
+    - make ARCH=i386 boot-media
     - mkdir -p public/v86 /tmp/v86
     - cp web/index.html public/index.html
     - cp build/textile.img public/textile.img
+    - cp build/livecd.iso public/flair-livecd.iso
+    - cp build/bootcd.iso public/flair-bootcd.iso
     - xorriso -as mkisofs -quiet -b textile.img -o public/textile.iso public/textile.img
 
     # Leverages local caching and turns off unnecessary logs completely
@@ -64,7 +66,7 @@ build-branch:
   stage: test
   script:
     - apt-get update -qq
-    - DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nasm gcc-multilib binutils make python3 qemu-system-x86 > /dev/null
+    - DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nasm gcc-multilib binutils make python3 qemu-system-x86 xorriso > /dev/null
     - make ARCH=i386
     - test -s build/textile.img
     - make fs-test

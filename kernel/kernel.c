@@ -5,6 +5,10 @@
 #include "../include/airgraph.h"
 #include "../include/pmm.h"
 #include "../include/drv_net.h"
+#include "../include/boot.h"
+#include "../include/setup.h"
+#include "../include/desktop_gfx.h"
+#include "../include/hwinfo.h"
 
 typedef unsigned char u8;
 typedef unsigned short u16;
@@ -144,7 +148,7 @@ static void update_cursor(void) {
     outb(0x3D5, (u8)(pos >> 8));
 }
 
-static void clear_screen(void) {
+void clear_screen(void) {
     if (term_capture) {
         term_clear();
         return;
@@ -793,6 +797,10 @@ static void micropython_stage_init(void) {
 
 int run_micropython(void) {
     u32 entry = 0;
+    if (desktop_gfx_active()) {
+        serial_str("python: legacy text app is unavailable in pixel mode\n");
+        return -1;
+    }
     if (!vm_is_ready()) {
         serial_str("python: paging unavailable\n");
         return -1;
@@ -878,6 +886,13 @@ static void run_command(char *input) {
         if (argc < 3 || !parse_hex(argv[1], &port) || !parse_hex(argv[2], &value) ||
             port > 0xFFFF || value > 0xFF) {
             say_error("usage: out PORT VALUE   (hex, e.g. out 80 0)\n");
+            return;
+        }
+        if (boot_is_live_session() &&
+            ((port >= 0x1F0 && port <= 0x1F7) ||
+             (port >= 0x170 && port <= 0x177) ||
+             port == 0x3F6 || port == 0x376)) {
+            say_error("ATA port writes are disabled in a Live session\n");
             return;
         }
         outb((u16)port, (u8)value);
@@ -1040,53 +1055,10 @@ static void text_shell_run(void) {
     }
 }
 
-#define VBE_W 800
-#define VBE_H 600
-#define VBE_HOLD_TICKS 500
-
-/* Test pattern: eight colour bars over the top two thirds, a dark band below,
-   and a white border. Drawn with the framebuffer API only. */
-static void vbe_test_pattern(const struct fb *f) {
-    static const u32 bars[8] = {
-        0xFFFFFF, 0xFFFF00, 0x00FFFF, 0x00FF00,
-        0xFF00FF, 0xFF0000, 0x0000FF, 0x202020
-    };
-    struct ag_surface target;
-    if (ag_surface_init(&target, f->base, f->width, f->height,
-                        f->pitch, AG_PIXEL_XRGB8888) != 0)
-        return;
-    i32 bar_w = f->width / 8;
-    i32 top_h = f->height * 2 / 3;
-    ag_clear(&target, 0x00101828);
-    for (i32 i = 0; i < 8; i++) {
-        i32 x = i * bar_w;
-        i32 w = (i == 7) ? f->width - x : bar_w;
-        ag_fill_rect(0, &target, x, 0, w, top_h, bars[i]);
-    }
-    ag_frame_rect(0, &target, 0, 0, f->width, f->height, 0x00FFFFFF);
-}
-
-/* Sets the linear mode at boot. On success it shows the test pattern until a
-   key is pressed or VBE_HOLD_TICKS pass, then returns to text mode so the
-   existing boot splash and shell run as before. If the adapter is missing,
-   nothing changes. */
-static void vbe_boot_check(void) {
-    struct fb screen;
-    if (!vbe_init(&screen, VBE_W, VBE_H)) {
-        serial_str("vbe: no linear mode, staying in text mode\n");
-        return;
-    }
-    serial_str("vbe: 800x600 32bpp linear mode on\n");
-    vbe_test_pattern(&screen);
-    u32 start = ticks;
-    while (ticks - start < VBE_HOLD_TICKS && kbd_read() < 0)
-        halt();
-    vbe_text_mode();
-    serial_str("vbe: back to text mode\n");
-}
-
 void kmain(void) {
+    boot_init();
     serial_init();
+    hwinfo_report();
     clear_screen();
     gdt_init();
     idt_init();
@@ -1100,13 +1072,22 @@ void kmain(void) {
     drv_init_all();
     if (ata_is_ready())
         serial_str("ata: primary disk ready\n");
+    if (boot_handoff_valid())
+        serial_str(boot_mode() == FLAIR_BOOT_LIVE ? "boot: LiveCD mode\n" :
+                   boot_mode() == FLAIR_BOOT_SETUP ? "boot: Setup media mode\n" :
+                   "boot: normal mode\n");
     pmm_init();
     micropython_stage_init();
     irq_on();
-    vbe_boot_check();
-    boot_splash();
-    run_app();
-    clear_screen();
+    if (boot_mode() == FLAIR_BOOT_SETUP)
+        setup_run();
+    desktop_gfx_init();
+    if (!boot_is_live_session() && !desktop_gfx_active()) {
+        boot_splash();
+        run_app();
+    }
+    if (!desktop_gfx_active())
+        clear_screen();
 
     for (;;) {
         desktop_run();
