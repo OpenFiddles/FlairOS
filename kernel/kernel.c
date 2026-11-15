@@ -147,7 +147,7 @@ static void update_cursor(void) {
     outb(0x3D5, (u8)(pos >> 8));
 }
 
-static void clear_screen(void) {
+void clear_screen(void) {
     if (term_capture) {
         term_clear();
         return;
