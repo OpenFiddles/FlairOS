@@ -44,3 +44,23 @@ The CPU path remains the reliable fallback for v86 and older 32-bit machines.
 make builds kernel/airgraph.c. make test runs dedicated host tests for
 surface validation, clipping, pitch padding, blending, blitting, presentation,
 and generic GPU/display driver discovery before the QEMU smoke tests.
+
+
+## Adaptive display and resource reporting
+
+AirGraph now exposes adaptive viewport mapping. The caller supplies logical
+design sizes for landscape and portrait; orientation is selected from physical
+display dimensions. Fit preserves aspect ratio and centers the canvas, Fill
+preserves aspect ratio and crops overflow, and Stretch fills the display.
+Point and rectangle mapping lets a UI keep its logical layout while targeting
+different physical screen sizes, including portrait emulator screens.
+
+The resource query reports the active renderer, advertised backend
+capabilities, CPU software fallback availability, and whether an initialized
+backend explicitly identifies itself as a GPU backend. The CPU renderer is
+always available. This is capability reporting and dispatch infrastructure,
+not a claim that a physical GPU driver already exists: the current Bochs/QEMU
+linear framebuffer is a display target, not a GPU compute or 3D accelerator.
+A real GPU driver must register a backend before GPU availability can report
+true. Applications do not receive unrestricted CPU/GPU register access;
+hardware access remains behind kernel drivers and validated backend calls.

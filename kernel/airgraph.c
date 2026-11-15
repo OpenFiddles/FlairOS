@@ -282,3 +282,78 @@ void ag_round_frame(struct ag_device *device, struct ag_surface *surface,
         }
     }
 }
+
+
+static int32_t ag_clamp_i64(int64_t v) {
+    if (v > 2147483647LL) return 2147483647;
+    if (v < (-2147483647LL - 1LL)) return (-2147483647 - 1);
+    return (int32_t)v;
+}
+
+int ag_viewport_init_adaptive(struct ag_viewport *vp, int32_t dw, int32_t dh,
+                              int32_t lsw, int32_t lsh, int32_t psw, int32_t psh,
+                              enum ag_scale_policy policy) {
+    int32_t lw, lh;
+    uint64_t sx, sy, scale;
+    if (!vp || dw <= 0 || dh <= 0 || lsw <= 0 || lsh <= 0 ||
+        psw <= 0 || psh <= 0 || policy < AG_SCALE_FIT || policy > AG_SCALE_STRETCH)
+        return -1;
+    vp->orientation = dw < dh ? AG_ORIENTATION_PORTRAIT : AG_ORIENTATION_LANDSCAPE;
+    lw = vp->orientation == AG_ORIENTATION_PORTRAIT ? psw : lsw;
+    lh = vp->orientation == AG_ORIENTATION_PORTRAIT ? psh : lsh;
+    vp->display_width = dw; vp->display_height = dh;
+    vp->logical_width = lw; vp->logical_height = lh; vp->policy = policy;
+    sx = ((uint64_t)(uint32_t)dw << 16) / (uint32_t)lw;
+    sy = ((uint64_t)(uint32_t)dh << 16) / (uint32_t)lh;
+    if (policy == AG_SCALE_STRETCH) {
+        vp->scale_x_16 = (uint32_t)sx; vp->scale_y_16 = (uint32_t)sy;
+        vp->x = vp->y = 0; vp->width = dw; vp->height = dh;
+        return 0;
+    }
+    scale = policy == AG_SCALE_FIT ? (sx < sy ? sx : sy) : (sx > sy ? sx : sy);
+    if (!scale || scale > 0xFFFFFFFFu) return -1;
+    vp->scale_x_16 = vp->scale_y_16 = (uint32_t)scale;
+    vp->width = ag_clamp_i64(((int64_t)lw * (int64_t)scale) >> 16);
+    vp->height = ag_clamp_i64(((int64_t)lh * (int64_t)scale) >> 16);
+    vp->x = (dw - vp->width) / 2; vp->y = (dh - vp->height) / 2;
+    return vp->width > 0 && vp->height > 0 ? 0 : -1;
+}
+
+int ag_viewport_map_point(const struct ag_viewport *vp, int32_t lx, int32_t ly,
+                          int32_t *dx, int32_t *dy) {
+    if (!vp || !dx || !dy || !vp->scale_x_16 || !vp->scale_y_16) return -1;
+    *dx = ag_clamp_i64(((int64_t)lx * vp->scale_x_16) / 65536 + vp->x);
+    *dy = ag_clamp_i64(((int64_t)ly * vp->scale_y_16) / 65536 + vp->y);
+    return 0;
+}
+
+int ag_viewport_map_rect(const struct ag_viewport *vp, int32_t lx, int32_t ly,
+                         int32_t lw, int32_t lh, int32_t *dx, int32_t *dy,
+                         int32_t *dw, int32_t *dh) {
+    int64_t left, top, right, bottom;
+    if (!vp || !dx || !dy || !dw || !dh || lw <= 0 || lh <= 0 ||
+        !vp->scale_x_16 || !vp->scale_y_16) return -1;
+    left = ((int64_t)lx * vp->scale_x_16) / 65536 + vp->x;
+    top = ((int64_t)ly * vp->scale_y_16) / 65536 + vp->y;
+    right = (((int64_t)lx + lw) * vp->scale_x_16) / 65536 + vp->x;
+    bottom = (((int64_t)ly + lh) * vp->scale_y_16) / 65536 + vp->y;
+    *dx = ag_clamp_i64(left); *dy = ag_clamp_i64(top);
+    *dw = ag_clamp_i64(right - left); *dh = ag_clamp_i64(bottom - top);
+    return (*dw > 0 && *dh > 0) ? 0 : -1;
+}
+
+int ag_get_resource_info(const struct ag_device *device, struct ag_resource_info *info) {
+    if (!info) return -1;
+    info->renderer_name = "cpu-software";
+    info->renderer_capabilities = 0; info->backend_flags = 0;
+    info->cpu_renderer_available = 1; info->gpu_available = 0; info->gpu_accelerated = 0;
+    if (device && device->ready && device->backend) {
+        info->renderer_name = device->backend->name ? device->backend->name : "unnamed-backend";
+        info->renderer_capabilities = device->backend->capabilities;
+        info->backend_flags = device->backend->flags;
+        if (device->backend->flags & AG_BACKEND_GPU) {
+            info->gpu_available = 1; info->gpu_accelerated = 1;
+        }
+    }
+    return 0;
+}
