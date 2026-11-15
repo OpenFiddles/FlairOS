@@ -302,12 +302,20 @@ $(BUILD)/fb_host_test: tests/fb_host_test.c kernel/fb.c include/fb.h | $(BUILD)
 $(BUILD)/ata_identify_host_test: tests/ata_identify_host_test.c drivers/ata_identify.c include/ata_identify.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/ata_identify_host_test.c drivers/ata_identify.c
 
-test: $(BUILD)/textile.img $(BUILD)/livecd.iso $(BUILD)/bootcd.iso $(BUILD)/airgraph_host_test $(BUILD)/driver_host_test $(BUILD)/io_host_test $(BUILD)/fb_host_test $(BUILD)/ata_identify_host_test $(BUILD)/desktop_render_host_test $(BUILD)/bmp_host_test
+$(BUILD)/pmm_host_test: tests/pmm_host_test.c drivers/mm_core.c include/mm_core.h | $(BUILD)
+	$(HOSTCC) -std=gnu99 -Wall -Wextra -Werror -Iinclude -o $@ tests/pmm_host_test.c drivers/mm_core.c
+
+$(BUILD)/vm_region_host_test: tests/vm_region_host_test.c drivers/vm_region.c include/vm_region.h | $(BUILD)
+	$(HOSTCC) -std=gnu99 -Wall -Wextra -Werror -Iinclude -o $@ tests/vm_region_host_test.c drivers/vm_region.c
+
+test: $(BUILD)/textile.img $(BUILD)/livecd.iso $(BUILD)/bootcd.iso $(BUILD)/airgraph_host_test $(BUILD)/driver_host_test $(BUILD)/io_host_test $(BUILD)/fb_host_test $(BUILD)/ata_identify_host_test $(BUILD)/pmm_host_test $(BUILD)/vm_region_host_test $(BUILD)/desktop_render_host_test $(BUILD)/bmp_host_test
 	$(BUILD)/airgraph_host_test
 	$(BUILD)/fb_host_test
 	$(BUILD)/driver_host_test
 	$(BUILD)/io_host_test
 	$(BUILD)/ata_identify_host_test
+	$(BUILD)/pmm_host_test
+	$(BUILD)/vm_region_host_test
 	$(BUILD)/desktop_render_host_test
 	$(BUILD)/bmp_host_test
 	python3 tests/smoke.py $(BUILD)/textile.img
