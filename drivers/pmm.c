@@ -11,6 +11,7 @@
 #define E820_COUNT_ADDR   0x5000u
 #define E820_ENTRIES_ADDR 0x5010u
 #define E820_TYPE_USABLE  1u
+#define E820_MAX_REGIONS  32u /* Must match E820_MAX in bootloader/stage2.asm. */
 
 #define FRAME_MIN    0x00100000u
 #define FRAME_MAX    0x10000000u
@@ -80,6 +81,13 @@ void pmm_init(void) {
     const volatile unsigned int *count = (const volatile unsigned int *)E820_COUNT_ADDR;
     const volatile unsigned int *entry = (const volatile unsigned int *)E820_ENTRIES_ADDR;
     unsigned int regions = *count;
+
+    /* Stage 2 reserves exactly 32 entries at 0x5010. Never walk beyond that
+       buffer, even if the handoff count is corrupt or firmware misbehaves. */
+    if (regions > E820_MAX_REGIONS) {
+        serial_str("pmm: E820 count exceeds buffer; clamping to 32\n");
+        regions = E820_MAX_REGIONS;
+    }
 
     clear_bitmap(AVAIL_BITS);
     clear_bitmap(MANAGED_BITS);
