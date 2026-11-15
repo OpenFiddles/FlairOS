@@ -302,8 +302,17 @@ static void draw_taskbar(void) {
     draw_hms(TASK_ROW, VGA_COLS - 9, TASK_ATTR, t);
 }
 
+static void pointer_grid(i32 *x, i32 *y) {
+    if (desktop_gfx_active() &&
+        desktop_gfx_map_pointer(cursor_norm_x, cursor_norm_y, x, y) == 0)
+        return;
+    *x = (i32)cursor_x;
+    *y = (i32)cursor_y;
+}
+
 static void draw_cursor(void) {
-    i32 r = (i32)cursor_y, c = (i32)cursor_x;
+    i32 r, c;
+    pointer_grid(&c, &r);
     if (r < 0 || r >= VGA_ROWS || c < 0 || c >= VGA_COLS) return;
     back[r * VGA_COLS + c] = (u16)(0xDB | (CURSOR_ATTR << 8));
 }
@@ -380,7 +389,8 @@ static void click(i32 mx, i32 my) {
 }
 
 static void handle_mouse(void) {
-    i32 mx = (i32)cursor_x, my = (i32)cursor_y;
+    i32 mx, my;
+    pointer_grid(&mx, &my);
     u8 b = mouse_buttons;
     if ((b & 1) && !(prev_buttons & 1)) click(mx, my);
     if (!(b & 1)) { drag_win = -1; }
@@ -453,7 +463,9 @@ static void handle_key(int c) {
         return;
     }
     if (c == '\n') {
-        click((i32)cursor_x, (i32)cursor_y);
+        i32 mx, my;
+        pointer_grid(&mx, &my);
+        click(mx, my);
         return;
     }
 }

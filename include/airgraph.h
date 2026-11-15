@@ -70,6 +70,8 @@ int ag_viewport_init_adaptive(struct ag_viewport *, int32_t, int32_t,
                               enum ag_scale_policy);
 int ag_viewport_map_point(const struct ag_viewport *, int32_t, int32_t,
                           int32_t *, int32_t *);
+int ag_viewport_unmap_point(const struct ag_viewport *, int32_t, int32_t,
+                            int32_t *, int32_t *);
 int ag_viewport_map_rect(const struct ag_viewport *, int32_t, int32_t,
                          int32_t, int32_t, int32_t *, int32_t *,
                          int32_t *, int32_t *);

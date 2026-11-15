@@ -89,4 +89,6 @@ The pixel desktop supports three compile-time Bochs DISPI framebuffer profiles:
 - `make DISPLAY=portrait`: 600x750 portrait
 - `make DISPLAY=wide`: 1024x768 wide
 
-The renderer rasterizes the same 80x25 transitional scene to the selected physical surface; cell dimensions are derived from the surface at runtime. Cursor and hit testing still use the 80x25 logical coordinate space. This is display-size adaptation, not yet a freeform/pixel-native layout or automatic host-window orientation detection. VGA remains recovery-only.
+The renderer rasterizes the same 80x25 transitional scene to the selected physical surface. Pixel boundaries are calculated proportionally for every cell, so non-divisible widths (such as 600 pixels across 80 columns) do not leave one oversized final column. The mouse driver maintains a normalized 0..65535 pointer position; desktop drawing and hit testing convert it to framebuffer coordinates and unmap it through AirGraph's active viewport before using the legacy 80x25 logical scene. The legacy 80x25 cursor API remains stable for existing apps.
+
+This is profile-driven display sizing, not automatic host-window orientation detection or a freeform/pixel-native layout. Select DISPLAY=portrait, DISPLAY=landscape, or DISPLAY=wide at build time. VGA remains recovery-only.
