@@ -89,7 +89,7 @@ $(BUILD)/usermode.o: kernel/usermode.asm | $(BUILD)
 $(BUILD)/desktop.o: kernel/desktop.c kernel/kernel.h kernel/textile.h include/desktop_gfx.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/desktop_gfx.o: kernel/desktop_gfx.c include/desktop_gfx.h include/desktop_render.h include/vbe.h include/airgraph.h | $(BUILD)
+$(BUILD)/desktop_gfx.o: kernel/desktop_gfx.c kernel/kernel.h kernel/textile.h include/desktop_gfx.h include/desktop_render.h include/vbe.h include/airgraph.h | $(BUILD)
 	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
 
 $(BUILD)/desktop_render.o: kernel/desktop_render.c include/desktop_render.h include/font5x7.h include/airgraph.h | $(BUILD)
