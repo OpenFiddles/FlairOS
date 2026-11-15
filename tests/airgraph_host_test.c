@@ -124,6 +124,10 @@ int main(void) {
         CHECK(x == 300 && y == 360);
         CHECK(ag_viewport_unmap_point(&vp, x, y, &x, &y) == 0);
         CHECK(x == 40 && y == 12);
+        CHECK(ag_viewport_unmap_point(&vp, 592, 720, &x, &y) == 0);
+        CHECK(x == 79 && y == 24);
+        CHECK(ag_viewport_unmap_point(&vp, 591, 719, &x, &y) == 0);
+        CHECK(x == 78 && y == 23);
         CHECK(ag_viewport_unmap_point(&vp, 599, 749, &x, &y) == 0);
         CHECK(x == 79 && y == 24);
     }
