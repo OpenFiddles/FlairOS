@@ -29,6 +29,12 @@ static void detect_cpu(void){
  cpuid(1,0,&a,&b,&c,&d);inv.cpu.signature=a;inv.cpu.features_ecx=c;inv.cpu.features_edx=d;
  inv.cpu.has_msr=(d>>5)&1;inv.cpu.has_pae=(d>>6)&1;inv.cpu.has_apic=(d>>9)&1;inv.cpu.has_sse=(d>>25)&1;inv.cpu.has_sse2=(d>>26)&1;inv.cpu.has_sse3=c&1;inv.cpu.has_avx=(c>>28)&1;
 }
+static uint8_t classify_pci(uint8_t cl,uint8_t sub){
+ if(cl==1)return HWINFO_PCI_STORAGE;if(cl==2)return HWINFO_PCI_NETWORK;if(cl==3)return HWINFO_PCI_DISPLAY;
+ if(cl==4)return HWINFO_PCI_AUDIO;if(cl==6)return HWINFO_PCI_BRIDGE;if(cl==12&&sub==3)return HWINFO_PCI_USB;
+ if(cl==9)return HWINFO_PCI_INPUT;return HWINFO_PCI_OTHER;
+}
+static const char *pci_kind_name(uint8_t k){switch(k){case HWINFO_PCI_STORAGE:return "storage";case HWINFO_PCI_NETWORK:return "network";case HWINFO_PCI_DISPLAY:return "display";case HWINFO_PCI_AUDIO:return "audio";case HWINFO_PCI_BRIDGE:return "bridge";case HWINFO_PCI_USB:return "usb";case HWINFO_PCI_INPUT:return "input";default:return "other";}}
 static void scan_pci(void){
  for(uint16_t bus=0;bus<256&&inv.pci_count<HWINFO_MAX_PCI;bus++)for(uint8_t slot=0;slot<32&&inv.pci_count<HWINFO_MAX_PCI;slot++){
   uint32_t id=pci_read((uint8_t)bus,slot,0,0);uint16_t vendor=(uint16_t)id;if(vendor==0xFFFF)continue;
@@ -36,7 +42,7 @@ static void scan_pci(void){
   for(uint8_t fn=0;fn<funcs&&inv.pci_count<HWINFO_MAX_PCI;fn++){
    id=pci_read((uint8_t)bus,slot,fn,0);vendor=(uint16_t)id;if(vendor==0xFFFF)continue;
    struct hwinfo_pci_device *p=&inv.pci[inv.pci_count++];p->vendor=vendor;p->device=(uint16_t)(id>>16);p->bus=(uint8_t)bus;p->slot=slot;p->function=fn;
-   uint32_t cls=pci_read((uint8_t)bus,slot,fn,8);p->revision=(uint8_t)cls;p->prog_if=(uint8_t)(cls>>8);p->subclass=(uint8_t)(cls>>16);p->class_code=(uint8_t)(cls>>24);
+   uint32_t cls=pci_read((uint8_t)bus,slot,fn,8);p->revision=(uint8_t)cls;p->prog_if=(uint8_t)(cls>>8);p->subclass=(uint8_t)(cls>>16);p->class_code=(uint8_t)(cls>>24);p->kind=classify_pci(p->class_code,p->subclass);
    uint32_t irq=pci_read((uint8_t)bus,slot,fn,0x3C);p->irq=(uint8_t)(irq>>8);
    for(int k=0;k<6;k++){uint32_t bar=pci_read((uint8_t)bus,slot,fn,(uint8_t)(0x10+k*4));p->bar_io[k]=(uint8_t)(bar&1);p->bar[k]=p->bar_io[k]?(bar&~3u):(bar&~15u);}
   }
@@ -90,5 +96,5 @@ void hwinfo_report(void){
  serial_str("hw: cpuid=");serial_str(h->cpu.has_cpuid?"yes":"no");serial_str(" PAE=");serial_str(h->cpu.has_pae?"yes":"no");serial_str(" APIC=");serial_str(h->cpu.has_apic?"yes":"no");serial_str(" SSE2=");serial_str(h->cpu.has_sse2?"yes":"no");serial_str("\n");
  serial_str("hw: BIOS disk=0x");hex(h->bios_drive);serial_str(" E820 ranges=");hex(h->memory_count);serial_str(" usable bytes=");hex((uint32_t)(h->usable_memory_bytes>>32));hex((uint32_t)h->usable_memory_bytes);serial_str("\n");
  serial_str("hw: PCI devices=");hex(h->pci_count);serial_str("\n");
- for(uint32_t i=0;i<h->pci_count;i++){const struct hwinfo_pci_device*p=&h->pci[i];serial_str(" pci ");hex(p->bus);serial_str(":");hex(p->slot);serial_str(".");hex(p->function);serial_str(" id=");hex(((uint32_t)p->vendor<<16)|p->device);serial_str(" class=");hex(((uint32_t)p->class_code<<16)|((uint32_t)p->subclass<<8)|p->prog_if);serial_str(" irq=");hex(p->irq);serial_str("\n");}
+ for(uint32_t i=0;i<h->pci_count;i++){const struct hwinfo_pci_device*p=&h->pci[i];serial_str(" pci ");hex(p->bus);serial_str(":");hex(p->slot);serial_str(".");hex(p->function);serial_str(" id=");hex(((uint32_t)p->vendor<<16)|p->device);serial_str(" type=");serial_str(pci_kind_name(p->kind));serial_str(" class=");hex(((uint32_t)p->class_code<<16)|((uint32_t)p->subclass<<8)|p->prog_if);serial_str(" irq=");hex(p->irq);serial_str("\n");}
 }

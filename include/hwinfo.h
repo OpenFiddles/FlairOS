@@ -6,7 +6,7 @@
 #define HWINFO_MAX_ACPI_TABLES 16
 enum hwinfo_pci_kind { HWINFO_PCI_OTHER=0, HWINFO_PCI_STORAGE, HWINFO_PCI_NETWORK, HWINFO_PCI_DISPLAY, HWINFO_PCI_AUDIO, HWINFO_PCI_BRIDGE, HWINFO_PCI_USB, HWINFO_PCI_INPUT };
 struct hwinfo_pci_device {
- uint16_t vendor, device; uint8_t bus, slot, function, class_code, subclass, prog_if, revision, irq;
+ uint16_t vendor, device; uint8_t kind, bus, slot, function, class_code, subclass, prog_if, revision, irq;
  uint32_t bar[6]; uint8_t bar_io[6];
 };
 struct hwinfo_memory_range { uint64_t base, length; uint32_t type, attributes; };
