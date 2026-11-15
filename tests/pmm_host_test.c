@@ -9,6 +9,7 @@ int main(void){
  assert(mm_frames_add_range(&f,0x100000,8*4096)==8);
  assert(mm_frames_add_range(&f,0x102000,4*4096)==0); /* duplicate range */
  assert(f.managed_count==8&&f.free_count==8);
+ assert(mm_frames_add_range(&f,0x100000,0xFFFFFFFFu)==8); /* saturating end, no overflow */
  assert(mm_frames_reserve(&f,0x101001,4096)==2); /* touches two pages */
  assert(f.reserved_count==2&&f.free_count==6);
  assert(mm_frames_reserve(&f,0x101000,4096)==0); /* already reserved */
