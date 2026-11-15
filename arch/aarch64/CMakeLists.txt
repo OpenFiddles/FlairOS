@@ -14,6 +14,9 @@ target_compile_options(aarch64_kernel PRIVATE
   -ffreestanding -fno-stack-protector -fno-pic -fno-builtin
   -mgeneral-regs-only -ffunction-sections -fdata-sections
   -Wall -Wextra -Werror -O2 -mcpu=cortex-a72)
+target_compile_definitions(aarch64_kernel PRIVATE
+  FLAIROS_DEVICE_${FLAIROS_DEVICE}=1
+  FLAIROS_ORIENTATION_${FLAIROS_ORIENTATION}=1)
 target_link_options(aarch64_kernel PRIVATE
   -nostdlib -static -Wl,-T,${CMAKE_CURRENT_SOURCE_DIR}/linker.ld
   -Wl,--gc-sections -Wl,--build-id=none

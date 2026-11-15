@@ -2,34 +2,38 @@
 
 This is the native ARM64 bring-up target. It is independent from the i686/v86 image and does not reuse its 16-bit bootloader.
 
-## 1. Install the build tools
+## Interactive build setup
 
-On Ubuntu or Debian:
+From the repository root:
+
+```sh
+python3 scripts/configure-build.py
+```
+
+The wizard asks for CPU architecture, device profile (mobile, tablet, desktop, smartwatch, TV, or embedded), and preferred display orientation. It configures a separate build directory and compiles. Use `python3 scripts/configure-build.py --no-build` to configure only.
+
+Install the AArch64 build tools on Debian/Ubuntu with:
 
 ```sh
 ./scripts/setup-aarch64.sh
 ```
 
-The setup script installs CMake, Ninja, the AArch64 GNU cross-compiler, binutils, QEMU's AArch64 system emulator, and multiarch GDB.
-
-## 2. Configure and build
-
-From the repository root:
+## Manual configure and build
 
 ```sh
 cmake --preset aarch64
 cmake --build --preset aarch64
 ```
 
-The output is `build-cmake-aarch64/aarch64/kernel.elf`.
+Output: `build-cmake-aarch64/aarch64/kernel.elf`.
 
-Or run the convenience script:
+Or use:
 
 ```sh
 ./scripts/build-aarch64.sh
 ```
 
-## 3. Run in QEMU
+## Run in QEMU
 
 ```sh
 cmake --build build-cmake-aarch64 --target aarch64_run
@@ -49,24 +53,8 @@ gdb-multiarch build-cmake-aarch64/aarch64/kernel.elf
 
 Then enter `target remote :1234`, followed by `continue`.
 
-## 4. Manual Make build
-
-```sh
-make -C arch/aarch64 CROSS=aarch64-linux-gnu-
-```
-
 ## Current bring-up scope
 
 The scaffold establishes the QEMU `virt` entry point, masks interrupts, clears BSS, installs a 64 KiB stack, enters C, initializes the PL011 UART, and prints a boot banner. It is not yet a complete operating system. Exception vectors, MMU/page tables, GIC interrupt handling, timers, memory management, scheduler, device drivers, and graphics remain future work.
 
-## Display-orientation policy
-
-The OS UI should be orientation-aware rather than tied to one framebuffer shape:
-
-- Phones default to portrait and rotate automatically when rotation lock is off.
-- Tablets support portrait and landscape, with layouts reflowing to the available dimensions.
-- Desktop/laptop sessions default to landscape.
-- Apps may declare portrait, landscape, or automatic preference; the system's rotation lock takes precedence.
-- AirGraph renders using the current display dimensions. WinDown recomputes window placement and layout after a display-orientation change. Do not rotate a stale completed desktop frame as a substitute for relayout.
-
-Orientation is a display/UI policy, not an AArch64-specific feature.
+Device profiles currently provide build metadata, not finished hardware support. See [BUILD_TARGETS.md](../../docs/BUILD_TARGETS.md).

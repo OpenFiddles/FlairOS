@@ -1,7 +1,7 @@
 build-cmake/
-__pycache__/
+build-*/
 build/
 build-ninja/
-build-*/
+__pycache__/
 CMakeCache.txt
 CMakeFiles/

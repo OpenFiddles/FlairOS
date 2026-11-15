@@ -1,8 +1,25 @@
 cmake_minimum_required(VERSION 3.20)
 project(FlairOS C ASM)
 
-set(FLAIROS_ARCH "i686" CACHE STRING "Target architecture: i686 or aarch64")
+set(FLAIROS_ARCH "i686" CACHE STRING "Target CPU architecture: i686 or aarch64")
 set_property(CACHE FLAIROS_ARCH PROPERTY STRINGS i686 aarch64)
+
+set(FLAIROS_DEVICE "desktop" CACHE STRING "Device profile: mobile, tablet, desktop, smartwatch, tv, embedded")
+set_property(CACHE FLAIROS_DEVICE PROPERTY STRINGS mobile tablet desktop smartwatch tv embedded)
+set(_FLAIROS_DEVICES mobile tablet desktop smartwatch tv embedded)
+if(NOT FLAIROS_DEVICE IN_LIST _FLAIROS_DEVICES)
+  message(FATAL_ERROR "Unsupported FLAIROS_DEVICE=${FLAIROS_DEVICE}. Choose: ${_FLAIROS_DEVICES}")
+endif()
+
+set(FLAIROS_ORIENTATION "auto" CACHE STRING "Display orientation: auto, portrait, landscape, square")
+set_property(CACHE FLAIROS_ORIENTATION PROPERTY STRINGS auto portrait landscape square)
+set(_FLAIROS_ORIENTATIONS auto portrait landscape square)
+if(NOT FLAIROS_ORIENTATION IN_LIST _FLAIROS_ORIENTATIONS)
+  message(FATAL_ERROR "Unsupported FLAIROS_ORIENTATION=${FLAIROS_ORIENTATION}. Choose: ${_FLAIROS_ORIENTATIONS}")
+endif()
+
+message(STATUS "FlairOS target: arch=${FLAIROS_ARCH}, device=${FLAIROS_DEVICE}, orientation=${FLAIROS_ORIENTATION}")
+
 if(FLAIROS_ARCH STREQUAL "aarch64")
   add_subdirectory(arch/aarch64)
   return()
@@ -11,7 +28,7 @@ elseif(NOT FLAIROS_ARCH STREQUAL "i686")
 endif()
 
 if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "i686")
-  message(FATAL_ERROR "AirOS builds only i686 for now; x86-64 and ARM need their own boot layer")
+  message(FATAL_ERROR "The i686/v86 build requires the i686 toolchain; native ARM builds use FLAIROS_ARCH=aarch64")
 endif()
 
 find_program(AIROS_NASM nasm REQUIRED)
@@ -56,6 +73,9 @@ list(TRANSFORM AIROS_KERNEL_SRCS PREPEND ${CMAKE_SOURCE_DIR}/)
 add_library(airos_kernel_c OBJECT ${AIROS_KERNEL_SRCS} ${AIROS_DRIVER_SRCS})
 target_compile_options(airos_kernel_c PRIVATE ${AIROS_CFLAGS})
 target_include_directories(airos_kernel_c PRIVATE ${AIROS_INCLUDES})
+target_compile_definitions(airos_kernel_c PRIVATE
+  FLAIROS_DEVICE_${FLAIROS_DEVICE}=1
+  FLAIROS_ORIENTATION_${FLAIROS_ORIENTATION}=1)
 
 add_executable(kernel ${AIROS_ASM_OBJS} $<TARGET_OBJECTS:airos_kernel_c>)
 set_target_properties(kernel PROPERTIES OUTPUT_NAME kernel SUFFIX .elf
@@ -110,7 +130,6 @@ add_custom_command(OUTPUT ${B}/textile.img
   DEPENDS ${B}/stage1.bin ${B}/stage2.bin ${B}/kernel.bin ${B}/app.bin ${B}/explorer.airp VERBATIM)
 
 add_custom_target(image ALL DEPENDS ${B}/textile.img)
-
 add_custom_target(smoke
   COMMAND ${AIROS_PYTHON} ${CMAKE_SOURCE_DIR}/tests/smoke.py ${B}/textile.img
   DEPENDS image USES_TERMINAL)
