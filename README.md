@@ -1,29 +1,42 @@
-# MixieLang
+# MixieLand
 
-Simple, yet so elegant in power.
+**MixieLang — simple, yet so elegant in power.**
 
-## Build
+MixieLand is the development suite. MixieLang is its programming language, and Builgine will become its build orchestration system.
 
-Needs `bison`, `flex` and `gcc`.
+## Rust rewrite
 
+The active implementation is being rewritten in Rust. The legacy C/Flex/Bison interpreter is being retired rather than kept as a runtime dependency.
+
+### Requirements
+- Rust stable toolchain (Cargo included)
+
+### Build and run
+```sh
+cargo build --release
+cargo run --release -- -f examples/hello.mx
 ```
-./scripts/compile-interpreter.sh
-./bin/mixie-interpreter -f examples/hello.mx
+
+Or run source from standard input:
+```sh
+printf 'print "Hello, World!";\n' | cargo run --quiet
 ```
 
-Cross-builds use the environment variables `CC`, `OUT` and `FLEX_LIBS` (set `FLEX_LIBS=` when the toolchain has no libfl).
+### Current implementation
+- Rust CLI, lexer, parser, AST, and interpreter modules
+- Quoted strings and MixieLang line, block, and metadata comments
+- Existing `print "..." ;` prototype compatibility
+- Initial `.mxpg` container boundary validation
+- Automated integration tests
 
-## CI/CD
-
-`.gitlab-ci.yml` builds the interpreter for Linux, Windows (MinGW cross-build) and WebAssembly. The WebAssembly playground in `playground/` is published to GitLab Pages from the default branch. A release tag publishes the binaries as release links. The macOS job is manual and runs only on a macOS runner. Android and iOS come later.
+The canonical grammar, Beg/Adv/AdvN modes, package/import handling, shared IR, and CIDDAT toolchain are next migration stages.
 
 ## Layout
+- `src/` — Rust implementation
+- `tests/` — integration tests
+- `examples/` — sample programs
+- `playground/` — browser playground (Rust/WASM port follows after core stabilization)
+- `docs/` — architecture and language specifications
 
-- `interpreter_projet/` Flex and Bison sources for the lexer, parser and driver
-- `scripts/compile-interpreter.sh` generates the parsers and compiles the interpreter
-- `playground/` WebAssembly playground page
-- `examples/` sample `.mx` programs
-
-## Status
-
-The grammar is an early prototype. It runs `print "...";` statements and the image block format. The token design (`push`, `pull`, `pixie`, `const`, `glob`, `->`) is not implemented yet.
+## License
+GPL-3.0-only.
