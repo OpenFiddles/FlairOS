@@ -59,32 +59,153 @@ static void scan_memory(void){
   inv.total_memory_bytes+=len;if(type==E820_USABLE)inv.usable_memory_bytes+=len;
  }
 }
-static uint8_t sum8(const volatile uint8_t *p,uint32_t n){uint8_t s=0;while(n--)s=(uint8_t)(s+*p++);return s;}
-static int sig_eq(const volatile char *p,const char *s,int n){for(int i=0;i<n;i++)if(p[i]!=s[i])return 0;return 1;}
+static uint8_t sum8(const volatile uint8_t *p,uint32_t n){
+ uint8_t s=0;
+ while(n--)s=(uint8_t)(s+*p++);
+ return s;
+}
+static int sig_eq(const volatile char *p,const char *s,int n){
+ for(int i=0;i<n;i++)if(p[i]!=s[i])return 0;
+ return 1;
+}
+
+/* The kernel is currently 32-bit and identity-addresses physical memory.
+   Reject impossible ranges before dereferencing firmware-supplied addresses. */
+static int physical_range_valid(uint64_t address,uint32_t length){
+ return address>=0x1000u && length!=0 &&
+        address<=0xFFFFFFFFull &&
+        address+(uint64_t)length<=0x100000000ull;
+}
+static int acpi_sdt_bounds(uint32_t address,uint32_t max_length,uint32_t *length){
+ uint32_t n;
+ if(!length || (address&3u)!=0 || !physical_range_valid(address,36u))return 0;
+ n=*(volatile uint32_t*)(address+4u);
+ if(n<36u || n>max_length || !physical_range_valid(address,n))return 0;
+ *length=n;
+ return 1;
+}
 static uint32_t find_rsdp_range(uint32_t start,uint32_t end){
- for(uint32_t a=(start+15u)&~15u;a+20u<=end;a+=16)if(sig_eq((volatile char*)a,"RSD PTR ",8)&&sum8((volatile uint8_t*)a,20)==0)return a;
+ uint32_t a;
+ if(end<=start || end-start<20u)return 0;
+ a=(start+15u)&~15u;
+ for(;a<=end-20u;a+=16u){
+  volatile uint8_t *p=(volatile uint8_t*)a;
+  if(!sig_eq((volatile char*)p,"RSD PTR ",8) || sum8(p,20u)!=0)continue;
+  if(p[15]>=2u){
+   uint32_t length;
+   if(a>end-36u)continue;
+   length=*(volatile uint32_t*)(a+20u);
+   if(length<36u || length>4096u || length>end-a || sum8(p,length)!=0)continue;
+  }
+  return a;
+ }
  return 0;
 }
 static void scan_acpi(void){
- volatile uint16_t *ebda_seg=(volatile uint16_t*)0x40E;uint32_t ebda=(uint32_t)(*ebda_seg)<<4;
- uint32_t r=find_rsdp_range(ebda,ebda+1024);if(!r)r=find_rsdp_range(0xE0000,0x100000);if(!r)return;
- inv.rsdp_address=r;inv.acpi_revision=*((volatile uint8_t*)(r+15));inv.acpi_valid=1;
- uint32_t rsdt=*(volatile uint32_t*)(r+16);inv.rsdt_address=rsdt;
- uint32_t root=rsdt,entry_size=4;
- if(inv.acpi_revision>=2){uint32_t len=*(volatile uint32_t*)(r+20);if(len>=36&&len<=4096&&sum8((volatile uint8_t*)r,len)==0){uint64_t x=*(volatile uint64_t*)(r+24);inv.xsdt_address=(uint32_t)x;if(x&&x<=0xFFFFFFFFu){root=(uint32_t)x;entry_size=8;}}}
- if(!root)return;uint32_t len=*(volatile uint32_t*)(root+4);if(len<36||len>65536||sum8((volatile uint8_t*)root,len)!=0)return;
- uint32_t n=(len-36)/entry_size;for(uint32_t i=0;i<n&&inv.acpi_table_count<HWINFO_MAX_ACPI_TABLES;i++){
-  uint32_t a=entry_size==8?(uint32_t)*(volatile uint64_t*)(root+36+i*8):*(volatile uint32_t*)(root+36+i*4);if(!a)continue;
-  uint32_t tl=*(volatile uint32_t*)(a+4);if(tl<36||tl>0x100000)continue;
-  struct hwinfo_acpi_table*t=&inv.acpi[inv.acpi_table_count++];for(int j=0;j<4;j++)t->signature[j]=*((volatile char*)(a+j));t->signature[4]=0;t->address=a;t->length=tl;t->checksum_ok=(sum8((volatile uint8_t*)a,tl)==0);
+ volatile uint16_t *ebda_seg=(volatile uint16_t*)0x40E;
+ uint32_t ebda=(uint32_t)(*ebda_seg)<<4;
+ uint32_t r=0,rsdt=0,root=0,root_length=0,entry_size=4;
+ uint32_t rsdt_length=0;
+ if(ebda>=0x400u && ebda<0xA0000u){
+  uint32_t ebda_end=ebda+1024u;
+  if(ebda_end>0xA0000u)ebda_end=0xA0000u;
+  r=find_rsdp_range(ebda,ebda_end);
+ }
+ if(!r)r=find_rsdp_range(0xE0000u,0x100000u);
+ if(!r)return;
+
+ inv.rsdp_address=r;
+ inv.acpi_revision=*((volatile uint8_t*)(r+15u));
+ inv.acpi_valid=1;
+ rsdt=*(volatile uint32_t*)(r+16u);
+ if(rsdt && sig_eq((volatile char*)rsdt,"RSDT",4) &&
+    acpi_sdt_bounds(rsdt,65536u,&rsdt_length) &&
+    sum8((volatile uint8_t*)rsdt,rsdt_length)==0){
+  inv.rsdt_address=rsdt;
+  root=rsdt;
+  root_length=rsdt_length;
+ }
+
+ /* A 32-bit kernel cannot dereference an XSDT entry above 4 GiB. Keep the
+    full-width value until it has been checked; never truncate it into a
+    plausible-looking low address. Fall back to a valid RSDT when necessary. */
+ if(inv.acpi_revision>=2u){
+  uint32_t rsdp_length=*(volatile uint32_t*)(r+20u);
+  if(rsdp_length>=36u && rsdp_length<=4096u &&
+     sum8((volatile uint8_t*)r,rsdp_length)==0){
+   uint64_t xsdt64=*(volatile uint64_t*)(r+24u);
+   if(xsdt64 && xsdt64<=0xFFFFFFFFull){
+    uint32_t xsdt=(uint32_t)xsdt64,xsdt_length=0;
+    if(sig_eq((volatile char*)xsdt,"XSDT",4) &&
+       acpi_sdt_bounds(xsdt,65536u,&xsdt_length) &&
+       sum8((volatile uint8_t*)xsdt,xsdt_length)==0){
+     inv.xsdt_address=xsdt;
+     root=xsdt;
+     root_length=xsdt_length;
+     entry_size=8u;
+    }
+   }
+  }
+ }
+ if(!root)return;
+
+ {
+  uint32_t entries_bytes=root_length-36u;
+  uint32_t count=entries_bytes/entry_size;
+  if(entries_bytes%entry_size!=0)return;
+  for(uint32_t i=0;i<count && inv.acpi_table_count<HWINFO_MAX_ACPI_TABLES;i++){
+   uint64_t table64;
+   uint32_t address,table_length=0;
+   if(entry_size==8u)
+    table64=*(volatile uint64_t*)(root+36u+i*8u);
+   else
+    table64=*(volatile uint32_t*)(root+36u+i*4u);
+   if(!table64 || table64>0xFFFFFFFFull)continue;
+   address=(uint32_t)table64;
+   if(!acpi_sdt_bounds(address,0x100000u,&table_length))continue;
+   struct hwinfo_acpi_table *t=&inv.acpi[inv.acpi_table_count++];
+   for(int j=0;j<4;j++)t->signature[j]=*((volatile char*)(address+(uint32_t)j));
+   t->signature[4]=0;
+   t->address=address;
+   t->length=table_length;
+   t->checksum_ok=(uint8_t)(sum8((volatile uint8_t*)address,table_length)==0);
+  }
  }
 }
 static void scan_smbios(void){
- for(uint32_t a=0xF0000;a+0x20<=0x100000;a+=16){
-  if(sig_eq((volatile char*)a,"_SM_",4)&&sum8((volatile uint8_t*)a,*((volatile uint8_t*)(a+5)))==0&&sig_eq((volatile char*)(a+16),"_DMI_",5)&&sum8((volatile uint8_t*)(a+16),15)==0){
-   inv.smbios_address=a;inv.smbios_valid=1;uint8_t major=*((volatile uint8_t*)(a+6)),minor=*((volatile uint8_t*)(a+7));inv.smbios_version[0]='0'+major;inv.smbios_version[1]='.';inv.smbios_version[2]='0'+minor;inv.smbios_version[3]=0;return;
+ for(uint32_t a=0xF0000u;a+0x20u<=0x100000u;a+=16u){
+  volatile uint8_t *p=(volatile uint8_t*)a;
+  if(sig_eq((volatile char*)p,"_SM_",4)){
+   uint8_t length=p[5];
+   if(length<0x1Fu || length>0x40u || length>0x100000u-a)continue;
+   if(sum8(p,length)!=0 || !sig_eq((volatile char*)(a+16u),"_DMI_",5) ||
+      sum8((volatile uint8_t*)(a+16u),15u)!=0)continue;
+   inv.smbios_address=a;
+   inv.smbios_valid=1;
+   {
+    uint8_t major=p[6],minor=p[7];
+    inv.smbios_version[0]=(char)('0'+major);
+    inv.smbios_version[1]='.';
+    inv.smbios_version[2]=(char)('0'+minor);
+    inv.smbios_version[3]=0;
+   }
+   return;
   }
-  if(sig_eq((volatile char*)a,"_SM3_",5)&&sum8((volatile uint8_t*)a,*((volatile uint8_t*)(a+6)))==0){inv.smbios_address=a;inv.smbios_valid=1;uint8_t major=*((volatile uint8_t*)(a+7)),minor=*((volatile uint8_t*)(a+8));inv.smbios_version[0]='0'+major;inv.smbios_version[1]='.';inv.smbios_version[2]='0'+minor;inv.smbios_version[3]=0;return;}
+  if(sig_eq((volatile char*)p,"_SM3_",5)){
+   uint8_t length=p[6];
+   if(length<0x18u || length>0x40u || length>0x100000u-a)continue;
+   if(sum8(p,length)!=0)continue;
+   inv.smbios_address=a;
+   inv.smbios_valid=1;
+   {
+    uint8_t major=p[7],minor=p[8];
+    inv.smbios_version[0]=(char)('0'+major);
+    inv.smbios_version[1]='.';
+    inv.smbios_version[2]=(char)('0'+minor);
+    inv.smbios_version[3]=0;
+   }
+   return;
+  }
  }
 }
 void hwinfo_init(void){if(initialized)return;initialized=1;inv.bios_drive=*(volatile uint8_t*)BOOT_DRIVE_ADDR;detect_cpu();scan_memory();scan_pci();scan_acpi();scan_smbios();}
