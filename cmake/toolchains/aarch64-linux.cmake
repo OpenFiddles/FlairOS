@@ -1,5 +1,10 @@
+# Linux-hosted GNU cross compiler producing a freestanding AArch64 ELF.
 set(CMAKE_SYSTEM_NAME Generic)
 set(CMAKE_SYSTEM_PROCESSOR aarch64)
+
 set(CMAKE_C_COMPILER aarch64-linux-gnu-gcc)
 set(CMAKE_ASM_COMPILER aarch64-linux-gnu-gcc)
 set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+
+set(CMAKE_C_COMPILER_TARGET aarch64-linux-gnu)
+set(CMAKE_ASM_COMPILER_TARGET aarch64-linux-gnu)
