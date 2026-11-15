@@ -26,18 +26,26 @@ static struct ag_device display_device;
 static struct ag_viewport display_viewport;
 static int display_ready;
 static int display_attempted;
-static unsigned char *desktop_bmp_buffer;
+struct desktop_bmp_asset {
+    unsigned int length;
+    unsigned char bytes[FS_FILE_MAX];
+};
+static struct desktop_bmp_asset *desktop_bmp_asset;
 
 static int load_desktop_bmp(const char *name, unsigned int *length,
                             struct bmp_info *info) {
     int bytes;
-    if (!desktop_bmp_buffer)
-        desktop_bmp_buffer = (unsigned char *)kmalloc(FS_FILE_MAX);
-    if (!desktop_bmp_buffer)
+    if (!desktop_bmp_asset) {
+        desktop_bmp_asset = (struct desktop_bmp_asset *)kmalloc(sizeof(*desktop_bmp_asset));
+        if (!desktop_bmp_asset)
+            return 0;
+        desktop_bmp_asset->length = 0;
+    }
+    desktop_bmp_asset->length = 0;
+    bytes = fs_kernel_read_file(name, desktop_bmp_asset->bytes, FS_FILE_MAX);
+    if (bytes <= 0 || bmp_parse(desktop_bmp_asset->bytes, (unsigned int)bytes, info) != BMP_OK)
         return 0;
-    bytes = fs_kernel_read_file(name, desktop_bmp_buffer, FS_FILE_MAX);
-    if (bytes <= 0 || bmp_parse(desktop_bmp_buffer, (unsigned int)bytes, info) != BMP_OK)
-        return 0;
+    desktop_bmp_asset->length = (unsigned int)bytes;
     *length = (unsigned int)bytes;
     return 1;
 }
@@ -60,7 +68,7 @@ static void draw_bmp_cover(const struct bmp_info *info, unsigned int length) {
         for (int x = 0; x < width; ++x) {
             int sx = crop_x + (int)((int)x * visible_w / width);
             unsigned int rgb;
-            if (bmp_pixel(desktop_bmp_buffer, length, info, sx, sy, &rgb) == BMP_OK)
+            if (bmp_pixel(desktop_bmp_asset->bytes, length, info, sx, sy, &rgb) == BMP_OK)
                 ag_put_pixel(&display_surface, x, y, rgb);
         }
     }
@@ -113,8 +121,7 @@ int desktop_gfx_init(void) {
         }
         if (!load_desktop_bmp("WALL.BMP", &image_length, &image_info) && have_boot)
             have_boot = load_desktop_bmp("BOOT.BMP", &image_length, &image_info);
-        if (image_length &&
-            desktop_render_set_wallpaper(desktop_bmp_buffer, image_length) == 0)
+        if (image_length)
             serial_str("display: custom BMP wallpaper loaded\n");
     }
     serial_str("display: AirGraph pixel desktop active (");
@@ -148,8 +155,11 @@ int desktop_gfx_present(const uint16_t *cells, int columns, int rows) {
     if (!display_ready)
         return -1;
 
-    if (desktop_render_cells(&display_device, &display_surface,
-                             cells, columns, rows) == 0)
+    if (desktop_render_cells_with_wallpaper(
+            &display_device, &display_surface, cells, columns, rows,
+            desktop_bmp_asset && desktop_bmp_asset->length
+                ? desktop_bmp_asset->bytes : 0,
+            desktop_bmp_asset ? desktop_bmp_asset->length : 0) == 0)
         return 0;
 
     display_ready = 0;

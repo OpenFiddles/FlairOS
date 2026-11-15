@@ -2,26 +2,9 @@
 #include "../include/font5x7.h"
 #include "../include/bmp.h"
 
-static const unsigned char *wallpaper_data;
-static unsigned int wallpaper_length;
-
-int desktop_render_set_wallpaper(const unsigned char *data, unsigned int length) {
-    struct bmp_info info;
-    if (!data || bmp_parse(data, length, &info) != BMP_OK)
-        return -1;
-    wallpaper_data = data;
-    wallpaper_length = length;
-    return 0;
-}
-
-void desktop_render_clear_wallpaper(void) {
-    wallpaper_data = 0;
-    wallpaper_length = 0;
-}
-
-
 static void draw_wallpaper(struct ag_surface *surface,
-                           const struct bmp_info *info) {
+                           const struct bmp_info *info,
+                           const unsigned char *data, unsigned int length) {
     int crop_x = 0, crop_y = 0;
     int visible_w = info->width;
     int visible_h = info->height;
@@ -41,7 +24,7 @@ static void draw_wallpaper(struct ag_surface *surface,
         for (int x = 0; x < width; ++x) {
             int sx = crop_x + x * visible_w / width;
             unsigned int rgb;
-            if (bmp_pixel(wallpaper_data, wallpaper_length, info,
+            if (bmp_pixel(data, length, info,
                           sx, sy, &rgb) == BMP_OK)
                 ag_put_pixel(surface, x, y, rgb);
         }
@@ -55,15 +38,17 @@ static const uint32_t vga_colors[16] = {
     0xFF5555, 0xFF55FF, 0xFFFF55, 0xFFFFFF
 };
 
-int desktop_render_cells(struct ag_device *device, struct ag_surface *surface,
-                         const uint16_t *cells, int columns, int rows) {
+int desktop_render_cells_with_wallpaper(struct ag_device *device, struct ag_surface *surface,
+                                        const uint16_t *cells, int columns, int rows,
+                                        const unsigned char *wallpaper_data,
+                                        unsigned int wallpaper_length) {
     if (!surface || !surface->pixels || !cells ||
         columns <= 0 || rows <= 0 ||
         columns > surface->width || rows > surface->height)
         return -1;
 
     struct bmp_info active_wallpaper;
-    int use_wallpaper = wallpaper_data &&
+    int use_wallpaper = wallpaper_data && wallpaper_length &&
         bmp_parse(wallpaper_data, wallpaper_length, &active_wallpaper) == BMP_OK;
     int cell_width = surface->width / columns;
     int cell_height = surface->height / rows;
@@ -71,7 +56,7 @@ int desktop_render_cells(struct ag_device *device, struct ag_surface *surface,
         return -1;
 
     if (use_wallpaper)
-        draw_wallpaper(surface, &active_wallpaper);
+        draw_wallpaper(surface, &active_wallpaper, wallpaper_data, wallpaper_length);
 
     for (int row = 0; row < rows; ++row) {
         int y = (row * surface->height) / rows;
@@ -125,4 +110,10 @@ int desktop_render_cells(struct ag_device *device, struct ag_surface *surface,
         }
     }
     return 0;
+}
+
+int desktop_render_cells(struct ag_device *device, struct ag_surface *surface,
+                         const uint16_t *cells, int columns, int rows) {
+    return desktop_render_cells_with_wallpaper(device, surface, cells,
+                                               columns, rows, 0, 0);
 }
