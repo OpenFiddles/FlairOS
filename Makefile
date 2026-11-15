@@ -59,6 +59,7 @@ OBJS = $(BUILD)/entry.o \
        $(BUILD)/fb.o \
        $(BUILD)/vbe.o \
        $(BUILD)/airgraph.o \
+       $(BUILD)/bmp.o \
        $(BUILD)/sprunkui.o
 
 all: $(BUILD)/textile.img
@@ -151,6 +152,9 @@ $(BUILD)/vbe.o: kernel/vbe.c include/vbe.h include/fb.h include/hw.h include/air
 	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
 
 $(BUILD)/airgraph.o: kernel/airgraph.c include/airgraph.h include/fb.h | $(BUILD)
+	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
+
+$(BUILD)/bmp.o: kernel/bmp.c include/bmp.h | $(BUILD)
 	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
 
 $(BUILD)/sprunkui.o: kernel/sprunkui.c include/sprunkui.h include/airgraph.h | $(BUILD)
@@ -283,6 +287,9 @@ $(BUILD)/airgraph_host_test: tests/airgraph_host_test.c kernel/airgraph.c kernel
 $(BUILD)/desktop_render_host_test: tests/desktop_render_host_test.c kernel/desktop_render.c kernel/font5x7.c kernel/airgraph.c kernel/fb.c include/desktop_render.h include/font5x7.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/desktop_render_host_test.c kernel/desktop_render.c kernel/font5x7.c kernel/airgraph.c kernel/fb.c
 
+$(BUILD)/bmp_host_test: tests/bmp_host_test.c kernel/bmp.c include/bmp.h | $(BUILD)
+	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/bmp_host_test.c kernel/bmp.c
+
 $(BUILD)/driver_host_test: tests/driver_host_test.c drivers/drv_core.c include/drv.h include/drv_pic.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/driver_host_test.c drivers/drv_core.c
 
@@ -292,12 +299,13 @@ $(BUILD)/fb_host_test: tests/fb_host_test.c kernel/fb.c include/fb.h | $(BUILD)
 $(BUILD)/ata_identify_host_test: tests/ata_identify_host_test.c drivers/ata_identify.c include/ata_identify.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/ata_identify_host_test.c drivers/ata_identify.c
 
-test: $(BUILD)/textile.img $(BUILD)/livecd.iso $(BUILD)/bootcd.iso $(BUILD)/airgraph_host_test $(BUILD)/driver_host_test $(BUILD)/fb_host_test $(BUILD)/ata_identify_host_test $(BUILD)/desktop_render_host_test
+test: $(BUILD)/textile.img $(BUILD)/livecd.iso $(BUILD)/bootcd.iso $(BUILD)/airgraph_host_test $(BUILD)/driver_host_test $(BUILD)/fb_host_test $(BUILD)/ata_identify_host_test $(BUILD)/desktop_render_host_test $(BUILD)/bmp_host_test
 	$(BUILD)/airgraph_host_test
 	$(BUILD)/fb_host_test
 	$(BUILD)/driver_host_test
 	$(BUILD)/ata_identify_host_test
 	$(BUILD)/desktop_render_host_test
+	$(BUILD)/bmp_host_test
 	python3 tests/smoke.py $(BUILD)/textile.img
 	python3 tests/boot_media_test.py $(BUILD)/livecd.iso $(BUILD)/bootcd.iso
 

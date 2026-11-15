@@ -1,7 +1,7 @@
 /*
 FILE PATH: include/bmp.h
 CONTRIBUTOR (Optional): Textile
-PURPOSE: Read-only BMP parser for BOOT_LOGO.bmp and icon_menubar.bmp (24 or 32 bpp, uncompressed).
+PURPOSE: Read-only BMP parser for BOOT.BMP and WALL.BMP (24 or 32 bpp, uncompressed).
 */
 #ifndef AIROS_BMP_H
 #define AIROS_BMP_H

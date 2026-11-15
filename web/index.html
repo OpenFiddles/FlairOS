@@ -64,6 +64,13 @@
     overflow: hidden; white-space: pre; color: #ddd;
     font: 14px/14px monospace; -webkit-text-size-adjust: none; text-size-adjust: none;
   }
+  #screen_container { position: relative; }
+  #vm-input-overlay {
+    position: absolute; inset: 0; z-index: 5;
+    background: transparent; touch-action: none;
+    user-select: none; -webkit-user-select: none;
+    cursor: default;
+  }
   #screen_container canvas {
     display: block; flex: 0 1 auto; width: auto; height: auto; max-width: 100%; max-height: 100%;
     object-fit: contain; image-rendering: pixelated; touch-action: none;
@@ -183,7 +190,7 @@
       </div>
     </div>
     <div id="screen" aria-label="Virtual machine display">
-      <div id="screen_container"><div></div><canvas></canvas></div>
+      <div id="screen_container"><div></div><canvas></canvas><div id="vm-input-overlay" aria-label="Virtual machine touch and pointer surface"></div></div>
     </div>
     <div class="toolbar">
       <p class="toolbar-label">Quick keys</p>
@@ -252,6 +259,7 @@
   const player = document.getElementById("player");
   const screen = document.getElementById("screen");
   const screenContainer = document.getElementById("screen_container");
+  const inputOverlay = document.getElementById("vm-input-overlay");
   const typebox = document.getElementById("typebox");
   const touchpad = document.getElementById("touchpad");
   const leftClick = document.getElementById("left-click");
@@ -407,6 +415,14 @@
   document.addEventListener("webkitfullscreenchange", fitScreen);
 
   const isFullscreen = () => document.fullscreenElement === player || document.webkitFullscreenElement === player;
+  const requestPortraitOnMobile = async () => {
+    if (!window.matchMedia("(pointer: coarse)").matches) return;
+    const orientation = window.screen && window.screen.orientation;
+    if (!orientation || typeof orientation.lock !== "function") return;
+    try { await orientation.lock("portrait-primary"); } catch (_) {
+      /* Orientation locking is optional and browser/permission dependent. */
+    }
+  };
   const updateFullscreenLabel = () => {
     const active = isFullscreen();
     fullscreenButton.textContent = active ? "⛶ Exit fullscreen" : "⛶ Fullscreen";
@@ -419,8 +435,10 @@
         else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
       } else if (player.requestFullscreen) {
         await player.requestFullscreen();
+        await requestPortraitOnMobile();
       } else if (player.webkitRequestFullscreen) {
         player.webkitRequestFullscreen();
+        await requestPortraitOnMobile();
       } else {
         setStatus("Fullscreen is not supported by this browser. You can still use the responsive display.", running());
       }
@@ -430,6 +448,133 @@
   });
   document.addEventListener("fullscreenchange", updateFullscreenLabel);
   document.addEventListener("webkitfullscreenchange", updateFullscreenLabel);
+
+
+  // Direct input surface on top of the guest framebuffer. Touch points map
+  // to the actual canvas/text display rectangle; mouse input uses the same
+  // virtual PS/2 event path. Two-finger taps become right-clicks and two-
+  // finger swipes become wheel events.
+  const overlayPointers = new Map();
+  let overlayPrimaryId = null;
+  let overlayMulti = false;
+  let overlayMultiMoved = false;
+  let overlayMultiStarted = 0;
+  let overlayMultiLastY = 0;
+  let overlayLastPoint = null;
+  const guestDisplayElement = () => {
+    const canvas = screenContainer.querySelector("canvas");
+    if (canvas && canvas.width && canvas.height &&
+        getComputedStyle(canvas).display !== "none") return canvas;
+    return Array.from(screenContainer.children).find(child =>
+      child.tagName === "DIV" && child !== inputOverlay &&
+      child.getBoundingClientRect().width > 0);
+  };
+  const guestPoint = (clientX, clientY) => {
+    const target = guestDisplayElement();
+    if (!target) return null;
+    const rect = target.getBoundingClientRect();
+    if (!rect.width || !rect.height ||
+        clientX < rect.left || clientX > rect.right ||
+        clientY < rect.top || clientY > rect.bottom) return null;
+    return { x: clientX, y: clientY };
+  };
+  const sendOverlayMouse = (type, point, button, buttons) => {
+    if (!running() || !point) return;
+    emulator.mouse_set_status(true);
+    screenContainer.dispatchEvent(new MouseEvent(type, {
+      bubbles: true, cancelable: true, view: window,
+      clientX: point.x, clientY: point.y,
+      button: button || 0, buttons: buttons || 0
+    }));
+  };
+  const sendOverlayRightClick = (point) => {
+    sendOverlayMouse("mousedown", point, 2, 2);
+    sendOverlayMouse("mouseup", point, 2, 0);
+  };
+  inputOverlay.addEventListener("pointerdown", (event) => {
+    if (!running()) return;
+    if (event.pointerType === "mouse" && event.button !== 0 && event.button !== 2) return;
+    const point = guestPoint(event.clientX, event.clientY);
+    if (!point) return;
+    event.preventDefault();
+    try { inputOverlay.setPointerCapture(event.pointerId); } catch (_) {}
+    overlayPointers.set(event.pointerId, {
+      x: event.clientX, y: event.clientY, startX: event.clientX,
+      startY: event.clientY, started: Date.now(), type: event.pointerType,
+      button: event.button === 2 ? 2 : 0, point
+    });
+    if (overlayPointers.size === 1) {
+      overlayPrimaryId = event.pointerId;
+      overlayMulti = false;
+      overlayLastPoint = point;
+      sendOverlayMouse("mousemove", point, 0, 0);
+      sendOverlayMouse("mousedown", point,
+        event.button === 2 ? 2 : 0, event.button === 2 ? 2 : 1);
+    } else if (overlayPointers.size === 2) {
+      overlayMulti = true;
+      overlayMultiMoved = false;
+      overlayMultiStarted = Date.now();
+      const points = Array.from(overlayPointers.values());
+      overlayMultiLastY = (points[0].y + points[1].y) / 2;
+      sendOverlayMouse("mouseup", overlayLastPoint, 0, 0);
+    }
+  });
+  inputOverlay.addEventListener("pointermove", (event) => {
+    if (!running()) return;
+    const active = overlayPointers.get(event.pointerId);
+    if (!active) {
+      if (event.pointerType === "mouse") {
+        const point = guestPoint(event.clientX, event.clientY);
+        if (point) sendOverlayMouse("mousemove", point, 0, 0);
+      }
+      return;
+    }
+    event.preventDefault();
+    const point = guestPoint(event.clientX, event.clientY) || active.point;
+    active.x = event.clientX;
+    active.y = event.clientY;
+    active.point = point;
+    if (Math.abs(event.clientX - active.startX) +
+        Math.abs(event.clientY - active.startY) > 7) active.moved = true;
+    if (overlayMulti && overlayPointers.size >= 2) {
+      const points = Array.from(overlayPointers.values());
+      const averageY = points.reduce((sum, item) => sum + item.y, 0) / points.length;
+      const deltaY = averageY - overlayMultiLastY;
+      if (Math.abs(deltaY) > 3) {
+        screenContainer.dispatchEvent(new WheelEvent("wheel", {
+          bubbles: true, cancelable: true, deltaY: -deltaY * 2
+        }));
+        overlayMultiMoved = true;
+        overlayMultiLastY = averageY;
+      }
+    } else if (event.pointerId === overlayPrimaryId) {
+      overlayLastPoint = point;
+      sendOverlayMouse("mousemove", point, 0, 1);
+    }
+  });
+  const endOverlayPointer = (event) => {
+    const active = overlayPointers.get(event.pointerId);
+    if (!active) return;
+    event.preventDefault();
+    const point = guestPoint(event.clientX, event.clientY) || active.point;
+    overlayPointers.delete(event.pointerId);
+    if (overlayMulti) {
+      if (overlayPointers.size === 0) {
+        if (!overlayMultiMoved && Date.now() - overlayMultiStarted < 450)
+          sendOverlayRightClick(point || overlayLastPoint);
+        overlayMulti = false;
+        overlayPrimaryId = null;
+      }
+      return;
+    }
+    if (event.pointerId === overlayPrimaryId) {
+      sendOverlayMouse("mouseup", point, active.button, 0);
+      overlayPrimaryId = null;
+      overlayLastPoint = point;
+    }
+  };
+  inputOverlay.addEventListener("pointerup", endOverlayPointer);
+  inputOverlay.addEventListener("pointercancel", endOverlayPointer);
 
   // Touchpad pointer events are translated into mouse events at the matching
   // point on the guest canvas. This stays entirely in the browser wrapper.

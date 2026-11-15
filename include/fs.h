@@ -96,4 +96,8 @@ static inline int fs_disk_writes_enabled(void) {
     return fs_sys(SYS_FS_DISK_WRITES, 0, 0, 0) == 1;
 }
 
+
+/* Kernel-only helper: read a complete file into a caller-owned buffer. */
+int fs_kernel_read_file(const char *name, void *out, unsigned int capacity);
+
 #endif

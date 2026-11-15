@@ -1,5 +1,48 @@
 #include "../include/desktop_render.h"
 #include "../include/font5x7.h"
+#include "../include/bmp.h"
+
+static const unsigned char *wallpaper_data;
+static unsigned int wallpaper_length;
+static struct bmp_info wallpaper_info;
+
+int desktop_render_set_wallpaper(const unsigned char *data, unsigned int length) {
+    struct bmp_info info;
+    if (!data || bmp_parse(data, length, &info) != BMP_OK)
+        return -1;
+    wallpaper_data = data;
+    wallpaper_length = length;
+    wallpaper_info = info;
+    return 0;
+}
+
+void desktop_render_clear_wallpaper(void) {
+    wallpaper_data = 0;
+    wallpaper_length = 0;
+}
+
+static void draw_wallpaper_cell(struct ag_surface *surface, int x, int y, int w, int h) {
+    int crop_x = 0, crop_y = 0;
+    int visible_w = wallpaper_info.width;
+    int visible_h = wallpaper_info.height;
+    if ((int64_t)wallpaper_info.width * h > (int64_t)wallpaper_info.height * w) {
+        visible_w = (int)((int64_t)wallpaper_info.height * w / h);
+        crop_x = (wallpaper_info.width - visible_w) / 2;
+    } else {
+        visible_h = (int)((int64_t)wallpaper_info.width * h / w);
+        crop_y = (wallpaper_info.height - visible_h) / 2;
+    }
+    for (int py = 0; py < h; ++py) {
+        int sy = crop_y + (int)((int64_t)py * visible_h / h);
+        for (int px = 0; px < w; ++px) {
+            int sx = crop_x + (int)((int64_t)px * visible_w / w);
+            unsigned int rgb;
+            if (bmp_pixel(wallpaper_data, wallpaper_length, &wallpaper_info,
+                          sx, sy, &rgb) == BMP_OK)
+                ag_put_pixel(surface, x + px, y + py, rgb);
+        }
+    }
+}
 
 static const uint32_t vga_colors[16] = {
     0x000000, 0x0000AA, 0x00AA00, 0x00AAAA,
@@ -35,7 +78,11 @@ int desktop_render_cells(struct ag_device *device, struct ag_surface *surface,
             int width = x_end - x;
             int height = y_end - y;
 
-            ag_fill_rect(device, surface, x, y, width, height, background);
+            if (character == 0xB0u && wallpaper_data) {
+                draw_wallpaper_cell(surface, x, y, width, height);
+            } else {
+                ag_fill_rect(device, surface, x, y, width, height, background);
+            }
 
             if (character == 0xDBu) {
                 ag_fill_rect(device, surface, x, y, width, height, foreground);

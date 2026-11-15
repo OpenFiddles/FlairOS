@@ -525,6 +525,25 @@ int fs_shell_load(const char *name, char *out, u32 max) {
     return (int)n;
 }
 
+int fs_kernel_read_file(const char *name, void *out, unsigned int capacity) {
+    u32 h, size, count;
+
+    if (!name || !out || capacity == 0)
+        return -1;
+    fsk_ensure();
+    h = fsk_open((u32)(unsigned long)name, FS_READ);
+    if (h == FS_FAIL)
+        return -1;
+    size = fsk_size(h);
+    if (size == FS_FAIL || size > capacity) {
+        fsk_close(h);
+        return -1;
+    }
+    count = fsk_read(h, (u32)(unsigned long)out, size);
+    fsk_close(h);
+    return count == size ? (int)count : -1;
+}
+
 int fs_dispatch(struct saved_regs *r) {
     fsk_ensure();
     switch (r->eax) {

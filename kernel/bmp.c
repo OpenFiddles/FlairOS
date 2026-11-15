@@ -19,8 +19,9 @@ int bmp_parse(const unsigned char *d, unsigned int len, struct bmp_info *o) {
     if (len < 54) return BMP_ERR_SIZE;
     if (d[0] != 'B' || d[1] != 'M') return BMP_ERR_MAGIC;
     dib = rd32(d + 14);
-    if (dib < 40) return BMP_ERR_FORMAT;
+    if (dib < 40 || dib > len - 14) return BMP_ERR_FORMAT;
     o->pixel_offset = rd32(d + 10);
+    if (o->pixel_offset < 14u + dib) return BMP_ERR_FORMAT;
     w = (int)rd32(d + 18);
     h = (int)rd32(d + 22);
     planes = rd16(d + 26);

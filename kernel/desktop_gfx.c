@@ -3,6 +3,9 @@
 #include "../include/desktop_render.h"
 #include "../include/vbe.h"
 #include "../include/airgraph.h"
+#include "../include/bmp.h"
+#include "../include/fs.h"
+#include "../include/kheap.h"
 
 /* DISPLAY=portrait selects a 600x750 framebuffer (Bochs DISPI limit-safe).
    The desktop scene remains 80x25 logical cells and is rasterized to pixels. */
@@ -23,6 +26,45 @@ static struct ag_device display_device;
 static struct ag_viewport display_viewport;
 static int display_ready;
 static int display_attempted;
+static unsigned char *desktop_bmp_buffer;
+
+static int load_desktop_bmp(const char *name, unsigned int *length,
+                            struct bmp_info *info) {
+    int bytes;
+    if (!desktop_bmp_buffer)
+        desktop_bmp_buffer = (unsigned char *)kmalloc(FS_FILE_MAX);
+    if (!desktop_bmp_buffer)
+        return 0;
+    bytes = fs_kernel_read_file(name, desktop_bmp_buffer, FS_FILE_MAX);
+    if (bytes <= 0 || bmp_parse(desktop_bmp_buffer, (unsigned int)bytes, info) != BMP_OK)
+        return 0;
+    *length = (unsigned int)bytes;
+    return 1;
+}
+
+static void draw_bmp_cover(const struct bmp_info *info, unsigned int length) {
+    int width = display_surface.width;
+    int height = display_surface.height;
+    int crop_x = 0, crop_y = 0;
+    int visible_w = info->width;
+    int visible_h = info->height;
+    if ((int64_t)info->width * height > (int64_t)info->height * width) {
+        visible_w = (int)((int64_t)info->height * width / height);
+        crop_x = (info->width - visible_w) / 2;
+    } else {
+        visible_h = (int)((int64_t)info->width * height / width);
+        crop_y = (info->height - visible_h) / 2;
+    }
+    for (int y = 0; y < height; ++y) {
+        int sy = crop_y + (int)((int64_t)y * visible_h / height);
+        for (int x = 0; x < width; ++x) {
+            int sx = crop_x + (int)((int64_t)x * visible_w / width);
+            unsigned int rgb;
+            if (bmp_pixel(desktop_bmp_buffer, length, info, sx, sy, &rgb) == BMP_OK)
+                ag_put_pixel(&display_surface, x, y, rgb);
+        }
+    }
+}
 
 int desktop_gfx_active(void) {
     return display_ready;
@@ -57,6 +99,24 @@ int desktop_gfx_init(void) {
 
     display_ready = 1;
     ag_clear(&display_surface, 0x00131A2A);
+
+    /* Optional system-volume artwork. BOOT.BMP is shown once; WALL.BMP
+       remains behind the Explorer desktop until a new wallpaper is set. */
+    {
+        unsigned int image_length = 0;
+        struct bmp_info image_info;
+        int have_boot = load_desktop_bmp("BOOT.BMP", &image_length, &image_info);
+        if (have_boot) {
+            draw_bmp_cover(&image_info, image_length);
+            ag_present(&display_device, &display_surface);
+            wait_ticks(12);
+        }
+        if (!load_desktop_bmp("WALL.BMP", &image_length, &image_info) && have_boot)
+            have_boot = load_desktop_bmp("BOOT.BMP", &image_length, &image_info);
+        if (image_length &&
+            desktop_render_set_wallpaper(desktop_bmp_buffer, image_length) == 0)
+            serial_str("display: custom BMP wallpaper loaded\n");
+    }
     serial_str("display: AirGraph pixel desktop active (");
 #if defined(FLAIROS_DISPLAY_PORTRAIT)
     serial_str("600x750 portrait");
