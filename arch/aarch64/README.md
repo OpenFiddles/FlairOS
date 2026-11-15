@@ -10,7 +10,7 @@ On Ubuntu or Debian:
 ./scripts/setup-aarch64.sh
 ```
 
-The setup script installs CMake, Ninja, the AArch64 GNU cross-compiler, binutils, and QEMU's AArch64 system emulator.
+The setup script installs CMake, Ninja, the AArch64 GNU cross-compiler, binutils, QEMU's AArch64 system emulator, and multiarch GDB.
 
 ## 2. Configure and build
 
@@ -21,11 +21,7 @@ cmake --preset aarch64
 cmake --build --preset aarch64
 ```
 
-The output is:
-
-```
-build-cmake-aarch64/aarch64/kernel.elf
-```
+The output is `build-cmake-aarch64/aarch64/kernel.elf`.
 
 Or run the convenience script:
 
@@ -45,10 +41,10 @@ For GDB debugging, start QEMU paused with a TCP GDB stub:
 cmake --build build-cmake-aarch64 --target aarch64_debug
 ```
 
-In another terminal, connect:
+In another terminal:
 
 ```sh
-aarch64-linux-gnu-gdb build-cmake-aarch64/aarch64/kernel.elf
+gdb-multiarch build-cmake-aarch64/aarch64/kernel.elf
 ```
 
 Then enter `target remote :1234`, followed by `continue`.
