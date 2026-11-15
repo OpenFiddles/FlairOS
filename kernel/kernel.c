@@ -1072,9 +1072,9 @@ void kmain(void) {
     else
         serial_str("mouse: no ps/2 mouse\n");
     pit_init();
+    io_manager_init();
     drv_register_builtin();
     drv_init_all();
-    io_manager_init();
     if (ata_is_ready())
         serial_str("ata: primary disk ready\n");
     if (boot_handoff_valid())
