@@ -175,8 +175,38 @@ static void fsk_load(void) {
         return;
     if (ata_read_sector(FSK_DIR_LBA, fsk_sector) != 0)
         return;
-    if (fsk_get32(0) != FSK_MAGIC)
+    if (fsk_get32(0) != FSK_MAGIC || fsk_get32(4) != FS_FILES)
         return;
+
+    /*
+     * Treat the on-disk directory as untrusted input. A damaged entry must
+     * never make us allocate an oversized buffer or expose a bogus filename.
+     * File extents are derived from the slot index below, not disk pointers.
+     */
+    for (i = 0; i < FS_FILES; i++) {
+        at = FSK_HDR + i * FSK_ENTRY;
+        if (fsk_sector[at] > 1)
+            return;
+        if (fsk_sector[at] != 1)
+            continue;
+        if (fsk_sector[at + 1] == 0 ||
+            fsk_sector[at + 1 + FS_NAME_MAX] != 0 ||
+            fsk_get32(at + 1 + FS_NAME_MAX + 1) > FS_FILE_MAX)
+            return;
+        for (k = 0; k < i; k++) {
+            int prev = FSK_HDR + k * FSK_ENTRY;
+            int n = 0;
+            if (fsk_sector[prev] != 1)
+                continue;
+            while (n < FS_NAME_MAX &&
+                   fsk_sector[prev + 1 + n] == fsk_sector[at + 1 + n])
+                n++;
+            if (n == FS_NAME_MAX ||
+                (fsk_sector[prev + 1 + n] == 0 &&
+                 fsk_sector[at + 1 + n] == 0))
+                return;
+        }
+    }
     fsk_disk = 1;
     for (i = 0; i < FS_FILES; i++) {
         at = FSK_HDR + i * FSK_ENTRY;
