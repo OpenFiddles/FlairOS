@@ -1058,10 +1058,13 @@ static void text_shell_run(void) {
 void kmain(void) {
     boot_init();
     serial_init();
-    hwinfo_report();
     clear_screen();
     gdt_init();
     idt_init();
+    /* Firmware tables and PCI configuration are external inputs. Install the
+       exception gates before probing them so a bad firmware pointer panics
+       cleanly instead of faulting before the IDT exists. */
+    hwinfo_report();
     pic_init();
     if (mouse_init())
         serial_str("mouse: ps/2 ready\n");
