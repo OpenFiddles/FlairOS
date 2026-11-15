@@ -225,7 +225,7 @@ livecd: $(BUILD)/livecd.iso
 
 bootcd: $(BUILD)/bootcd.iso
 
-boot-media: $(BUILD)/livecd.iso $(BUILD)/bootcd.iso
+boot-media: $(BUILD)/textile.img $(BUILD)/livecd.iso $(BUILD)/bootcd.iso
 
 # --- Window API demo: same image layout, app slot holds userland/win_app.c ---
 $(BUILD)/win_app.o: userland/win_app.c include/axi.h kernel/textile.h | $(BUILD)
