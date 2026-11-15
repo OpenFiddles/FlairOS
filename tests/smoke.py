@@ -45,7 +45,7 @@ def boot(tag, cmds):
         # send the shortcut during the VBE splash and leave it pending.
         wait_for(log, 'desktop: start')
         mon.sendall(b'sendkey ctrl-alt-d\n')
-        wait_for(log, 'ui: text mode')
+        wait_for(log, 'desktop: open terminal')
 
         def type_line(text):
             for ch in text + '\n':
@@ -74,7 +74,7 @@ text2 = boot('reboot', ['load note'])
 checks = [
     ('kernel banner', 'FlareOS 0.3'),
     ('desktop boots first', 'desktop: start'),
-    ('ctrl+alt+d enters text mode', 'ui: text mode'),
+    ('ctrl+alt+d opens the desktop Terminal', 'desktop: open terminal'),
     ('help list', 'Commands:'),
     ('help lists net', 'net            show'),
     ('help lists beep', 'beep HZ MS'),

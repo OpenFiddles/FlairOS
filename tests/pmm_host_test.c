@@ -21,9 +21,9 @@ int main(void){
  assert(mm_frames_free(&f,0x101000)==-1); /* reserved */
  assert(mm_frames_free(&f,0x200000)==-1); /* unmanaged */
  unsigned int run=mm_frames_alloc_contiguous(&f,3);
- assert(run!=0&&f.free_count==1);
- assert(mm_frames_alloc_contiguous(&f,2)==0); /* exhaustion */
+ assert(run!=0&&f.free_count==2); /* two free frames remain, but are fragmented */
+ assert(mm_frames_alloc_contiguous(&f,2)==0); /* no contiguous pair remains */
  assert(mm_frames_free(&f,y)==0);
- assert(f.free_count==2);
+ assert(f.free_count==3);
  puts("pmm core tests passed");return 0;
 }

@@ -15,7 +15,9 @@ keyboard, pointer, timer, speaker, and filesystem APIs through `import flareos`.
 Use `flareos.exit()` to leave the REPL and return to the desktop.
 
 This is a minimal MicroPython port, not CPython. VFS imports, POSIX, sockets,
-threads, and CPython extension modules are not enabled. The separate CI job
-builds and packages the interpreter and publishes the Python-enabled disk image
-as an artifact. Runtime testing is still required before treating the port as
+threads, and CPython extension modules are not enabled. The separate experimental CI job is currently manual-only: the interpreter
+image is approximately 584 KiB, while the current AIRP v1 application slot is
+128 KiB. The current disk image's optional package area cannot hold that build.
+The standard OS CI therefore does not fail on an interpreter that cannot yet be
+packaged. Runtime testing is still required before treating the port as
 production-ready.
