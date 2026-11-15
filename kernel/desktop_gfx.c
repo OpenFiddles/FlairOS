@@ -1,3 +1,4 @@
+#include "kernel.h"
 #include "../include/desktop_gfx.h"
 #include "../include/desktop_render.h"
 #include "../include/vbe.h"

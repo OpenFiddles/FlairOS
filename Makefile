@@ -29,6 +29,9 @@ OBJS = $(BUILD)/entry.o \
        $(BUILD)/isr.o \
        $(BUILD)/usermode.o \
        $(BUILD)/desktop.o \
+       $(BUILD)/desktop_gfx.o \
+       $(BUILD)/desktop_render.o \
+       $(BUILD)/font5x7.o \
        $(BUILD)/kernel.o \
        $(BUILD)/drivers.o \
        $(BUILD)/keyboard.o \
@@ -276,11 +279,12 @@ $(BUILD)/fb_host_test: tests/fb_host_test.c kernel/fb.c include/fb.h | $(BUILD)
 $(BUILD)/ata_identify_host_test: tests/ata_identify_host_test.c drivers/ata_identify.c include/ata_identify.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/ata_identify_host_test.c drivers/ata_identify.c
 
-test: $(BUILD)/textile.img $(BUILD)/livecd.iso $(BUILD)/bootcd.iso $(BUILD)/airgraph_host_test $(BUILD)/driver_host_test $(BUILD)/fb_host_test $(BUILD)/ata_identify_host_test
+test: $(BUILD)/textile.img $(BUILD)/livecd.iso $(BUILD)/bootcd.iso $(BUILD)/airgraph_host_test $(BUILD)/driver_host_test $(BUILD)/fb_host_test $(BUILD)/ata_identify_host_test $(BUILD)/desktop_render_host_test
 	$(BUILD)/airgraph_host_test
 	$(BUILD)/fb_host_test
 	$(BUILD)/driver_host_test
 	$(BUILD)/ata_identify_host_test
+	$(BUILD)/desktop_render_host_test
 	python3 tests/smoke.py $(BUILD)/textile.img
 	python3 tests/boot_media_test.py $(BUILD)/livecd.iso $(BUILD)/bootcd.iso
 
