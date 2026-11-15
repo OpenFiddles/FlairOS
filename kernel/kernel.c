@@ -886,7 +886,7 @@ static void run_command(char *input) {
             ((port >= 0x1F0 && port <= 0x1F7) ||
              (port >= 0x170 && port <= 0x177) ||
              port == 0x3F6 || port == 0x376)) {
-            say_error("ATA port writes are disabled in a Live session\\n");
+            say_error("ATA port writes are disabled in a Live session\n");
             return;
         }
         outb((u16)port, (u8)value);
