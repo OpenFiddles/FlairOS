@@ -94,7 +94,7 @@ int io_create_device(struct io_driver *driver, struct io_device *device,
     unsigned int i;
 
     if (!driver || !driver_is_registered(driver) || !device ||
-        !name_valid(name) || device->registered)
+        !name_valid(name) || device_index(device) >= 0)
         return IO_STATUS_INVALID;
     if (device_count >= IO_DEVICE_MAX)
         return IO_STATUS_NO_SPACE;
@@ -147,7 +147,7 @@ int io_call_driver(struct io_device *device, struct io_request *request) {
     int status;
 
     if (!device || !device->registered || device_index(device) < 0 ||
-        !request || request->major < 0 || request->major >= IO_MJ_MAX)
+        !request || (unsigned int)request->major >= (unsigned int)IO_MJ_MAX)
         return IO_STATUS_INVALID;
 
     if ((request->major == IO_MJ_READ || request->major == IO_MJ_WRITE) &&
