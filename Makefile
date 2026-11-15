@@ -53,6 +53,7 @@ OBJS = $(BUILD)/entry.o \
        $(BUILD)/fs.o \
        $(BUILD)/sysdispatch.o \
        $(BUILD)/boot.o \
+       $(BUILD)/hwinfo.o \
        $(BUILD)/setup.o \
        $(BUILD)/airp.o \
        $(BUILD)/fb.o \
@@ -132,6 +133,9 @@ $(BUILD)/sysdispatch.o: kernel/sysdispatch.c include/axi.h include/fs.h kernel/k
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD)/boot.o: kernel/boot.c include/boot.h | $(BUILD)
+	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
+
+$(BUILD)/hwinfo.o: kernel/hwinfo.c include/hwinfo.h include/boot.h include/hw.h | $(BUILD)
 	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
 
 $(BUILD)/setup.o: kernel/setup.c include/setup.h include/boot.h include/drv_ata.h kernel/kernel.h | $(BUILD)

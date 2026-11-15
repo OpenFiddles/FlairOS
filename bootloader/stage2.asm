@@ -43,6 +43,8 @@ stage2_start:
     mov dword [BOOT_INFO_ADDR], BOOT_INFO_MAGIC
     mov dword [BOOT_INFO_ADDR + 4], BOOT_INFO_VERSION
     mov dword [BOOT_INFO_ADDR + 8], FORCE_BOOT_MODE
+    movzx eax, byte [boot_drive]
+    mov dword [BOOT_INFO_ADDR + 12], eax
 
     in al, 0x92
     or al, 2

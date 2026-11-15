@@ -29,11 +29,6 @@ static void detect_cpu(void){
  cpuid(1,0,&a,&b,&c,&d);inv.cpu.signature=a;inv.cpu.features_ecx=c;inv.cpu.features_edx=d;
  inv.cpu.has_msr=(d>>5)&1;inv.cpu.has_pae=(d>>6)&1;inv.cpu.has_apic=(d>>9)&1;inv.cpu.has_sse=(d>>25)&1;inv.cpu.has_sse2=(d>>26)&1;inv.cpu.has_sse3=c&1;inv.cpu.has_avx=(c>>28)&1;
 }
-static uint8_t pci_kind(uint8_t cl,uint8_t sub){
- if(cl==1)return HWINFO_PCI_STORAGE;if(cl==2)return HWINFO_PCI_NETWORK;if(cl==3)return HWINFO_PCI_DISPLAY;
- if(cl==4)return HWINFO_PCI_AUDIO;if(cl==6)return HWINFO_PCI_BRIDGE;if(cl==12&&sub==3)return HWINFO_PCI_USB;
- if(cl==9)return HWINFO_PCI_INPUT;return HWINFO_PCI_OTHER;
-}
 static void scan_pci(void){
  for(uint16_t bus=0;bus<256&&inv.pci_count<HWINFO_MAX_PCI;bus++)for(uint8_t slot=0;slot<32&&inv.pci_count<HWINFO_MAX_PCI;slot++){
   uint32_t id=pci_read((uint8_t)bus,slot,0,0);uint16_t vendor=(uint16_t)id;if(vendor==0xFFFF)continue;
