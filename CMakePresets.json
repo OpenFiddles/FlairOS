@@ -1,0 +1,25 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "i686",
+      "displayName": "FlairOS i686 (v86)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-cmake-i686",
+      "toolchainFile": "${sourceDir}/cmake/toolchain-i686-clang.cmake",
+      "cacheVariables": { "FLAIROS_ARCH": "i686" }
+    },
+    {
+      "name": "aarch64",
+      "displayName": "FlairOS native AArch64",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-cmake-aarch64",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/aarch64-linux.cmake",
+      "cacheVariables": { "FLAIROS_ARCH": "aarch64" }
+    }
+  ],
+  "buildPresets": [
+    { "name": "i686", "configurePreset": "i686" },
+    { "name": "aarch64", "configurePreset": "aarch64", "targets": ["aarch64_kernel"] }
+  ]
+}

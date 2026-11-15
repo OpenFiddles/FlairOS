@@ -1,5 +1,14 @@
 cmake_minimum_required(VERSION 3.20)
-project(airos C)
+project(FlairOS C ASM)
+
+set(FLAIROS_ARCH "i686" CACHE STRING "Target architecture: i686 or aarch64")
+set_property(CACHE FLAIROS_ARCH PROPERTY STRINGS i686 aarch64)
+if(FLAIROS_ARCH STREQUAL "aarch64")
+  add_subdirectory(arch/aarch64)
+  return()
+elseif(NOT FLAIROS_ARCH STREQUAL "i686")
+  message(FATAL_ERROR "Unsupported FLAIROS_ARCH=${FLAIROS_ARCH}; choose i686 or aarch64")
+endif()
 
 if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "i686")
   message(FATAL_ERROR "AirOS builds only i686 for now; x86-64 and ARM need their own boot layer")
