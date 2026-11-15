@@ -1,13 +1,14 @@
 ENTRY(_start)
-
 SECTIONS
 {
-    . = 0x40080000;
-    .text : { KEEP(*(.text.boot)) *(.text*) }
-    .rodata : { *(.rodata*) }
-    .data : { *(.data*) }
-    .bss : { *(.bss*) *(COMMON) }
-    . = ALIGN(16);
-    . += 0x4000;
-    _stack_top = .;
+  . = 0x40080000;
+  .text : ALIGN(4096) { KEEP(*(.text.boot)) *(.text .text.*) }
+  .rodata : ALIGN(4096) { *(.rodata .rodata.*) }
+  .data : ALIGN(4096) { *(.data .data.*) }
+  .bss : ALIGN(4096) {
+    __bss_start = .;
+    *(.bss .bss.*) *(COMMON)
+    __bss_end = .;
+  }
+  __kernel_end = .;
 }
