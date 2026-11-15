@@ -52,7 +52,9 @@ Future consumers:
   `drivers/pmm.c` supplies firmware ranges; the same core is host-testable.
 - The sorted virtual-region allocator in `drivers/vm_region.c` is integrated
   with the kernel VMM through `vm_kernel_reserve_region`, `vm_kernel_alloc`,
-  `vm_kernel_free` and `vm_kernel_find_region`. Kernel allocations reserve an
+  `vm_kernel_free`, `vm_kernel_release_region` and `vm_kernel_find_region`.
+  Metadata-only reservations have a separate owner-checked release path.
+  Kernel allocations reserve an
   aligned VA range, replace its identity PTEs with zeroed PMM frames, and roll
   back partial allocations. Free validates the entire owned region before
   unmapping and returning its frames to PMM.

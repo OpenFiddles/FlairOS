@@ -397,6 +397,18 @@ int vm_kernel_reserve_region(unsigned int start, unsigned int length,
     return vm_region_reserve(&kernel_vm_regions,start,length,flags,owner);
 }
 
+int vm_kernel_release_region(unsigned int start, unsigned int owner) {
+    struct vm_region region;
+
+    if (!paging_on || !kernel_vm_regions_ready ||
+        vm_region_find(&kernel_vm_regions, start, &region) != 0 ||
+        region.start != start || region.owner != owner ||
+        (region.flags & VM_REGION_MAPPED))
+        return -1;
+
+    return vm_region_release(&kernel_vm_regions, start, owner);
+}
+
 int vm_kernel_find_region(unsigned int address, struct vm_region *result) {
     if (!paging_on || !kernel_vm_regions_ready) return -1;
     return vm_region_find(&kernel_vm_regions,address,result);

@@ -11,6 +11,7 @@ struct vm_region;
 int vm_kernel_reserve_region(unsigned int start, unsigned int length,
                              unsigned int flags, unsigned int owner);
 int vm_kernel_find_region(unsigned int address, struct vm_region *result);
+int vm_kernel_release_region(unsigned int start, unsigned int owner);
 int vm_kernel_alloc(unsigned int length, unsigned int alignment,
                     unsigned int flags, unsigned int owner,
                     unsigned int *result);
