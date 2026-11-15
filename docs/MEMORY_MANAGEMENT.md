@@ -47,8 +47,12 @@ Future consumers:
 - i386 BIOS is the only complete boot path.
 - PMM consumes the E820 handoff and manages physical memory from 1 MiB
   through 256 MiB.
-- Availability and managed bitmaps track usable frames; a third bitmap now
-  distinguishes permanently reserved frames.
+- The architecture-neutral frame allocator in `drivers/mm_core.c` owns the
+  availability, managed and reserved bitmaps. The i386 E820 adapter in
+  `drivers/pmm.c` supplies firmware ranges; the same core is host-testable.
+- A standalone sorted virtual-region allocator in `drivers/vm_region.c` now
+  supports fixed reservations, aligned first-fit allocation, owner-checked
+  release and address lookup. It is not yet wired into `vm_map`/`vm_unmap`.
 - VMM identity maps the 32-bit address space with supervisor 4 MiB pages and
   splits selected regions into 4 KiB page tables.
 - User execution uses one fixed low-memory app/stack window and a bounded heap.
@@ -97,7 +101,12 @@ Future consumers:
 
 ## Validation notes
 
-The current PMM/VMM has boot-time self-tests but no dedicated host-test suite.
-The next validation step is to extract frame-bitmap and range transitions into
-a host-testable core. Do not expand the 256 MiB cap or claim AArch64 memory
-support until boot handoff, page-table backend and allocator tests cover it.
+Host tests are added as `pmm_host_test` and `vm_region_host_test` Make targets.
+They cover duplicate usable ranges, overlapping reservations, allocation,
+contiguous allocation, exhaustion, double-free, reserved-frame protection,
+region overlap, alignment, owner checks and release. They have not yet been
+executed in a verified build environment. GitHub Actions currently checks an
+older GitHub `main` commit and reports failures in host tests and CMake/Ninja;
+the latest GitLab commits are not mirrored there. Do not expand the 256 MiB
+cap or claim AArch64 memory support until the boot handoff, page-table backend
+and allocator tests pass.
