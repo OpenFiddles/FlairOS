@@ -125,14 +125,14 @@ int pmm_reserve_range(unsigned int base, unsigned int length) {
         unsigned int i;
         if (a < FRAME_MIN || a >= FRAME_MAX) continue;
         i = (a - FRAME_MIN) / PMM_FRAME_SIZE;
-        if (!bit_get(MANAGED_BITS, i) || bit_get(RESERVED_BITS, i)) continue;
+        if (!bit_get(MANAGED_BITS, i) || bit_get(RESERVED_BITS, i) ||
+            !bit_get(AVAIL_BITS, i))
+            continue;
         bit_set(RESERVED_BITS, i, 1);
-        if (bit_get(AVAIL_BITS, i)) {
-            bit_set(AVAIL_BITS, i, 0);
-            free_count--;
-            reserved_count++;
-            reserved++;
-        }
+        bit_set(AVAIL_BITS, i, 0);
+        free_count--;
+        reserved_count++;
+        reserved++;
     }
     return (int)reserved;
 }
