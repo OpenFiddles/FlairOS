@@ -35,7 +35,7 @@ int main(void){
      CHECK(desktop_render_cells(&portrait_device, &portrait_surface,
                                 row_cells, 80, 2) == 0);
      CHECK(portrait_row[553] == 0x0000AA);  /* column 73 */
-     CHECK(portrait_row[592] == 0x00AAAA);  /* column 79 */
+     CHECK(portrait_row[592] == 0x00AAAAAA); /* column 79 */
      ag_device_shutdown(&portrait_device);
  }
  ag_device_shutdown(&d);puts("Desktop pixel renderer host test: all checks passed");return 0;
