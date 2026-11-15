@@ -14,6 +14,7 @@
 #include <cpuid.h>
 #include "../include/vm.h"
 #include "../include/pmm.h"
+#include "../include/vm_region.h"
 
 #define FLAG_P   0x001u
 #define FLAG_RW  0x002u
@@ -42,12 +43,36 @@ static unsigned int app_hpt;
 static unsigned int heap_top;
 static unsigned int app_frames[APP_PAGES];
 
+/* Kernel-only virtual allocation arena; allocations replace identity PTEs. */
+#define KERNEL_VM_BASE  0xC0000000u
+#define KERNEL_VM_LIMIT 0xE0000000u
+#define VM_REGION_MAPPED 0x80000000u
+
+static struct vm_region kernel_vm_storage[VM_REGION_MAX];
+static struct vm_region_set kernel_vm_regions;
+static int kernel_vm_regions_ready;
+
 static void load_cr3(unsigned int phys) {
     __asm__ volatile ("mov %0, %%cr3" : : "r"(phys) : "memory");
 }
 
 static void write_cr3(void) {
     load_cr3((unsigned int)(unsigned long)pd);
+}
+
+static unsigned int read_cr3(void) {
+    unsigned int value;
+    __asm__ volatile ("mov %%cr3, %0" : "=r"(value));
+    return value & ADDR_MASK;
+}
+
+static unsigned int kernel_pd_phys(void) {
+    return (unsigned int)(unsigned long)pd & ADDR_MASK;
+}
+
+static int kernel_vm_context_ready(void) {
+    return paging_on && kernel_vm_regions_ready &&
+           read_cr3() == kernel_pd_phys();
 }
 
 static void invlpg(unsigned int virt) {
@@ -79,7 +104,12 @@ static int split_pde(unsigned int pdi) {
 }
 
 int vm_map(unsigned int virt, unsigned int phys, unsigned int flags) {
-    unsigned int pdi = virt >> 22;
+    unsigned int pdi;
+
+    if ((virt & 0xFFFu) || (phys & 0xFFFu) ||
+        (flags & ~(VM_WRITE | VM_USER)))
+        return -1;
+    pdi = virt >> 22;
     unsigned int pti = (virt >> 12) & 0x3FFu;
     unsigned int *pt;
 
@@ -100,7 +130,11 @@ int vm_map(unsigned int virt, unsigned int phys, unsigned int flags) {
 }
 
 int vm_unmap(unsigned int virt) {
-    unsigned int pdi = virt >> 22;
+    unsigned int pdi;
+
+    if (virt & 0xFFFu)
+        return -1;
+    pdi = virt >> 22;
     unsigned int pti = (virt >> 12) & 0x3FFu;
     unsigned int *pt;
 
@@ -318,7 +352,124 @@ int vm_init(void) {
     cr0 |= CR0_PG;
     __asm__ volatile ("mov %0, %%cr0" : : "r"(cr0) : "memory");
     paging_on = 1;
+    if (vm_regions_init(&kernel_vm_regions, kernel_vm_storage,
+                        VM_REGION_MAX, KERNEL_VM_BASE, KERNEL_VM_LIMIT,
+                        4096u) == 0) {
+        kernel_vm_regions_ready = 1;
+        serial_str("vm: kernel virtual region manager ready\n");
+    } else {
+        kernel_vm_regions_ready = 0;
+        serial_str("vm: kernel virtual region manager FAILED\n");
+    }
     serial_str("vm: paging on, 4 GB identity map\n");
     serial_str(vm_selftest() ? "vm: selftest passed\n" : "vm: selftest FAILED\n");
     return 1;
+}
+
+
+/* Query the kernel page directory. Physical results are page-aligned. */
+static int vm_kernel_lookup_mapping(unsigned int virt, unsigned int *phys,
+                                    unsigned int *flags) {
+    unsigned int pdi=virt>>22, pti=(virt>>12)&0x3FFu;
+    unsigned int pde=pd[pdi], *pt, pte;
+
+    if (!paging_on || (virt&0xFFFu) || !(pde&FLAG_P))
+        return -1;
+    if (pde&FLAG_PS) {
+        if (phys) *phys=(pde&0xFFC00000u)|(virt&0x003FF000u);
+        if (flags) *flags=pde&0xFFFu;
+        return 0;
+    }
+    pt=(unsigned int *)(unsigned long)(pde&ADDR_MASK);
+    pte=pt[pti];
+    if (!(pte&FLAG_P)) return -1;
+    if (phys) *phys=pte&ADDR_MASK;
+    if (flags) *flags=pte&0xFFFu;
+    return 0;
+}
+
+/* Metadata-only reservation: this does not acquire frames or alter PTEs. */
+int vm_kernel_reserve_region(unsigned int start, unsigned int length,
+                             unsigned int flags, unsigned int owner) {
+    if (!paging_on || !kernel_vm_regions_ready ||
+        (flags&VM_REGION_MAPPED))
+        return -1;
+    return vm_region_reserve(&kernel_vm_regions,start,length,flags,owner);
+}
+
+int vm_kernel_find_region(unsigned int address, struct vm_region *result) {
+    if (!paging_on || !kernel_vm_regions_ready) return -1;
+    return vm_region_find(&kernel_vm_regions,address,result);
+}
+
+/* Allocate supervisor pages from PMM. Only the kernel page directory is
+   supported until independent process address-space objects are implemented. */
+int vm_kernel_alloc(unsigned int length, unsigned int alignment,
+                    unsigned int flags, unsigned int owner,
+                    unsigned int *result) {
+    struct vm_region region;
+    unsigned int base, virt, frame;
+
+    if (!kernel_vm_context_ready() || !result || (flags&~VM_WRITE))
+        return -1;
+    if (vm_region_alloc(&kernel_vm_regions,length,alignment,
+                        flags|VM_REGION_MAPPED,owner,&base)!=0)
+        return -1;
+    if (vm_region_find(&kernel_vm_regions,base,&region)!=0 ||
+        region.start!=base) {
+        (void)vm_region_release(&kernel_vm_regions,base,owner);
+        return -1;
+    }
+
+    for (virt=base;virt<region.end;virt+=4096u) {
+        unsigned int old_phys;
+        /* Initially the kernel maps the entire 32-bit space identically. */
+        if (vm_kernel_lookup_mapping(virt,&old_phys,0)==0) {
+            if (old_phys!=virt || vm_unmap(virt)!=0) goto rollback;
+        }
+        frame=pmm_alloc_frame();
+        if (!frame) goto rollback;
+        zero_frame(frame);
+        if (vm_map(virt,frame,flags)!=0) {
+            (void)pmm_free_frame(frame);
+            goto rollback;
+        }
+    }
+    *result=base;
+    return 0;
+
+rollback:
+    for (unsigned int undo=base;undo<virt;undo+=4096u) {
+        unsigned int mapped_phys;
+        if (vm_kernel_lookup_mapping(undo,&mapped_phys,0)==0) {
+            (void)vm_unmap(undo);
+            (void)pmm_free_frame(mapped_phys);
+        }
+    }
+    (void)vm_region_release(&kernel_vm_regions,base,owner);
+    return -1;
+}
+
+/* Free only a whole vm_kernel_alloc region. Raw vm_unmap stays non-owning. */
+int vm_kernel_free(unsigned int base, unsigned int owner) {
+    struct vm_region region;
+    unsigned int virt,phys;
+
+    if (!kernel_vm_context_ready() ||
+        vm_region_find(&kernel_vm_regions,base,&region)!=0 ||
+        region.start!=base || !(region.flags&VM_REGION_MAPPED) ||
+        region.owner!=owner)
+        return -1;
+
+    /* Preflight every page so a bad region cannot be half-unmapped. */
+    for (virt=region.start;virt<region.end;virt+=4096u) {
+        if (vm_kernel_lookup_mapping(virt,&phys,0)!=0 || phys==virt)
+            return -1;
+    }
+    for (virt=region.start;virt<region.end;virt+=4096u) {
+        if (vm_kernel_lookup_mapping(virt,&phys,0)!=0 ||
+            vm_unmap(virt)!=0 || pmm_free_frame(phys)!=0)
+            return -1;
+    }
+    return vm_region_release(&kernel_vm_regions,base,owner);
 }

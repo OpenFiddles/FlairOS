@@ -13,7 +13,10 @@ unsigned int mm_frames_add_range(struct mm_frame_allocator *m,unsigned int base,
  unsigned int end=(base>0xFFFFFFFFu-length)?0xFFFFFFFFu:base+length;
  unsigned int limit=m->base+m->frame_count*PAGE_SIZE;
  if(end<=m->base||base>=limit)return 0;
- if(base<m->base)base=m->base;if(end>limit)end=limit;
+ if (base < m->base)
+  base = m->base;
+ if (end > limit)
+  end = limit;
  base=(base+PAGE_SIZE-1u)&~(PAGE_SIZE-1u);end&=~(PAGE_SIZE-1u);
  unsigned int added=0;
  for(unsigned int a=base;a<end;a+=PAGE_SIZE){unsigned int i=(a-m->base)/PAGE_SIZE;if(!get(m->managed,i)){set(m->managed,i,1);set(m->available,i,1);m->free_count++;m->managed_count++;added++;}}
@@ -40,7 +43,10 @@ int mm_frames_reserve(struct mm_frame_allocator *m,unsigned int base,unsigned in
  if(!length||base>0xFFFFFFFFu-length)return -1;
  unsigned int end=base+length,limit=m->base+m->frame_count*PAGE_SIZE;
  if(end<=m->base||base>=limit)return 0;
- if(base<m->base)base=m->base;if(end>limit)end=limit;
+ if (base < m->base)
+  base = m->base;
+ if (end > limit)
+  end = limit;
  unsigned int start=base&~(PAGE_SIZE-1u);
  if(end>0xFFFFF000u)end=0xFFFFFFFFu;else end=(end+PAGE_SIZE-1u)&~(PAGE_SIZE-1u);
  if(end>limit)end=limit;

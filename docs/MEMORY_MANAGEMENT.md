@@ -50,9 +50,15 @@ Future consumers:
 - The architecture-neutral frame allocator in `drivers/mm_core.c` owns the
   availability, managed and reserved bitmaps. The i386 E820 adapter in
   `drivers/pmm.c` supplies firmware ranges; the same core is host-testable.
-- A standalone sorted virtual-region allocator in `drivers/vm_region.c` now
-  supports fixed reservations, aligned first-fit allocation, owner-checked
-  release and address lookup. It is not yet wired into `vm_map`/`vm_unmap`.
+- The sorted virtual-region allocator in `drivers/vm_region.c` is integrated
+  with the kernel VMM through `vm_kernel_reserve_region`, `vm_kernel_alloc`,
+  `vm_kernel_free` and `vm_kernel_find_region`. Kernel allocations reserve an
+  aligned VA range, replace its identity PTEs with zeroed PMM frames, and roll
+  back partial allocations. Free validates the entire owned region before
+  unmapping and returning its frames to PMM.
+- The allocation API is kernel-directory-only and supervisor-only. It is not
+  a per-process address-space implementation; the current app directory is
+  still a single-app snapshot. Raw `vm_map`/`vm_unmap` remain non-owning.
 - VMM identity maps the 32-bit address space with supervisor 4 MiB pages and
   splits selected regions into 4 KiB page tables.
 - User execution uses one fixed low-memory app/stack window and a bounded heap.
@@ -72,7 +78,9 @@ Future consumers:
 
 ### Phase 2 — region-based virtual memory
 - Introduce explicit address-space and virtual-region structures.
-- Add bounded map/unmap operations with ownership and permission checks.
+- Integrate bounded kernel virtual regions with PMM-backed allocation and
+  owner-checked teardown (initial kernel-only implementation now present).
+- Add independent address-space objects before exposing allocations to apps.
 - Keep x86 page-table mechanics behind an architecture interface.
 - Add a page-fault dispatcher with separate not-present and protection-fault
   paths; never silently map arbitrary faults.
@@ -104,9 +112,11 @@ Future consumers:
 Host tests are added as `pmm_host_test` and `vm_region_host_test` Make targets.
 They cover duplicate usable ranges, overlapping reservations, allocation,
 contiguous allocation, exhaustion, double-free, reserved-frame protection,
-region overlap, alignment, owner checks and release. They have not yet been
-executed in a verified build environment. GitHub Actions currently checks an
-older GitHub `main` commit and reports failures in host tests and CMake/Ninja;
-the latest GitLab commits are not mirrored there. Do not expand the 256 MiB
+region overlap, alignment, owner checks and release. The latest inspected
+GitHub Actions run targets an older GitHub `main` SHA than GitLab `main`.
+Its PMM host test failed because `-Werror` promoted misleading-indentation
+warnings in `drivers/mm_core.c`; both sites are corrected in this source update.
+The CMake/Ninja job reached the boot smoke test but timed out waiting for the
+`ui: text mode` serial marker. GitLab CI is intentionally not used here. Do not expand the 256 MiB
 cap or claim AArch64 memory support until the boot handoff, page-table backend
 and allocator tests pass.
