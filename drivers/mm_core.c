@@ -9,8 +9,9 @@ void mm_frames_init(struct mm_frame_allocator *m,unsigned char *a,unsigned char 
  for(unsigned int i=0;i<(count+7u)/8u;i++)a[i]=g[i]=r[i]=0;
 }
 unsigned int mm_frames_add_range(struct mm_frame_allocator *m,unsigned int base,unsigned int length){
- if(!length||base>0xFFFFFFFFu-length)return 0;
- unsigned int end=base+length,limit=m->base+m->frame_count*PAGE_SIZE;
+ if(!length)return 0;
+ unsigned int end=(base>0xFFFFFFFFu-length)?0xFFFFFFFFu:base+length;
+ unsigned int limit=m->base+m->frame_count*PAGE_SIZE;
  if(end<=m->base||base>=limit)return 0;
  if(base<m->base)base=m->base;if(end>limit)end=limit;
  base=(base+PAGE_SIZE-1u)&~(PAGE_SIZE-1u);end&=~(PAGE_SIZE-1u);

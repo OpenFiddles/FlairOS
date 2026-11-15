@@ -16,7 +16,8 @@ int vm_region_reserve(struct vm_region_set *s,unsigned int start,unsigned int le
 int vm_region_alloc(struct vm_region_set *s,unsigned int length,unsigned int alignment,unsigned int flags,unsigned int owner,unsigned int *result){
  if(!s||!result||!length||length>s->limit-s->base)return -1;
  if(alignment<s->page_size)alignment=s->page_size;
- if((alignment&(alignment-1u))||length>0xFFFFFFFFu-(alignment-1u))return -1;
+ if((alignment&(alignment-1u))||length>0xFFFFFFFFu-(s->page_size-1u))return -1;
+ if(s->base>0xFFFFFFFFu-(alignment-1u))return -1;
  length=(length+s->page_size-1u)&~(s->page_size-1u);
  unsigned int at=(s->base+alignment-1u)&~(alignment-1u);
  for(unsigned int i=0;i<=s->count;i++){
