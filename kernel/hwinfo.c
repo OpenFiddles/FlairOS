@@ -118,8 +118,8 @@ static void scan_acpi(void){
  inv.acpi_revision=*((volatile uint8_t*)(r+15u));
  inv.acpi_valid=1;
  rsdt=*(volatile uint32_t*)(r+16u);
- if(rsdt && sig_eq((volatile char*)rsdt,"RSDT",4) &&
-    acpi_sdt_bounds(rsdt,65536u,&rsdt_length) &&
+ if(rsdt && acpi_sdt_bounds(rsdt,65536u,&rsdt_length) &&
+    sig_eq((volatile char*)rsdt,"RSDT",4) &&
     sum8((volatile uint8_t*)rsdt,rsdt_length)==0){
   inv.rsdt_address=rsdt;
   root=rsdt;
@@ -136,8 +136,8 @@ static void scan_acpi(void){
    uint64_t xsdt64=*(volatile uint64_t*)(r+24u);
    if(xsdt64 && xsdt64<=0xFFFFFFFFull){
     uint32_t xsdt=(uint32_t)xsdt64,xsdt_length=0;
-    if(sig_eq((volatile char*)xsdt,"XSDT",4) &&
-       acpi_sdt_bounds(xsdt,65536u,&xsdt_length) &&
+    if(acpi_sdt_bounds(xsdt,65536u,&xsdt_length) &&
+       sig_eq((volatile char*)xsdt,"XSDT",4) &&
        sum8((volatile uint8_t*)xsdt,xsdt_length)==0){
      inv.xsdt_address=xsdt;
      root=xsdt;
