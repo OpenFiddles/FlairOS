@@ -12,12 +12,6 @@ cache:
     - .cargo/git/
     - target/
 
-fmt:
-  stage: check
-  script:
-    - rustup component add rustfmt
-    - cargo fmt --all -- --check
-
 clippy:
   stage: check
   script:
