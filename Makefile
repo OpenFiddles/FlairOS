@@ -369,6 +369,12 @@ sdk-test: | $(BUILD)
 
 .PHONY: sdk-test
 
+# Compile public C headers as a freestanding 32-bit app (no host libc).
+sdk-header-test: | $(BUILD)
+	$(CC) -m32 -std=gnu99 -ffreestanding -fno-builtin -Wall -Wextra -Isdk -fsyntax-only tests/sdk_header_test.c
+
+.PHONY: sdk-header-test
+
 # --- Host test for the RAM filesystem (runs on this machine, not in the kernel) ---
 fs-test: | $(BUILD)
 	$(CC) -m32 -std=gnu99 -Wall -Wextra -Iinclude -o $(BUILD)/fs_host_test tests/fs_host_test.c

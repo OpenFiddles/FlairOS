@@ -74,7 +74,7 @@ build-branch:
     - DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nasm gcc-multilib binutils make python3 qemu-system-x86 xorriso > /dev/null
     - make ARCH=i386
     - test -s build/textile.img
-    - make fs-test
+    - make fs-test sdk-test sdk-header-test
 
 arm-qemu-hello:
   stage: test
