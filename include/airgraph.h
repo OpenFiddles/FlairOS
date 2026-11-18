@@ -68,6 +68,10 @@ void ag_blit(struct ag_device *, struct ag_surface *, int32_t, int32_t, int32_t,
 /* Draw a decoded image at native size; clipping is handled by AirGraph. */
 int ag_draw_image(struct ag_device *, struct ag_surface *, int32_t, int32_t,
                   const struct image_buffer *);
+/* Nearest-neighbour scaling; destination dimensions are in pixels. */
+int ag_draw_image_scaled(struct ag_device *, struct ag_surface *,
+                         int32_t, int32_t, int32_t, int32_t,
+                         const struct image_buffer *);
 int ag_present(struct ag_device *, const struct ag_surface *);
 int ag_viewport_init_adaptive(struct ag_viewport *, int32_t, int32_t,
                               int32_t, int32_t, int32_t, int32_t,

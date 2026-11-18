@@ -88,6 +88,7 @@ The pixel desktop supports three compile-time Bochs DISPI framebuffer profiles:
 - `make DISPLAY=landscape`: 800x600 (default)
 - `make DISPLAY=portrait`: 600x750 portrait
 - `make DISPLAY=wide`: 1024x768 wide
+- `make DISPLAY=4k`: 3840x2160 4K (requires sufficient adapter and RAM)
 
 The renderer rasterizes the same 80x25 transitional scene to the selected physical surface. Pixel boundaries are calculated proportionally for every cell, so non-divisible widths (such as 600 pixels across 80 columns) do not leave one oversized final column. The mouse driver maintains a normalized 0..65535 pointer position; desktop drawing and hit testing convert it to framebuffer coordinates and unmap it through AirGraph's active viewport before using the legacy 80x25 logical scene. The inverse mapping follows the renderer's floor-rounded cell boundaries, including the first and last pixels of fractional-width cells. The legacy 80x25 cursor API remains stable for existing apps.
 
@@ -107,10 +108,12 @@ storage, so the kernel does not need a hidden allocator or a format-specific
 buffer ownership rule. The destination pitch and capacity are validated
 before any pixel is written.
 
-AirGraph accepts decoded images through `ag_draw_image()`. It uses the normal
-clipped blit path, so an image can be placed partly off-screen without a
-separate clipping implementation. The same decoded image interface can be
-used by desktop wallpaper, icons, and later image formats.
+AirGraph accepts decoded images through `ag_draw_image()` and
+`ag_draw_image_scaled()`. The native-size call uses the clipped blit path;
+the scaled call uses clipped nearest-neighbour sampling without allocating a
+second image. Both accept caller-owned decoded buffers and safely handle
+partly off-screen placement. The same decoded image interface can be used by
+desktop wallpaper, icons, and later image formats.
 
 ## 4K display profile
 
