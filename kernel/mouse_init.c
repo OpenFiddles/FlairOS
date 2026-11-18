@@ -1,16 +1,34 @@
 #include "../kernel/kernel.h"
 #include "../include/drv_pic.h"
 
-#define MOUSE_SUB 4
-#define MOUSE_MAX_X (VGA_COLS * MOUSE_SUB - 1)
-#define MOUSE_MAX_Y (VGA_ROWS * MOUSE_SUB - 1)
+#define POINTER_MAX 65535
+#define POINTER_STEP_X ((65536u + (VGA_COLS * 2u)) / (VGA_COLS * 4u))
+#define POINTER_STEP_Y ((65536u + (VGA_ROWS * 2u)) / (VGA_ROWS * 4u))
 #define PS2_TRIES 100000
 
 volatile u8 mouse_buttons;
 static u8 packet[3];
 static u8 phase;
-static i32 sub_x = 10 * MOUSE_SUB;
-static i32 sub_y = 10 * MOUSE_SUB;
+
+static void pointer_sync_cells(void) {
+    cursor_x = (cursor_norm_x * VGA_COLS) >> 16;
+    cursor_y = (cursor_norm_y * VGA_ROWS) >> 16;
+    if (cursor_x >= VGA_COLS) cursor_x = VGA_COLS - 1;
+    if (cursor_y >= VGA_ROWS) cursor_y = VGA_ROWS - 1;
+}
+
+static void pointer_apply_delta(i32 dx, i32 dy) {
+    i32 x = (i32)cursor_norm_x + dx * (i32)POINTER_STEP_X;
+    i32 y = (i32)cursor_norm_y + dy * (i32)POINTER_STEP_Y;
+
+    if (x < 0) x = 0;
+    if (x > POINTER_MAX) x = POINTER_MAX;
+    if (y < 0) y = 0;
+    if (y > POINTER_MAX) y = POINTER_MAX;
+    cursor_norm_x = (u32)x;
+    cursor_norm_y = (u32)y;
+    pointer_sync_cells();
+}
 
 static int ctl_wait_write(void) {
     for (u32 i = 0; i < PS2_TRIES; i++)
@@ -62,6 +80,7 @@ int mouse_init(void) {
     if (!mouse_send(0xF4))
         return 0;
     phase = 0;
+    pointer_sync_cells();
 
     /* IRQ12 is masked by the early PIC setup; enable it only after the
        controller and mouse have been configured successfully. */
@@ -84,31 +103,20 @@ void mouse_irq_handler(void) {
     i32 dx = (i32)packet[1] - (i32)((packet[0] << 4) & 0x100);
     i32 dy = (i32)packet[2] - (i32)((packet[0] << 3) & 0x100);
     mouse_buttons = packet[0] & 0x07;
-    sub_x += dx;
-    sub_y -= dy;
-    if (sub_x < 0)
-        sub_x = 0;
-    if (sub_x > MOUSE_MAX_X)
-        sub_x = MOUSE_MAX_X;
-    if (sub_y < 0)
-        sub_y = 0;
-    if (sub_y > MOUSE_MAX_Y)
-        sub_y = MOUSE_MAX_Y;
-    cursor_x = (u32)(sub_x / MOUSE_SUB);
-    cursor_y = (u32)(sub_y / MOUSE_SUB);
+    pointer_apply_delta(dx, -dy);
 }
 
 void cursor_nudge(i32 dx, i32 dy) {
-    sub_x += dx * MOUSE_SUB;
-    sub_y += dy * MOUSE_SUB;
-    if (sub_x < 0)
-        sub_x = 0;
-    if (sub_x > MOUSE_MAX_X)
-        sub_x = MOUSE_MAX_X;
-    if (sub_y < 0)
-        sub_y = 0;
-    if (sub_y > MOUSE_MAX_Y)
-        sub_y = MOUSE_MAX_Y;
-    cursor_x = (u32)(sub_x / MOUSE_SUB);
-    cursor_y = (u32)(sub_y / MOUSE_SUB);
+    i32 x = (i32)cursor_x + dx;
+    i32 y = (i32)cursor_y + dy;
+
+    if (x < 0) x = 0;
+    if (x >= VGA_COLS) x = VGA_COLS - 1;
+    if (y < 0) y = 0;
+    if (y >= VGA_ROWS) y = VGA_ROWS - 1;
+
+    cursor_x = (u32)x;
+    cursor_y = (u32)y;
+    cursor_norm_x = ((u32)(2 * x + 1) * 65536u) / (VGA_COLS * 2u);
+    cursor_norm_y = ((u32)(2 * y + 1) * 65536u) / (VGA_ROWS * 2u);
 }

@@ -21,8 +21,8 @@ int desktop_render_cells(struct ag_device *device, struct ag_surface *surface,
         return -1;
 
     for (int row = 0; row < rows; ++row) {
-        int y = row * cell_height;
-        int y_end = (row == rows - 1) ? surface->height : y + cell_height;
+        int y = (row * surface->height) / rows;
+        int y_end = ((row + 1) * surface->height) / rows;
 
         for (int column = 0; column < columns; ++column) {
             uint16_t entry = cells[row * columns + column];
@@ -30,8 +30,8 @@ int desktop_render_cells(struct ag_device *device, struct ag_surface *surface,
             unsigned char attribute = (unsigned char)(entry >> 8);
             uint32_t foreground = vga_colors[attribute & 0x0Fu];
             uint32_t background = vga_colors[(attribute >> 4) & 0x07u];
-            int x = column * cell_width;
-            int x_end = (column == columns - 1) ? surface->width : x + cell_width;
+            int x = (column * surface->width) / columns;
+            int x_end = ((column + 1) * surface->width) / columns;
             int width = x_end - x;
             int height = y_end - y;
 
