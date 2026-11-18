@@ -24,6 +24,9 @@
 
 static struct fb display_fb;
 static struct ag_surface display_surface;
+static struct ag_surface render_surface;
+static void *render_pixels;
+static int render_buffer_ready;
 static struct ag_device display_device;
 static struct ag_viewport display_viewport;
 static struct sp_theme desktop_ui_theme;
@@ -35,6 +38,10 @@ struct desktop_bmp_asset {
     unsigned char bytes[FS_FILE_MAX];
 };
 static struct desktop_bmp_asset *desktop_bmp_asset;
+
+static struct ag_surface *desktop_render_surface(void) {
+    return render_buffer_ready ? &render_surface : &display_surface;
+}
 
 static int load_desktop_bmp(const char *name, unsigned int *length,
                             struct bmp_info *info) {
@@ -55,8 +62,9 @@ static int load_desktop_bmp(const char *name, unsigned int *length,
 }
 
 static void draw_bmp_cover(const struct bmp_info *info, unsigned int length) {
-    int width = display_surface.width;
-    int height = display_surface.height;
+    struct ag_surface *surface = desktop_render_surface();
+    int width = surface->width;
+    int height = surface->height;
     int crop_x = 0, crop_y = 0;
     int visible_w = info->width;
     int visible_h = info->height;
@@ -73,7 +81,7 @@ static void draw_bmp_cover(const struct bmp_info *info, unsigned int length) {
             int sx = crop_x + (int)((int)x * visible_w / width);
             unsigned int rgb;
             if (bmp_pixel(desktop_bmp_asset->bytes, length, info, sx, sy, &rgb) == BMP_OK)
-                ag_put_pixel(&display_surface, x, y, rgb);
+                ag_put_pixel(surface, x, y, rgb);
         }
     }
 }
@@ -108,6 +116,11 @@ int desktop_gfx_active(void) {
 void desktop_gfx_shutdown(void) {
     if (display_ready)
         ag_device_shutdown(&display_device);
+    if (render_pixels) {
+        kfree(render_pixels);
+        render_pixels = 0;
+    }
+    render_buffer_ready = 0;
     vbe_text_mode();
     display_ready = 0;
     display_attempted = 0;
@@ -141,13 +154,34 @@ int desktop_gfx_init(void) {
         return 0;
     }
 
+    /* Render into RAM first, then copy a complete frame to the scanout buffer.
+       If contiguous memory is unavailable, retain the direct-framebuffer path. */
+    if (display_fb.height > 0 &&
+        display_fb.pitch <= 0xFFFFFFFFu / (uint32_t)display_fb.height) {
+        uint32_t bytes = display_fb.pitch * (uint32_t)display_fb.height;
+        render_pixels = kmalloc(bytes);
+        if (render_pixels &&
+            ag_surface_init(&render_surface, render_pixels,
+                            display_fb.width, display_fb.height,
+                            display_fb.pitch, AG_PIXEL_XRGB8888) == 0) {
+            render_buffer_ready = 1;
+            serial_str("display: off-screen frame buffer enabled\\n");
+        } else {
+            if (render_pixels)
+                kfree(render_pixels);
+            render_pixels = 0;
+            render_buffer_ready = 0;
+            serial_str("display: off-screen buffer unavailable; direct rendering\\n");
+        }
+    }
+
     display_ready = 1;
     sp_theme_default(&desktop_ui_theme);
     desktop_ui_context.device = &display_device;
-    desktop_ui_context.surface = &display_surface;
+    desktop_ui_context.surface = desktop_render_surface();
     desktop_ui_context.theme = &desktop_ui_theme;
     desktop_ui_context.draw_text = desktop_ui_draw_text;
-    ag_clear(&display_surface, 0x00131A2A);
+    ag_clear(desktop_render_surface(), 0x00131A2A);
 
     /* Optional system-volume artwork. BOOT.BMP is shown once; WALL.BMP
        remains behind the Explorer desktop until a new wallpaper is set. */
@@ -157,7 +191,7 @@ int desktop_gfx_init(void) {
         int have_boot = load_desktop_bmp("BOOT.BMP", &image_length, &image_info);
         if (have_boot) {
             draw_bmp_cover(&image_info, image_length);
-            ag_present(&display_device, &display_surface);
+            ag_present(&display_device, desktop_render_surface());
             wait_ticks(12);
         }
         if (!load_desktop_bmp("WALL.BMP", &image_length, &image_info) && have_boot)
@@ -196,15 +230,24 @@ int desktop_gfx_present(const uint16_t *cells, int columns, int rows) {
     if (!display_ready)
         return -1;
 
+    struct ag_surface *surface = desktop_render_surface();
     if (desktop_render_cells_with_wallpaper(
-            &display_device, &display_surface, cells, columns, rows,
+            &display_device, surface, cells, columns, rows,
             desktop_bmp_asset && desktop_bmp_asset->length
                 ? desktop_bmp_asset->bytes : 0,
-            desktop_bmp_asset ? desktop_bmp_asset->length : 0) == 0)
+            desktop_bmp_asset ? desktop_bmp_asset->length : 0) == 0) {
+        if (render_buffer_ready && ag_present(&display_device, surface) != 0)
+            return -1;
         return 0;
+    }
 
     display_ready = 0;
     ag_device_shutdown(&display_device);
+    if (render_pixels) {
+        kfree(render_pixels);
+        render_pixels = 0;
+    }
+    render_buffer_ready = 0;
     vbe_text_mode();
     serial_str("display: renderer fault; switched to VGA recovery mode\n");
     return -1;
