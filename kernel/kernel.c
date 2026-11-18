@@ -46,10 +46,10 @@ static inline u32 inl(u16 port) {
     u32 value = 0xFFFFFFFFu; (void)hal_port_read32(port, &value); return value;
 }
 
-static inline void io_wait(void) { outb(0x80, 0); }
-static inline void irq_on(void) { __asm__ volatile ("sti"); }
-static inline void irq_off(void) { __asm__ volatile ("cli"); }
-static inline void halt(void) { __asm__ volatile ("hlt"); }
+static inline void io_wait(void) { hal_io_wait(); }
+static inline void irq_on(void) { hal_cpu_irq_enable(); }
+static inline void irq_off(void) { hal_cpu_irq_disable(); }
+static inline void halt(void) { hal_cpu_halt(); }
 
 void *memset(void *dst, int value, u32 n) {
     u8 *p = dst;
@@ -1087,8 +1087,12 @@ static void text_shell_run(void) {
 }
 
 void kmain(void) {
+    (void)hal_early_init();
     boot_init();
     serial_init();
+    serial_str("hal: ");
+    serial_str(hal_arch_name());
+    serial_str("\n");
     clear_screen();
     splash_progress(0, "Starting FlairOS");
     gdt_init();
