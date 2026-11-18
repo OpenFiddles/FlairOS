@@ -1,7 +1,7 @@
 /*
 FILE PATH: kernel/bmp.c
 CONTRIBUTOR (Optional): Textile
-PURPOSE: Parses BMP headers and reads pixels as 0xRRGGBB. Not called yet: needs the graphics mode and a Makefile hook.
+PURPOSE: Validates uncompressed BMP headers and exposes safe pixel reads to the shared image subsystem.
 */
 #include "bmp.h"
 #include <stdint.h>

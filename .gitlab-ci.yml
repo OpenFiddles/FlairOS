@@ -103,3 +103,17 @@ cmake-ninja:
     - cmake -S . -B build-ninja -G Ninja -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-i686-clang.cmake
     - ninja -C build-ninja
     - test -s build-ninja/textile.img
+
+# Verifies the graphics/image path independently of the emulator smoke tests.
+airgraph-image-tests:
+  stage: test
+  script:
+    - apt-get update -qq
+    - DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nasm gcc-multilib binutils make > /dev/null
+    - make build/airgraph_host_test build/desktop_render_host_test build/desktop_chrome_host_test build/bmp_host_test build/image_host_test
+    - build/airgraph_host_test
+    - build/desktop_render_host_test
+    - build/desktop_chrome_host_test
+    - build/bmp_host_test
+    - build/image_host_test
+    - make ARCH=i386 DISPLAY=4k
