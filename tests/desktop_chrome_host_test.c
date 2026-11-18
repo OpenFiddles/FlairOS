@@ -18,7 +18,7 @@ int main(void) {
     CHECK(ag_device_init(&device, &fb, 0) == 0);
     CHECK(desktop_chrome_draw(&device, &surface, 80, 25,
                               10, 4, 40, 15, "Terminal", 1) == 0);
-    CHECK(pixels[16 * 160 + 30] == 0x00243B6B); /* active title bar */
+    CHECK(pixels[26 * 160 + 30] == 0x00243B6B); /* active title bar interior */
     CHECK(pixels[26 * 160 + 86] == 0x00F87171); /* close control */
     CHECK(pixels[60 * 160 + 80] == 0x00111111); /* body stays untouched */
     CHECK(pixels[76 * 160 + 80] != 0x00111111); /* bottom shadow */
