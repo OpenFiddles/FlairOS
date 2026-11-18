@@ -1,6 +1,6 @@
 #include "kernel.h"
 #include "../include/desktop_gfx.h"
-#include "../include/desktop_render.h"
+#include "../include/desktop_render.h"\n#include "../include/desktop_chrome.h"
 #include "../include/vbe.h"
 #include "../include/airgraph.h"
 #include "../include/bmp.h"
@@ -262,3 +262,21 @@ int desktop_gfx_present(const uint16_t *cells, int columns, int rows) {
     serial_str("display: renderer fault; switched to VGA recovery mode\n");
     return -1;
 }
+\nint desktop_gfx_draw_window(int x, int y, int width, int height,
+                              const char *title, int active) {
+    if (!display_ready) return -1;
+    return desktop_chrome_draw(&display_device, desktop_render_surface(),
+                               VGA_COLS, VGA_ROWS, x, y, width, height,
+                               title, active);
+}
+
+int desktop_gfx_flush(void) {
+    if (!display_ready) return -1;
+    if (render_buffer_ready && ag_present(&display_device, desktop_render_surface()) != 0) {
+        desktop_gfx_shutdown();
+        serial_str("display: chrome present fault; VGA recovery mode active\\n");
+        return -1;
+    }
+    return 0;
+}
+
