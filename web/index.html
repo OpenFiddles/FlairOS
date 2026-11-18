@@ -408,6 +408,55 @@
     #screen { min-height: 0; }
   }
 
+
+  /* Phone-first controls: the guest screen is also the touchpad. */
+  .mobile-dock, .mobile-keyboard { display: none; }
+  @media (pointer: coarse) and (max-width: 680px) {
+    body { padding: 8px 8px calc(10px + var(--safe-bottom)); }
+    header, .status-row, .network-card, .foot { display: none; }
+    main { width: 100%; }
+    .player { display: flex; flex-direction: column; min-height: calc(100dvh - 18px - var(--safe-bottom)); border-radius: 13px; }
+    .player-top { min-height: 44px; padding: 6px 9px; }
+    .player-name { font-size: .72rem; }
+    .top-actions button { min-height: 36px; padding: 6px 10px; font-size: .76rem; }
+    #screen { flex: 1 1 auto; min-height: 42vh; padding: 5px; }
+    #screen_container { max-width: 100%; }
+    #screen_container canvas { max-height: 100%; }
+    .toolbar, .controls { display: none !important; }
+    .mobile-dock {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px; border-top: 1px solid #273650;
+      background: #111b2c;
+    }
+    .mobile-dock > button { flex: 1; min-height: 42px; }
+    .mobile-keys { position: relative; }
+    .mobile-keys summary {
+      display: grid; place-items: center; min-width: 76px; min-height: 42px;
+      padding: 7px 12px; border: 1px solid #3b4c69; border-radius: 10px;
+      background: #1b2a43; color: var(--text); font-weight: 650; list-style: none;
+    }
+    .mobile-keys summary::-webkit-details-marker { display: none; }
+    #mobile-keys-list {
+      position: absolute; z-index: 20; right: 0; bottom: calc(100% + 8px);
+      display: grid; grid-template-columns: repeat(3, minmax(58px, 1fr)); gap: 6px;
+      width: min(290px, calc(100vw - 24px)); padding: 9px;
+      border: 1px solid #3b4c69; border-radius: 12px; background: #111b2c;
+      box-shadow: 0 12px 32px #000a;
+    }
+    #mobile-keys-list button { min-width: 0; padding: 7px 5px; }
+    .mobile-keyboard {
+      display: none; padding: 9px 10px 11px;
+      border-top: 1px solid #273650; background: #0d1727;
+    }
+    .mobile-keyboard.open { display: block; }
+    .mobile-keyboard .type-label { margin-bottom: 6px; }
+    #typebox { min-height: 42px; font-size: 16px; }
+    .player:fullscreen, .player:-webkit-full-screen {
+      min-height: 100dvh; height: 100dvh; border-radius: 0;
+    }
+    .player:fullscreen #screen, .player:-webkit-full-screen #screen { min-height: 0; }
+  }
+
 </style>
 </head>
 <body>
@@ -431,6 +480,16 @@
     <div id="screen" aria-label="Virtual machine display">
       <div id="screen_container"><div></div><canvas></canvas><div id="vm-input-overlay" aria-label="Virtual machine touch and pointer surface"></div></div>
     </div>
+    <div class="mobile-dock" id="mobile-dock" aria-label="Mobile controls">
+      <button type="button" id="mobile-keyboard" class="primary" disabled>⌨ Keyboard</button>
+      <details class="mobile-keys">
+        <summary>Keys</summary>
+        <div id="mobile-keys-list"></div>
+      </details>
+    </div>
+    <div class="mobile-keyboard" id="mobile-keyboard-panel">
+      <label class="type-label" for="typebox">Type to FlairOS</label>
+    </div>
     <div class="toolbar">
       <p class="toolbar-label">Quick keys</p>
       <button type="button" data-key="esc" disabled>Esc</button>
@@ -446,7 +505,7 @@
     <section class="controls" aria-label="Keyboard and pointer controls">
       <div class="card">
         <h2>Keyboard</h2>
-        <label class="type-label" for="typebox">Tap here to open your phone or tablet keyboard</label>
+        <label class="type-label desktop-type-label" for="typebox">Tap here to open your phone or tablet keyboard</label>
         <input id="typebox" type="text" inputmode="text" enterkeyhint="enter" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="off" placeholder="Type into FlairOS..." disabled>
         <p class="hint">Enter sends a command. Arrow keys and Backspace are forwarded to the VM.</p>
       </div>
@@ -503,6 +562,9 @@
   const screenContainer = document.getElementById("screen_container");
   const inputOverlay = document.getElementById("vm-input-overlay");
   const typebox = document.getElementById("typebox");
+  const mobileKeyboardButton = document.getElementById("mobile-keyboard");
+  const mobileKeyboardPanel = document.getElementById("mobile-keyboard-panel");
+  const mobileKeysList = document.getElementById("mobile-keys-list");
   const touchpad = document.getElementById("touchpad");
   const leftClick = document.getElementById("left-click");
   const rightClick = document.getElementById("right-click");
@@ -572,6 +634,7 @@
     typebox.disabled = !on;
     leftClick.disabled = !on;
     rightClick.disabled = !on;
+    mobileKeyboardButton.disabled = !on;
   };
   const setStatus = (message, ready = false) => {
     statusLine.textContent = message;
@@ -889,11 +952,34 @@
     guestMouse("mouseup", 2, 0);
   });
 
+  // Touching the guest display is pointer input only. The phone keyboard
+  // opens exclusively from the explicit Keyboard control below.
   screenContainer.addEventListener("click", () => {
-    if (!running()) return;
-    emulator.mouse_set_status(true);
-    typebox.focus({ preventScroll: true });
+    if (running()) emulator.mouse_set_status(true);
   });
+
+  const isCompactTouch = window.matchMedia("(pointer: coarse) and (max-width: 680px)").matches;
+  if (isCompactTouch) {
+    const keyboardLabel = document.querySelector('label[for="typebox"]');
+    mobileKeyboardPanel.appendChild(keyboardLabel);
+    mobileKeyboardPanel.appendChild(typebox);
+    keyButtons.forEach((button) => mobileKeysList.appendChild(button));
+    mobileKeyboardButton.addEventListener("click", () => {
+      const opening = !mobileKeyboardPanel.classList.contains("open");
+      mobileKeyboardPanel.classList.toggle("open", opening);
+      mobileKeyboardButton.textContent = opening ? "⌨ Hide keyboard" : "⌨ Keyboard";
+      if (opening && !typebox.disabled) {
+        typebox.focus({ preventScroll: true });
+        typebox.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      } else {
+        typebox.blur();
+      }
+    });
+    typebox.addEventListener("blur", () => {
+      // Keep the input drawer open while the user is interacting with it;
+      // the explicit button closes it.
+    });
+  }
   resetButton.addEventListener("click", () => {
     emulator.restart();
     resetTypebox();
