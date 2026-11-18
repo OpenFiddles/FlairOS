@@ -5,7 +5,7 @@
 #include "desktop_chrome.h"
 
 static uint32_t pixels[160 * 100];
-#define CHECK(x) do { if (!(x)) { printf("FAIL %s:%d: %s\\n", __FILE__, __LINE__, #x); return 1; } } while (0)
+#define CHECK(x) do { if (!(x)) { printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #x); return 1; } } while (0)
 
 int main(void) {
     struct fb fb;

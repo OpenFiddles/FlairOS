@@ -262,7 +262,8 @@ int desktop_gfx_present(const uint16_t *cells, int columns, int rows) {
     serial_str("display: renderer fault; switched to VGA recovery mode\n");
     return -1;
 }
-\nint desktop_gfx_draw_window(int x, int y, int width, int height,
+
+int desktop_gfx_draw_window(int x, int y, int width, int height,
                               const char *title, int active) {
     if (!display_ready) return -1;
     return desktop_chrome_draw(&display_device, desktop_render_surface(),

@@ -303,7 +303,10 @@ win-demo: $(BUILD)/win-demo.img
 $(BUILD)/airgraph_host_test: tests/airgraph_host_test.c kernel/airgraph.c kernel/sprunkui.c kernel/fb.c include/airgraph.h include/sprunkui.h include/fb.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/airgraph_host_test.c kernel/airgraph.c kernel/sprunkui.c kernel/fb.c
 
-$(BUILD)/desktop_chrome_host_test: tests/desktop_chrome_host_test.c kernel/desktop_chrome.c kernel/font5x7.c kernel/airgraph.c kernel/fb.c include/desktop_chrome.h include/font5x7.h | $(BUILD)\n\t$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/desktop_chrome_host_test.c kernel/desktop_chrome.c kernel/font5x7.c kernel/airgraph.c kernel/fb.c\n\n$(BUILD)/desktop_render_host_test: tests/desktop_render_host_test.c kernel/desktop_render.c kernel/font5x7.c kernel/airgraph.c kernel/fb.c kernel/bmp.c include/desktop_render.h include/font5x7.h include/bmp.h | $(BUILD)
+$(BUILD)/desktop_chrome_host_test: tests/desktop_chrome_host_test.c kernel/desktop_chrome.c kernel/font5x7.c kernel/airgraph.c kernel/fb.c include/desktop_chrome.h include/font5x7.h | $(BUILD)
+	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/desktop_chrome_host_test.c kernel/desktop_chrome.c kernel/font5x7.c kernel/airgraph.c kernel/fb.c
+
+$(BUILD)/desktop_render_host_test: tests/desktop_render_host_test.c kernel/desktop_render.c kernel/font5x7.c kernel/airgraph.c kernel/fb.c kernel/bmp.c include/desktop_render.h include/font5x7.h include/bmp.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/desktop_render_host_test.c kernel/desktop_render.c kernel/font5x7.c kernel/airgraph.c kernel/fb.c kernel/bmp.c
 
 $(BUILD)/bmp_host_test: tests/bmp_host_test.c kernel/bmp.c include/bmp.h | $(BUILD)
