@@ -6,6 +6,7 @@ PURPOSE: Polling ATA PIO driver with discovery for primary/secondary master/slav
 */
 #include "../include/airos_types.h"
 #include "../include/drv_ata.h"
+#include "../include/boot.h"
 
 #define ATA_REG_DATA       0
 #define ATA_REG_SECCOUNT   2
@@ -210,6 +211,9 @@ int ata_write_device_sector(int index, u32 lba, const void *buf) {
     u16 base;
     u32 i;
     u8 status;
+    /* LiveCD sessions are read-only at the low-level ATA API boundary. */
+    if (boot_is_live_session())
+        return -1;
     if (!buf || ata_setup_device(index, lba, ATA_CMD_WRITE) != 0)
         return -1;
     base = ata_io_base[ata_devices[index].channel];

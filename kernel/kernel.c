@@ -5,6 +5,8 @@
 #include "../include/airgraph.h"
 #include "../include/pmm.h"
 #include "../include/drv_net.h"
+#include "../include/boot.h"
+#include "../include/setup.h"
 
 typedef unsigned char u8;
 typedef unsigned short u16;
@@ -880,6 +882,13 @@ static void run_command(char *input) {
             say_error("usage: out PORT VALUE   (hex, e.g. out 80 0)\n");
             return;
         }
+        if (boot_is_live_session() &&
+            ((port >= 0x1F0 && port <= 0x1F7) ||
+             (port >= 0x170 && port <= 0x177) ||
+             port == 0x3F6 || port == 0x376)) {
+            say_error("ATA port writes are disabled in a Live session\n");
+            return;
+        }
         outb((u16)port, (u8)value);
         puts("wrote 0x");
         put_hexn(value, 2);
@@ -1086,6 +1095,7 @@ static void vbe_boot_check(void) {
 }
 
 void kmain(void) {
+    boot_init();
     serial_init();
     clear_screen();
     gdt_init();
@@ -1100,12 +1110,20 @@ void kmain(void) {
     drv_init_all();
     if (ata_is_ready())
         serial_str("ata: primary disk ready\n");
+    if (boot_handoff_valid())
+        serial_str(boot_mode() == FLAIR_BOOT_LIVE ? "boot: LiveCD mode\n" :
+                   boot_mode() == FLAIR_BOOT_SETUP ? "boot: Setup media mode\n" :
+                   "boot: normal mode\n");
     pmm_init();
     micropython_stage_init();
     irq_on();
-    vbe_boot_check();
-    boot_splash();
-    run_app();
+    if (boot_mode() == FLAIR_BOOT_SETUP)
+        setup_run();
+    if (!boot_is_live_session()) {
+        vbe_boot_check();
+        boot_splash();
+        run_app();
+    }
     clear_screen();
 
     for (;;) {

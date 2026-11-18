@@ -12,6 +12,7 @@ PURPOSE: Dynamic filesystem for FlareOS. Files are variable-size (up to 64 KB),
 #include "../include/fs.h"
 #include "../include/drv_ata.h"
 #include "../include/kheap.h"
+#include "../include/boot.h"
 
 #define FSK_DIR_LBA    FS_DIR_LBA
 #define FSK_DATA_LBA   (FS_DIR_LBA + 1)
@@ -41,6 +42,7 @@ static struct fs_handle fsk_handles[FS_HANDLES];
 static u8 fsk_sector[ATA_SECTOR_SIZE];
 static int fsk_loaded;
 static int fsk_disk;
+static int fsk_volatile;
 
 static u32 fsk_file_lba(int i) {
     return FSK_DATA_LBA + (u32)i * FSK_FILE_SECTS;
@@ -143,7 +145,7 @@ static void fsk_drop(struct fs_file *f) {
 }
 
 static int fsk_commit(int file) {
-    if (!fsk_disk)
+    if (fsk_volatile || !fsk_disk)
         return 0;
     if (file >= 0 && fsk_file_write(file) != 0)
         return -1;
@@ -155,6 +157,20 @@ static void fsk_load(void) {
 
     fsk_loaded = 1;
     fsk_disk = 0;
+    fsk_volatile = boot_is_live_session();
+    if (fsk_volatile) {
+        /* LiveCD: start with a clean RAM overlay and never read the host disk FS. */
+        for (i = 0; i < FS_FILES; ++i) {
+            fsk_files[i].used = 0;
+            fsk_files[i].size = 0;
+            fsk_files[i].cap = 0;
+            fsk_files[i].data = 0;
+            fsk_files[i].start_lba = fsk_file_lba(i);
+        }
+        for (i = 0; i < FS_HANDLES; ++i)
+            fsk_handles[i].used = 0;
+        return;
+    }
     if (!ata_is_ready() || !fsk_disk_fits())
         return;
     if (ata_read_sector(FSK_DIR_LBA, fsk_sector) != 0)
@@ -431,6 +447,8 @@ static u32 fsk_slots(void) {
 
 int fs_format(void) {
     fsk_ensure();
+    if (fsk_volatile)
+        return -1;
     for (int i = 0; i < FS_HANDLES; i++)
         if (fsk_handles[i].used)
             return -1;
@@ -512,6 +530,12 @@ int fs_dispatch(struct saved_regs *r) {
         return 1;
     case SYS_FS_SLOTS:
         r->eax = fsk_slots();
+        return 1;
+    case SYS_FS_IS_VOLATILE:
+        r->eax = fsk_volatile ? 1u : 0u;
+        return 1;
+    case SYS_FS_DISK_WRITES:
+        r->eax = (!fsk_volatile && fsk_disk) ? 1u : 0u;
         return 1;
     default:
         return 0;

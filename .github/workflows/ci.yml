@@ -25,7 +25,7 @@ jobs:
       - name: Install toolchain
         run: |
           sudo apt-get update -qq
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nasm gcc-multilib binutils make python3 qemu-system-x86 > /dev/null
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nasm gcc-multilib binutils make python3 qemu-system-x86 xorriso > /dev/null
 
       - name: Architecture guard
         run: |
@@ -41,8 +41,10 @@ jobs:
 
       - name: Build disk image
         run: |
-          make ARCH=i386
+          make ARCH=i386 boot-media
           test -s build/textile.img
+          test -s build/livecd.iso
+          test -s build/bootcd.iso
 
       - name: Build standalone GUI Terminal app
         run: make terminal-app
@@ -152,10 +154,12 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nasm gcc-multilib binutils make seabios vgabios xorriso python3 > /dev/null
-          make ARCH=i386
+          make ARCH=i386 boot-media
           mkdir -p public/v86 /tmp/v86
           cp web/index.html public/index.html
           cp build/textile.img public/textile-standard.img
+          cp build/livecd.iso public/flair-livecd.iso
+          cp build/bootcd.iso public/flair-bootcd.iso
           (cd /tmp/v86 && npm install --no-audit --no-fund v86@0.5.472)
           cp /tmp/v86/node_modules/v86/build/libv86.js /tmp/v86/node_modules/v86/build/v86.wasm public/v86/
           cp /usr/share/seabios/bios-256k.bin public/v86/seabios.bin
