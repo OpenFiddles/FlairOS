@@ -21,7 +21,9 @@ enum tx_syscall {
     SYS_EXIT = 11,
     SYS_GETARROW = 12,
     SYS_CURSOR = 13,
-    SYS_TOGGLE_PENDING = 14
+    /* 14-20 belong to AXI window management; 21-28 belong to filesystem I/O.
+       Keep this input-state query outside those public syscall ranges. */
+    SYS_TOGGLE_PENDING = 37
 };
 
 /* Arrow codes returned by SYS_GETARROW (-1 when none is waiting). */
@@ -29,8 +31,6 @@ enum tx_syscall {
 #define ARROW_DOWN 2
 #define ARROW_LEFT 3
 #define ARROW_RIGHT 4
-
-enum tx_ease { EASE_LINEAR = 0, EASE_OUT_CUBIC = 1, EASE_IN_OUT = 2 };
 
 #define SYS_POINTER 29 /* eax = x | y << 8 | buttons << 16 */
 #define SYS_SCREEN 30 /* eax = cols | rows << 8 */
