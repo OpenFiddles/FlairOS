@@ -1,6 +1,7 @@
 #include "kernel.h"
 #include "../include/desktop_gfx.h"
-#include "../include/desktop_render.h"\n#include "../include/desktop_chrome.h"
+#include "../include/desktop_render.h"
+#include "../include/desktop_chrome.h"
 #include "../include/vbe.h"
 #include "../include/airgraph.h"
 #include "../include/bmp.h"

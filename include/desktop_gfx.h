@@ -5,7 +5,8 @@ struct sp_context;
 int desktop_gfx_init(void);
 int desktop_gfx_active(void);
 void desktop_gfx_shutdown(void);
-int desktop_gfx_present(const uint16_t *,int,int);\nint desktop_gfx_draw_window(int,int,int,int,const char *,int);\nint desktop_gfx_flush(void);
+int desktop_gfx_present(const uint16_t *,int,int);
+int desktop_gfx_draw_window(int,int,int,int,const char *,int);\nint desktop_gfx_flush(void);
 int desktop_gfx_map_pointer(uint32_t,uint32_t,int32_t *,int32_t *);
 struct sp_context *desktop_gfx_ui_context(void);
 #endif
