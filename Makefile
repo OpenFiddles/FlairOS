@@ -12,7 +12,8 @@ ARCH_ASFLAGS = -f elf32
 ARCH_LDFLAGS = -m elf_i386
 endif
 
-CC ?= gcc
+# Override GNU make's built-in CC=cc default while preserving command-line overrides.
+CC = gcc
 AS = nasm
 LD = ld
 OBJCOPY = objcopy
@@ -31,7 +32,8 @@ else
 CFLAGS_DISPLAY =
 endif
 
-CFLAGS = $(CFLAGS_DISPLAY) $(ARCH_CFLAGS) -std=gnu99 -ffreestanding -mno-sse -mno-sse2 -mno-mmx -fno-pic -fno-stack-protector -fno-builtin -fno-common -fno-tree-loop-distribute-patterns -fcf-protection=none -fno-asynchronous-unwind-tables -Os -ffunction-sections -fdata-sections -Wall -Wextra
+# Keep project headers discoverable for every kernel/driver translation unit.
+CFLAGS = -Iinclude -Ikernel $(CFLAGS_DISPLAY) $(ARCH_CFLAGS) -std=gnu99 -ffreestanding -mno-sse -mno-sse2 -mno-mmx -fno-pic -fno-stack-protector -fno-builtin -fno-common -fno-tree-loop-distribute-patterns -fcf-protection=none -fno-asynchronous-unwind-tables -Os -ffunction-sections -fdata-sections -Wall -Wextra
 
 # Expanded to compile all the core kernel files visible in your tree
 OBJS = $(BUILD)/entry.o \
