@@ -499,14 +499,12 @@ int desktop_run(void) {
         }
         handle_mouse();
         draw_frame();
-        /* Drain queued input before honoring Ctrl+Alt+D. */
+        /* Ctrl+Alt+D leaves the desktop for the developer text console.
+           The outer session loop returns here after the console exits. */
         if (kbd_toggle_take()) {
-            if (desktop_gfx_active()) {
-                if (wins[WIN_TERM].open) raise_win(WIN_TERM);
-                else open_win(WIN_TERM);
-            } else {
-                break;
-            }
+            if (desktop_gfx_active())
+                desktop_gfx_shutdown();
+            break;
         }
         wait_ticks(FRAME_TICKS);
     }

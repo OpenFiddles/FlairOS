@@ -78,6 +78,15 @@ int desktop_gfx_active(void) {
     return display_ready;
 }
 
+void desktop_gfx_shutdown(void) {
+    if (display_ready)
+        ag_device_shutdown(&display_device);
+    vbe_text_mode();
+    display_ready = 0;
+    display_attempted = 0;
+    serial_str("display: returned to VGA text mode\n");
+}
+
 int desktop_gfx_init(void) {
     if (display_ready)
         return 1;
