@@ -6,7 +6,16 @@ typedef unsigned char u8;
 typedef unsigned int u32;
 typedef int i32;
 
+int flare_errno;
+static unsigned long flare_rand_state = 1u;
+
 int abs(int n) { return n < 0 ? -n : n; }
+
+void srand(unsigned int seed) { flare_rand_state = seed ? seed : 1u; }
+int rand(void) {
+    flare_rand_state = flare_rand_state * 1103515245u + 12345u;
+    return (int)((flare_rand_state >> 16) & 32767u);
+}
 
 int atoi(const char *s) {
     int sign = 1, value = 0;

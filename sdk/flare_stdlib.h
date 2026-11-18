@@ -14,7 +14,7 @@
 #define FLARE_ERANGE 34
 #define FLARE_EINVAL 22
 
-static int flare_errno;
+extern int flare_errno;
 
 #define FLARE_ULONG_MAX (~0UL)
 #define FLARE_LONG_MAX ((long)(FLARE_ULONG_MAX >> 1))

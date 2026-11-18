@@ -32,14 +32,10 @@ static inline void *bsearch(const void *key, const void *base, size_t count,
 }
 static inline long atol(const char *s) { return strtol(s, 0, 10); }
 
-/* Small deterministic PRNG for non-security uses. */
-static unsigned long flare_rand_state = 1u;
+/* Small deterministic PRNG for non-security uses; state lives in rt.c. */
 #define RAND_MAX 32767
-static inline void srand(unsigned int seed) { flare_rand_state = seed ? seed : 1u; }
-static inline int rand(void) {
-    flare_rand_state = flare_rand_state * 1103515245u + 12345u;
-    return (int)((flare_rand_state >> 16) & RAND_MAX);
-}
+void srand(unsigned int seed);
+int rand(void);
 
 typedef struct { int quot, rem; } div_t;
 typedef struct { long quot, rem; } ldiv_t;
