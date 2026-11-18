@@ -681,16 +681,29 @@ static void splash_frame(u8 bg) {
         }
     }
     splash_text(14, "OpenFiddles", 0x0F, bg);
-    splash_text(16, "FlareOS", 0x07, bg);
+    splash_text(15, "FlairOS", 0x0F, bg);
+    splash_text(17, "OPENFIDDLES", 0x0B, bg);
 }
 
-static void boot_splash(void) {
-    static const u8 pulse[12] = {0, 0, 1, 1, 1, 3, 3, 3, 1, 1, 0, 0};
-    for (int cycle = 0; cycle < 4; cycle++)
-        for (int f = 0; f < 12; f++) {
-            splash_frame(pulse[f]);
-            wait_ticks(10);
-        }
+/* The boot screen advances only when the corresponding initialization
+   stage has actually completed. It is deliberately non-blocking: no fake
+   timer-based percentage and no delay added to startup. */
+static void splash_progress(u8 percent, const char *status) {
+    u8 bg = 1;
+    int filled = (percent > 100 ? 100 : percent) * 40 / 100;
+    splash_frame(bg);
+    splash_text(19, status, 0x0F, bg);
+
+    splash_cell(21, 19, '[', 0x0B, bg);
+    for (int i = 0; i < 40; i++)
+        splash_cell(21, 20 + i, i < filled ? 0xDB : 0xB0,
+                    i < filled ? 0x0B : 0x08, bg);
+    splash_cell(21, 60, ']', 0x0B, bg);
+
+    splash_cell(22, 38, (u8)('0' + (percent / 100) % 10), 0x07, bg);
+    splash_cell(22, 39, (u8)('0' + (percent / 10) % 10), 0x07, bg);
+    splash_cell(22, 40, (u8)('0' + percent % 10), 0x07, bg);
+    splash_cell(22, 41, '%', 0x07, bg);
 }
 
 struct saved_regs {
@@ -1088,12 +1101,16 @@ void kmain(void) {
     boot_init();
     serial_init();
     clear_screen();
+    splash_progress(0, "Starting FlairOS");
     gdt_init();
+    splash_progress(8, "CPU tables initialized");
     idt_init();
+    splash_progress(16, "Interrupt handlers ready");
     /* Firmware tables and PCI configuration are external inputs. Install the
        exception gates before probing them so a bad firmware pointer panics
        cleanly instead of faulting before the IDT exists. */
     hwinfo_report();
+    splash_progress(26, "Hardware discovery complete");
     pic_init();
     if (mouse_init())
         serial_str("mouse: ps/2 ready\n");
@@ -1101,8 +1118,10 @@ void kmain(void) {
         serial_str("mouse: no ps/2 mouse\n");
     pit_init();
     io_manager_init();
+    splash_progress(40, "Timer and I/O initialized");
     drv_register_builtin();
     drv_init_all();
+    splash_progress(56, "System drivers initialized");
     if (ata_is_ready())
         serial_str("ata: primary disk ready\n");
     if (boot_handoff_valid())
@@ -1110,15 +1129,16 @@ void kmain(void) {
                    boot_mode() == FLAIR_BOOT_SETUP ? "boot: Setup media mode\n" :
                    "boot: normal mode\n");
     pmm_init();
+    splash_progress(80, "Memory manager initialized");
     micropython_stage_init();
+    splash_progress(90, "Runtime components staged");
     irq_on();
     if (boot_mode() == FLAIR_BOOT_SETUP)
         setup_run();
     desktop_gfx_init();
-    if (!boot_is_live_session() && !desktop_gfx_active()) {
-        boot_splash();
+    splash_progress(100, "Starting your FlairOS session");
+    if (!boot_is_live_session() && !desktop_gfx_active())
         run_app();
-    }
     if (!desktop_gfx_active())
         clear_screen();
 
