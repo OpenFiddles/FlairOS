@@ -168,7 +168,7 @@ static void fsk_load(void) {
             fsk_files[i].size = 0;
             fsk_files[i].cap = 0;
             fsk_files[i].data = 0;
-            fsk_files[i].start_lba = fsk_get32(at + 1 + FS_NAME_MAX + 5);
+            fsk_files[i].start_lba = fsk_file_lba(i);
         }
         for (i = 0; i < FS_HANDLES; ++i)
             fsk_handles[i].used = 0;
@@ -227,7 +227,7 @@ static void fsk_load(void) {
             fsk_files[i].name[k] = (char)fsk_sector[at + 1 + k];
         fsk_files[i].name[FS_NAME_MAX] = 0;
         fsk_files[i].size = fsk_get32(at + 1 + FS_NAME_MAX + 1);
-        fsk_files[i].start_lba = fsk_file_lba(i);
+        fsk_files[i].start_lba = fsk_get32(at + 1 + FS_NAME_MAX + 5);
         fsk_files[i].data = 0;
         fsk_files[i].cap = 0;
         if (fsk_files[i].used && fsk_files[i].size > FS_FILE_MAX)
@@ -248,16 +248,16 @@ static void fsk_load(void) {
             fsk_files[i].start_lba = fsk_file_lba(i);
             if (fsk_file_write(i) != 0) {
                 fsk_disk = 0; /* Keep the loaded files in RAM; never write mixed layouts. */
-                serial_str("fs: legacy migration failed; using RAM-only storage\\n");
+                serial_str("fs: legacy migration failed; using RAM-only storage\n");
                 return;
             }
         }
         if (fsk_dir_write() != 0) {
             fsk_disk = 0;
-            serial_str("fs: migration directory update failed; using RAM-only storage\\n");
+            serial_str("fs: migration directory update failed; using RAM-only storage\n");
             return;
         }
-        serial_str("fs: migrated legacy 64 KB file slots\\n");
+        serial_str("fs: migrated legacy 64 KB file slots\n");
     }
 }
 
