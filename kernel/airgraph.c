@@ -1,4 +1,5 @@
 #include "../include/airgraph.h"
+#include "../include/image.h"
 
 static uint32_t *surface_row(const struct ag_surface *s, int32_t y) {
     return (uint32_t *)((uint8_t *)s->pixels + (uint32_t)y * s->pitch);
@@ -214,6 +215,20 @@ void ag_blit(struct ag_device *device, struct ag_surface *surface,
         for (int32_t dx = 0; dx < w; dx++)
             dst[dx] = opaque_color(surface, src[dx]);
     }
+}
+
+int ag_draw_image(struct ag_device *device, struct ag_surface *surface,
+                  int32_t x, int32_t y, const struct image_buffer *image) {
+    if (!image || !image->pixels || image->width == 0 || image->height == 0 ||
+        image->width > 0x3FFFFFFFu || image->height > 0x3FFFFFFFu ||
+        image->pitch < image->width * 4u || (image->pitch & 3u) != 0 ||
+        image->pitch > image->capacity ||
+        image->height > image->capacity / image->pitch ||
+        !surface_valid(surface))
+        return -1;
+    ag_blit(device, surface, x, y, (int32_t)image->width,
+            (int32_t)image->height, image->pixels, image->pitch);
+    return 0;
 }
 
 int ag_present(struct ag_device *device, const struct ag_surface *surface) {

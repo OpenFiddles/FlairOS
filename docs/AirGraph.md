@@ -97,3 +97,28 @@ This is profile-driven display sizing, not automatic host-window orientation det
 ## Off-screen desktop rendering
 
 The desktop prefers an optional RAM-backed render surface. AirGraph draws a complete frame there, then presents it to the Bochs/QEMU linear framebuffer in one copy pass. This avoids exposing intermediate per-widget drawing while the scene is being assembled. The allocation is optional: if a sufficiently large contiguous heap block is unavailable, the desktop safely falls back to direct framebuffer rendering. The render surface uses the display pitch and dimensions, and is released when graphics mode is shut down.
+
+## Image subsystem and BMP registration
+
+The shared image interface lives in `include/image.h` and `kernel/image.c`.
+Formats are detected with `image_probe()`; BMP is the first registered
+decoder. `image_decode()` writes packed `0x00RRGGBB` pixels into caller-owned
+storage, so the kernel does not need a hidden allocator or a format-specific
+buffer ownership rule. The destination pitch and capacity are validated
+before any pixel is written.
+
+AirGraph accepts decoded images through `ag_draw_image()`. It uses the normal
+clipped blit path, so an image can be placed partly off-screen without a
+separate clipping implementation. The same decoded image interface can be
+used by desktop wallpaper, icons, and later image formats.
+
+## 4K display profile
+
+`make DISPLAY=4k` requests a 3840x2160, 32-bit Bochs/QEMU DISPI framebuffer.
+The mode driver validates the adapter's reported video-memory capacity and
+reads the selected mode back before exposing it. A 4K framebuffer needs at
+least 33,177,600 bytes (about 31.64 MiB) of scanout memory; off-screen
+rendering needs another framebuffer-sized allocation. If the adapter or
+kernel memory manager cannot provide the required resources, initialization
+falls back to the existing recovery path. This profile is a capability request,
+not a guarantee that every emulator or physical display adapter supports 4K.

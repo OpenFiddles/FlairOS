@@ -28,6 +28,8 @@ ifeq ($(DISPLAY),portrait)
 CFLAGS_DISPLAY = -DFLAIROS_DISPLAY_PORTRAIT
 else ifeq ($(DISPLAY),wide)
 CFLAGS_DISPLAY = -DFLAIROS_DISPLAY_WIDE
+else ifeq ($(DISPLAY),4k)
+CFLAGS_DISPLAY = -DFLAIROS_DISPLAY_4K
 else
 CFLAGS_DISPLAY =
 endif
@@ -64,6 +66,7 @@ OBJS = $(BUILD)/hal.o \
        $(BUILD)/vbe.o \
        $(BUILD)/airgraph.o \
        $(BUILD)/bmp.o \
+       $(BUILD)/image.o \
        $(BUILD)/sprunkui.o
 
 all: $(BUILD)/textile.img
@@ -165,6 +168,9 @@ $(BUILD)/airgraph.o: kernel/airgraph.c include/airgraph.h include/fb.h | $(BUILD
 	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
 
 $(BUILD)/bmp.o: kernel/bmp.c include/bmp.h | $(BUILD)
+	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
+
+$(BUILD)/image.o: kernel/image.c include/image.h include/bmp.h | $(BUILD)
 	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
 
 $(BUILD)/sprunkui.o: kernel/sprunkui.c include/sprunkui.h include/airgraph.h | $(BUILD)
@@ -312,6 +318,9 @@ $(BUILD)/desktop_render_host_test: tests/desktop_render_host_test.c kernel/deskt
 $(BUILD)/bmp_host_test: tests/bmp_host_test.c kernel/bmp.c include/bmp.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/bmp_host_test.c kernel/bmp.c
 
+$(BUILD)/image_host_test: tests/image_host_test.c kernel/image.c kernel/bmp.c include/image.h include/bmp.h | $(BUILD)
+	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/image_host_test.c kernel/image.c kernel/bmp.c
+
 $(BUILD)/driver_host_test: tests/driver_host_test.c drivers/drv_core.c include/drv.h include/drv_pic.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/driver_host_test.c drivers/drv_core.c
 
@@ -330,7 +339,7 @@ $(BUILD)/pmm_host_test: tests/pmm_host_test.c drivers/mm_core.c include/mm_core.
 $(BUILD)/vm_region_host_test: tests/vm_region_host_test.c drivers/vm_region.c include/vm_region.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -Werror -Iinclude -o $@ tests/vm_region_host_test.c drivers/vm_region.c
 
-test: $(BUILD)/textile.img $(BUILD)/livecd.iso $(BUILD)/bootcd.iso $(BUILD)/airgraph_host_test $(BUILD)/driver_host_test $(BUILD)/io_host_test $(BUILD)/fb_host_test $(BUILD)/ata_identify_host_test $(BUILD)/pmm_host_test $(BUILD)/vm_region_host_test $(BUILD)/desktop_render_host_test $(BUILD)/desktop_chrome_host_test $(BUILD)/bmp_host_test
+test: $(BUILD)/textile.img $(BUILD)/livecd.iso $(BUILD)/bootcd.iso $(BUILD)/airgraph_host_test $(BUILD)/driver_host_test $(BUILD)/io_host_test $(BUILD)/fb_host_test $(BUILD)/ata_identify_host_test $(BUILD)/pmm_host_test $(BUILD)/vm_region_host_test $(BUILD)/desktop_render_host_test $(BUILD)/desktop_chrome_host_test $(BUILD)/bmp_host_test $(BUILD)/image_host_test
 	$(BUILD)/airgraph_host_test
 	$(BUILD)/fb_host_test
 	$(BUILD)/driver_host_test
@@ -341,6 +350,7 @@ test: $(BUILD)/textile.img $(BUILD)/livecd.iso $(BUILD)/bootcd.iso $(BUILD)/airg
 	$(BUILD)/desktop_render_host_test
 	$(BUILD)/desktop_chrome_host_test
 	$(BUILD)/bmp_host_test
+	$(BUILD)/image_host_test
 	python3 tests/smoke.py $(BUILD)/textile.img
 	python3 tests/boot_media_test.py $(BUILD)/livecd.iso $(BUILD)/bootcd.iso
 

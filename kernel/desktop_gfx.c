@@ -12,7 +12,10 @@
 
 /* DISPLAY=portrait selects a 600x750 framebuffer (Bochs DISPI limit-safe).
    The desktop scene remains 80x25 logical cells and is rasterized to pixels. */
-#if defined(FLAIROS_DISPLAY_PORTRAIT)
+#if defined(FLAIROS_DISPLAY_4K)
+#define DISPLAY_WIDTH 3840
+#define DISPLAY_HEIGHT 2160
+#elif defined(FLAIROS_DISPLAY_PORTRAIT)
 #define DISPLAY_WIDTH 600
 #define DISPLAY_HEIGHT 750
 #elif defined(FLAIROS_DISPLAY_WIDE)
@@ -201,7 +204,9 @@ int desktop_gfx_init(void) {
             serial_str("display: custom BMP wallpaper loaded\n");
     }
     serial_str("display: AirGraph pixel desktop active (");
-#if defined(FLAIROS_DISPLAY_PORTRAIT)
+#if defined(FLAIROS_DISPLAY_4K)
+    serial_str("3840x2160 4K");
+#elif defined(FLAIROS_DISPLAY_PORTRAIT)
     serial_str("600x750 portrait");
 #elif defined(FLAIROS_DISPLAY_WIDE)
     serial_str("1024x768 wide");

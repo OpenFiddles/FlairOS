@@ -1,10 +1,17 @@
-# Boot and menu bar images
+# FlairOS image assets
 
-Drop the image files here. The kernel looks for them by exact name.
+Place custom BMP assets here for the desktop and boot artwork.
 
-- BOOT_LOGO.bmp: boot screen logo. Waiting for upload.
-- icon_menubar.bmp: menu bar icon strip. Waiting for upload.
+- `BOOT.BMP`: optional boot artwork.
+- `WALL.BMP`: optional desktop wallpaper.
+- Additional BMP files can be used by components that load assets through the
+  shared image subsystem and AirGraph.
 
-Format: BMP, 24 or 32 bits per pixel, uncompressed (BI_RGB). kernel/bmp.c rejects other BMP variants.
+Supported BMP input is uncompressed BI_RGB, 24-bit or 32-bit, with either
+bottom-up or top-down row order. The shared decoder is in
+`include/image.h` / `kernel/image.c`; AirGraph's `ag_draw_image()` draws a
+decoded image using its normal clipping and blit path.
 
-Status: the parser exists (include/bmp.h, kernel/bmp.c). Drawing needs the 1024x768 graphics mode, which is not built yet, and bmp.o is not in the Makefile yet.
+Decoded output is packed `0x00RRGGBB`. Callers provide the destination buffer;
+the decoder validates dimensions, pitch, and capacity and does not allocate
+memory internally.
