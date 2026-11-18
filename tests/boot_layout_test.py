@@ -30,12 +30,19 @@ def number(pattern, text, label):
     return int(match.group(1), 0)
 
 assert number(r"APP_SECTORS\s+equ\s+(\d+)", stage, "boot app sectors") == 128
-assert number(r"EXPLORER_SECTORS\s+equ\s+(\d+)", stage, "Explorer sectors") == 9
+explorer_first = number(r"EXPLORER_LBA\s+equ\s+(\d+)", stage, "Explorer start LBA")
+explorer_sectors = number(r"EXPLORER_SECTORS\s+equ\s+(\d+)", stage, "Explorer sectors")
+terminal_first = number(r"TERMINAL_LBA\s+equ\s+(\d+)", stage, "Terminal start LBA")
+terminal_sectors = number(r"TERMINAL_SECTORS\s+equ\s+(\d+)", stage, "Terminal sectors")
+assert explorer_first == 2447 and explorer_sectors == 32
+assert terminal_first == explorer_first + explorer_sectors and terminal_sectors == 64
 assert number(r"PYTHON_SECTORS\s+equ\s+(\d+)", stage, "Python sectors") == 257
-assert "mov word [lba], 389" in stage
+assert "mov word [lba], EXPLORER_LBA" in stage
+assert "mov word [lba], TERMINAL_LBA" in stage
 assert "mov word [lba], 2623" in stage
 assert "cmp dword [es:0], 0x50524941" in stage
-assert "mov ax, 0x3400" in stage and "mov ax, 0x6000" in stage
+assert "mov ax, 0x3400" in stage and "mov ax, 0x3800" in stage
+assert "mov ax, 0x6000" in stage
 
 fs_dir = number(r"#define FS_DIR_LBA\s+(\d+)", fs, "filesystem directory LBA")
 files = number(r"#define FS_FILES\s+(\d+)", fs, "filesystem file count")
@@ -50,8 +57,14 @@ assert file_max == 65536 and files == 16 and fs_dir == 398
 fs_last = fs_dir + 1 + files * (file_max // 512) - 1
 python_first = 2623
 python_last = python_first + 257 - 1
-assert fs_last == 2446 and python_first > fs_last
+explorer_last = explorer_first + explorer_sectors - 1
+terminal_last = terminal_first + terminal_sectors - 1
+assert fs_last == 2446 and explorer_first > fs_last
+assert explorer_last + 1 == terminal_first
+assert terminal_last < python_first
 assert python_last == 2879 and python_last < 2880
+assert "seek=2447 count=32" in makefile
+assert "seek=2479 count=64" in makefile
 assert "seek=2623 count=257" in makefile
 
 avail = number(r"#define AVAIL_BITS\s+\(\(unsigned char \*\)(0x[0-9A-Fa-f]+)u\)", pmm, "available bitmap")
