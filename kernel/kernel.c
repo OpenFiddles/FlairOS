@@ -8,6 +8,7 @@
 #include "../include/boot.h"
 #include "../include/setup.h"
 #include "../include/desktop_gfx.h"
+#include "../include/hwinfo.h"
 
 typedef unsigned char u8;
 typedef unsigned short u16;
@@ -147,7 +148,7 @@ static void update_cursor(void) {
     outb(0x3D5, (u8)(pos >> 8));
 }
 
-static void clear_screen(void) {
+void clear_screen(void) {
     if (term_capture) {
         term_clear();
         return;
@@ -1057,6 +1058,7 @@ static void text_shell_run(void) {
 void kmain(void) {
     boot_init();
     serial_init();
+    hwinfo_report();
     clear_screen();
     gdt_init();
     idt_init();

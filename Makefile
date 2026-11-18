@@ -22,7 +22,16 @@ BUILD = build
 DRV_SRCS = $(shell find drivers -type f -name '*.c' -print)
 DRV_OBJS = $(patsubst drivers/%.c,$(BUILD)/d_%.o,$(DRV_SRCS))
 
-CFLAGS = $(ARCH_CFLAGS) -std=gnu99 -ffreestanding -mno-sse -mno-sse2 -mno-mmx -fno-pic -fno-stack-protector -fno-builtin -fno-common -fno-tree-loop-distribute-patterns -fcf-protection=none -fno-asynchronous-unwind-tables -O2 -Wall -Wextra
+DISPLAY ?= landscape
+ifeq ($(DISPLAY),portrait)
+CFLAGS_DISPLAY = -DFLAIROS_DISPLAY_PORTRAIT
+else ifeq ($(DISPLAY),wide)
+CFLAGS_DISPLAY = -DFLAIROS_DISPLAY_WIDE
+else
+CFLAGS_DISPLAY =
+endif
+
+CFLAGS = $(CFLAGS_DISPLAY) $(ARCH_CFLAGS) -std=gnu99 -ffreestanding -mno-sse -mno-sse2 -mno-mmx -fno-pic -fno-stack-protector -fno-builtin -fno-common -fno-tree-loop-distribute-patterns -fcf-protection=none -fno-asynchronous-unwind-tables -O2 -Wall -Wextra
 
 # Expanded to compile all the core kernel files visible in your tree
 OBJS = $(BUILD)/entry.o \
@@ -44,6 +53,7 @@ OBJS = $(BUILD)/entry.o \
        $(BUILD)/fs.o \
        $(BUILD)/sysdispatch.o \
        $(BUILD)/boot.o \
+       $(BUILD)/hwinfo.o \
        $(BUILD)/setup.o \
        $(BUILD)/airp.o \
        $(BUILD)/fb.o \
@@ -123,6 +133,9 @@ $(BUILD)/sysdispatch.o: kernel/sysdispatch.c include/axi.h include/fs.h kernel/k
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD)/boot.o: kernel/boot.c include/boot.h | $(BUILD)
+	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
+
+$(BUILD)/hwinfo.o: kernel/hwinfo.c include/hwinfo.h include/boot.h include/hw.h | $(BUILD)
 	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
 
 $(BUILD)/setup.o: kernel/setup.c include/setup.h include/boot.h include/drv_ata.h kernel/kernel.h | $(BUILD)

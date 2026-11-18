@@ -105,7 +105,10 @@ int main(void) {
     {
         int32_t x, y, w, h;
         CHECK(ag_viewport_map_point(&vp, 240, 400, &x, &y) == 0);
-        CHECK(x == 180 && y == 400);
+        CHECK(x == 240 && y == 400);
+        CHECK(ag_viewport_unmap_point(&vp, 240, 400, &x, &y) == 0);
+        CHECK(x == 240 && y == 400);
+        CHECK(ag_viewport_unmap_point(&vp, -1, 400, &x, &y) != 0);
         CHECK(ag_viewport_map_rect(&vp, 10, 20, 100, 50, &x, &y, &w, &h) == 0);
         CHECK(x == 10 && y == 20 && w == 100 && h == 50);
     }
@@ -113,6 +116,21 @@ int main(void) {
     CHECK(vp.orientation == AG_ORIENTATION_LANDSCAPE && vp.y == 60);
     CHECK(ag_viewport_init_adaptive(&vp, 360, 800, 800, 480, 360, 800, AG_SCALE_STRETCH) == 0);
     CHECK(vp.width == 360 && vp.height == 800);
+    CHECK(ag_viewport_init_adaptive(&vp, 600, 750, 80, 25, 80, 25, AG_SCALE_STRETCH) == 0);
+    CHECK(vp.orientation == AG_ORIENTATION_PORTRAIT);
+    {
+        int32_t x, y;
+        CHECK(ag_viewport_map_point(&vp, 40, 12, &x, &y) == 0);
+        CHECK(x == 300 && y == 360);
+        CHECK(ag_viewport_unmap_point(&vp, x, y, &x, &y) == 0);
+        CHECK(x == 40 && y == 12);
+        CHECK(ag_viewport_unmap_point(&vp, 592, 720, &x, &y) == 0);
+        CHECK(x == 79 && y == 24);
+        CHECK(ag_viewport_unmap_point(&vp, 591, 719, &x, &y) == 0);
+        CHECK(x == 78 && y == 23);
+        CHECK(ag_viewport_unmap_point(&vp, 599, 749, &x, &y) == 0);
+        CHECK(x == 79 && y == 24);
+    }
     CHECK(ag_viewport_init_adaptive(&vp, 0, 800, 800, 480, 480, 800, AG_SCALE_FIT) != 0);
 
     ag_clear(&s, 0);
