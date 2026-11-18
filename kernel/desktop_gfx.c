@@ -274,7 +274,7 @@ int desktop_gfx_flush(void) {
     if (!display_ready) return -1;
     if (render_buffer_ready && ag_present(&display_device, desktop_render_surface()) != 0) {
         desktop_gfx_shutdown();
-        serial_str("display: chrome present fault; VGA recovery mode active\\n");
+        serial_str("display: chrome present fault; VGA recovery mode active\n");
         return -1;
     }
     return 0;
