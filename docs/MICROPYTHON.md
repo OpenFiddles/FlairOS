@@ -2,11 +2,12 @@
 
 FlareOS has an experimental native i386 port for upstream MicroPython v1.29.0.
 
-Build a separate Python-enabled boot image with `make python-image`. The
-standard `make` image remains unchanged and does not include the interpreter.
-The optional package is stored in the unused final 257 sectors of the 1.44 MiB
-disk image. Stage 1 probes its AIRP magic and only reads the remaining sectors
-when the package is present.
+The standard `make` image does not include the interpreter. The optional boot
+slot reserves 257 sectors (128 KiB) for a MicroPython AIRP package, and Stage 1
+probes its magic before loading it. The current interpreter package is larger
+than that slot, so `make python-image` intentionally stops at its size check
+instead of creating a truncated or unbootable image. The package must be reduced
+or the boot/storage path expanded before a Python-enabled image can be produced.
 
 Choose **Python** from the desktop Start menu, or type `python` in the text
 shell. From the AirGraph pixel desktop, the Start menu temporarily switches to
@@ -16,14 +17,13 @@ the VGA text console for the REPL and restores the pixel desktop after
 keyboard, pointer, timer, speaker, and filesystem APIs through `import flareos`.
 Use `flareos.exit()` to leave the REPL and return to the desktop.
 
-For browser testing, open `web/index.html`, select **Load local boot image**,
-and choose `build/textile-python.img` after running `make python-image`. The
-image is passed directly to v86 in the browser; it is not uploaded to the site.
+The browser's **Load local boot image** control accepts a bootable raw floppy
+image or ISO, passed directly to v86 without uploading it. It can be used with a
+Python-enabled image once the interpreter package fits the boot format.
 
 This is a minimal MicroPython port, not CPython. VFS imports, POSIX, sockets,
-threads, and CPython extension modules are not enabled. The separate experimental CI job is currently manual-only: the interpreter
-image is approximately 584 KiB, while the current AIRP v1 application slot is
-128 KiB. The current disk image's optional package area cannot hold that build.
-The standard OS CI therefore does not fail on an interpreter that cannot yet be
-packaged. Runtime testing is still required before treating the port as
+threads, and CPython extension modules are not enabled. The interpreter package
+is currently documented at approximately 584 KiB, while the AIRP boot slot is
+128 KiB. This is a packaging limitation, not a reason to change the default OS
+build. Runtime testing is still required before treating the port as
 production-ready.

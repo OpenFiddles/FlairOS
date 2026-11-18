@@ -209,9 +209,9 @@ void axi_gfx_render(void) {
         if (body_rows <= 0 || body_h <= 0) continue;
 
         sp_panel(ui, x, y, width, height);
-        sp_button(ui, x + 3, y + 2, width - 34, title_h - 4,
+        sp_button(ui, x + 3, y + 2, width - 50, title_h - 4,
                   w->title, 1);
-        sp_badge(ui, x + width - 28, y + 2, "X",
+        sp_badge(ui, x + width - 44, y + 2, "X",
                  ui->theme->color.danger);
         sp_separator(ui, x + 4, y + title_h, width - 8);
 

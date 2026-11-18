@@ -6,12 +6,14 @@ it is not a Python reimplementation.
 
 ## Build
 
-From the repository root, run `make python-image`. This builds a separate
-`build/textile-python.img` containing the optional MicroPython package in the
-reserved tail of the floppy image. The ordinary `make` image remains lightweight. The target fetches the
-pinned upstream tag into `build/third_party/micropython`, copies this port
-into that checkout, and builds `build/micropython/flareos.elf` and
+The port build is invoked with `make micropython-package`. It fetches the
+pinned upstream tag into `build/third_party/micropython`, copies this port into
+that checkout, and builds `build/micropython/flareos.elf` and
 `build/micropython/flareos.bin`. The upstream source tree is not committed.
+The separate `make python-image` target has a strict 128 KiB package-size
+guard; the current documented ~584 KiB interpreter does not fit, so the target
+will stop rather than produce a broken image. The browser image picker is ready
+for a bootable Python image once the package/storage layout is expanded.
 
 ## Python API
 
@@ -56,8 +58,9 @@ at 12 KiB. VFS imports, POSIX, sockets, threads, and CPython extension modules
 are not enabled in this minimal profile.
 
 The `.airp` image limit is 128 KiB, within a 256 KiB private app/stack slot.
-The optional Python package is stored in the final 257 sectors of the 1.44 MiB
-boot image and loaded only when its AIRP magic is present. Select **Python** in
-the desktop Start menu or type `python` in the text shell. Use `flareos.exit()`
-to return to the desktop. The standard disk image does not include Python;
-`make python-image` builds the Python-enabled variant.
+The optional Python package uses a 257-sector boot area when it fits. Select
+**Python** in the desktop Start menu or type `python` in the text shell when a
+valid package is present. Use `flareos.exit()` to return to the desktop. The
+standard disk image does not include Python; the current package must first be
+reduced or the staging/storage layout expanded before `make python-image` can
+produce a usable variant.
