@@ -45,4 +45,8 @@ sp_toggle(&ui, 280, 26, 32, 20, wifi_enabled);
 sp_button(&ui, 28, 160, 112, 28, "Apply", 1);
 ```
 
-The controls are intentionally presentational. A future window/compositor integration should route pointer and keyboard events to the owning app and update the state passed back to these draw functions.
+The controls are intentionally presentational: the owning app still manages
+state and keyboard editing. FlairOS's AXI window compositor now uses these
+widgets to render userland app windows over the AirGraph pixel desktop. AXI
+continues to own hit-testing and click delivery, while keyboard events remain
+available through the existing app syscall interface.

@@ -1,9 +1,9 @@
 /*
  * FlareOS File Explorer
  *
- * UI contract: all drawing passes through ex_ui_* helpers. SprunkUI can
- * later replace this backend with reusable widgets without changing the
- * filesystem/controller code below it.
+ * UI contract: the app writes through AXI. In pixel mode the kernel's AXI
+ * compositor renders these cells with SprunkUI over the AirGraph surface;
+ * the filesystem/controller code remains independent of that presentation.
  */
 #include "../include/axi.h"
 #include "../include/fs.h"
@@ -399,6 +399,8 @@ void app_main(void) {
         click = ax_click(s->win);
         if (click != AX_FAIL)
             ex_click(s, AX_CLICK_ROW(click), AX_CLICK_COL(click));
+        if (ax_call(SYS_TOGGLE_PENDING, 0, 0, 0))
+            s->dirty = 1;
         ax_call(SYS_SLEEP, 1, 0, 0);
     }
 

@@ -156,6 +156,14 @@ int kbd_arrow_read(void) {
     return a;
 }
 
+int kbd_toggle_pending(void) {
+    int pending;
+    irq_off();
+    pending = toggle_pending;
+    irq_on();
+    return pending;
+}
+
 int kbd_toggle_take(void) {
     int t;
     irq_off();

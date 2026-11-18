@@ -45,7 +45,7 @@ static void log_line(const char *s) {
 }
 
 static void draw(void) {
-    unsigned int rows = TERM_ROWS - 2;
+    unsigned int rows = TERM_ROWS - 3;
     unsigned int first = log_count > rows ? log_count - rows : 0;
     unsigned int i;
     char line[TERM_COLS + 1];
@@ -67,7 +67,7 @@ static void draw(void) {
         if (cursor == input_len && out < TERM_COLS) line[out++] = '|';
         line[out] = 0;
     }
-    ax_text(win, TERM_ROWS - 1, 0, ATTR_INPUT, line);
+    ax_text(win, TERM_ROWS - 2, 0, ATTR_INPUT, line);
     ax_present();
 }
 
@@ -299,6 +299,7 @@ void app_main(void) {
         else if (arrow == ARROW_RIGHT && cursor < input_len) ++cursor;
         else if (arrow == ARROW_UP) load_history(1);
         else if (arrow == ARROW_DOWN) load_history(-1);
+        if (ax_call(SYS_TOGGLE_PENDING, 0, 0, 0)) exit_requested = 1;
         ax_call(SYS_SLEEP, 1, 0, 0);
     }
     ax_close(win);

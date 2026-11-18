@@ -20,7 +20,8 @@ enum tx_syscall {
     SYS_PRINT = 10,
     SYS_EXIT = 11,
     SYS_GETARROW = 12,
-    SYS_CURSOR = 13
+    SYS_CURSOR = 13,
+    SYS_TOGGLE_PENDING = 14
 };
 
 /* Arrow codes returned by SYS_GETARROW (-1 when none is waiting). */

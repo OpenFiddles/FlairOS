@@ -137,6 +137,7 @@ void wait_ticks(u32 n);
 void sound_tone(u32 hz, u32 ms);
 
 int kbd_toggle_take(void);
+int kbd_toggle_pending(void);
 int term_count(void);
 const char *term_text(int idx, int *len);
 void terminal_exec(const char *cmd);
