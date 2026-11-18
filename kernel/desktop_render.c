@@ -31,11 +31,19 @@ static void draw_wallpaper(struct ag_surface *surface,
     }
 }
 
-static const uint32_t vga_colors[16] = {
-    0x000000, 0x0000AA, 0x00AA00, 0x00AAAA,
-    0xAA0000, 0xAA00AA, 0xAA5500, 0xAAAAAA,
-    0x555555, 0x5555FF, 0x55FF55, 0x55FFFF,
-    0xFF5555, 0xFF55FF, 0xFFFF55, 0xFFFFFF
+/* VGA attributes remain the desktop scene format, but are translated
+   into a calmer modern palette at the pixel-rendering boundary. */
+static const uint32_t desktop_backgrounds[16] = {
+    0x0F172A, 0x243B6B, 0x14532D, 0x134E4A,
+    0x7F1D1D, 0x581C87, 0x78350F, 0x1E293B,
+    0x273449, 0x1D4ED8, 0x15803D, 0x0F766E,
+    0xB91C1C, 0x7E22CE, 0xB45309, 0xF8FAFC
+};
+static const uint32_t desktop_foregrounds[16] = {
+    0xE2E8F0, 0xBFDBFE, 0xBBF7D0, 0x99F6E4,
+    0xFECACA, 0xE9D5FF, 0xFED7AA, 0xCBD5E1,
+    0xE2E8F0, 0x60A5FA, 0x4ADE80, 0x5EEAD4,
+    0xFCA5A5, 0xD8B4FE, 0xFCD34D, 0xFFFFFF
 };
 
 int desktop_render_cells_with_wallpaper(struct ag_device *device, struct ag_surface *surface,
@@ -66,8 +74,10 @@ int desktop_render_cells_with_wallpaper(struct ag_device *device, struct ag_surf
             uint16_t entry = cells[row * columns + column];
             unsigned char character = (unsigned char)(entry & 0xFFu);
             unsigned char attribute = (unsigned char)(entry >> 8);
-            uint32_t foreground = vga_colors[attribute & 0x0Fu];
-            uint32_t background = vga_colors[(attribute >> 4) & 0x07u];
+            unsigned char foreground_index = attribute & 0x0Fu;
+            unsigned char background_index = (attribute >> 4) & 0x0Fu;
+            uint32_t foreground = desktop_foregrounds[foreground_index];
+            uint32_t background = desktop_backgrounds[background_index];
             int x = (column * surface->width) / columns;
             int x_end = ((column + 1) * surface->width) / columns;
             int width = x_end - x;
@@ -77,6 +87,16 @@ int desktop_render_cells_with_wallpaper(struct ag_device *device, struct ag_surf
                 /* The full-frame wallpaper has already been painted. */
             } else {
                 ag_fill_rect(device, surface, x, y, width, height, background);
+                /* Give title bars a fine highlight and lower edge for depth. */
+                if (character != 0xB0u &&
+                    (background_index == 1u || background_index == 8u)) {
+                    uint32_t highlight = background_index == 1u ? 0x4965A4u : 0x40536Bu;
+                    uint32_t edge = background_index == 1u ? 0x1A2A50u : 0x1B2635u;
+                    ag_fill_rect(device, surface, x, y, width, 1, highlight);
+                    if (height > 2)
+                        ag_fill_rect(device, surface, x, y + height - 1,
+                                     width, 1, edge);
+                }
             }
 
             if (character == 0xDBu) {
