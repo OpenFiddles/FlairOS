@@ -1,6 +1,6 @@
 site_name: FlairOS Developer Hub
 site_description: Developer documentation for FlairOS.
-site_url: https://openfiddles.github.io/FlairOS/docs/
+site_url: https://openfiddles.gitlab.io/FlairOS/docs/
 repo_url: https://github.com/OpenFiddles/FlairOS
 repo_name: OpenFiddles/FlairOS
 edit_uri: edit/main/docs/

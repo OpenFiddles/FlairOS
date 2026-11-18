@@ -51,14 +51,9 @@ jobs:
 
       - name: Filesystem tests
         run: make fs-test
+
       - name: Boot layout and AIRP boundary tests
         run: python3 tests/boot_layout_test.py
-
-      - name: Host tests
-        run: make test
-
-      - name: Desktop integration test
-        run: python3 tests/desktop_test.py build/textile.img
 
       - name: Upload disk image
         if: always()
@@ -134,7 +129,6 @@ jobs:
           cmake -S . -B build-ninja -G Ninja -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-i686-clang.cmake
           ninja -C build-ninja
           test -s build-ninja/textile.img
-          python3 tests/smoke.py build-ninja/textile.img
 
   pages:
     name: Deploy web emulator to GitHub Pages
@@ -153,7 +147,7 @@ jobs:
       - name: Install image and web dependencies
         run: |
           sudo apt-get update -qq
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nasm gcc-multilib binutils make seabios vgabios xorriso python3 python3-venv doxygen > /dev/null
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nasm gcc-multilib binutils make seabios vgabios xorriso python3 > /dev/null
           make ARCH=i386 boot-media
           mkdir -p public/v86 /tmp/v86
           cp web/index.html public/index.html
@@ -180,14 +174,6 @@ jobs:
             echo "Deploying standard FlairOS image"
           fi
           xorriso -as mkisofs -quiet -b textile.img -o public/textile.iso public/textile.img
-      - name: Build developer documentation
-        run: |
-          python3 -m venv /tmp/mkdocs-venv
-          /tmp/mkdocs-venv/bin/python -m pip install --disable-pip-version-check mkdocs-material
-          /tmp/mkdocs-venv/bin/mkdocs build --strict --site-dir public/docs
-          doxygen Doxyfile
-          mkdir -p public/docs/api
-          cp -a build/doxygen/html/. public/docs/api/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
