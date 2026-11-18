@@ -14,6 +14,7 @@ int main(void){
  assert(vm_region_release(&s,a,10)==-1); /* wrong owner */
  assert(vm_region_release(&s,a,9)==0);
  assert(vm_region_release(&s,a,9)==-1); /* double release */
- assert(vm_region_alloc(&s,0x1000,4096,0,11,&a)==0&&a==0x10000000);
+ /* The base and next 8 KiB remain occupied, so first-fit is 0x10004000. */
+ assert(vm_region_alloc(&s,0x1000,4096,0,11,&a)==0&&a==0x10004000);
  puts("VM region tests passed");return 0;
 }
