@@ -165,13 +165,13 @@ int desktop_gfx_init(void) {
                             display_fb.width, display_fb.height,
                             display_fb.pitch, AG_PIXEL_XRGB8888) == 0) {
             render_buffer_ready = 1;
-            serial_str("display: off-screen frame buffer enabled\\n");
+            serial_str("display: off-screen frame buffer enabled\n");
         } else {
             if (render_pixels)
                 kfree(render_pixels);
             render_pixels = 0;
             render_buffer_ready = 0;
-            serial_str("display: off-screen buffer unavailable; direct rendering\\n");
+            serial_str("display: off-screen buffer unavailable; direct rendering\n");
         }
     }
 
