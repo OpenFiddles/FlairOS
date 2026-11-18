@@ -236,8 +236,18 @@ int desktop_gfx_present(const uint16_t *cells, int columns, int rows) {
             desktop_bmp_asset && desktop_bmp_asset->length
                 ? desktop_bmp_asset->bytes : 0,
             desktop_bmp_asset ? desktop_bmp_asset->length : 0) == 0) {
-        if (render_buffer_ready && ag_present(&display_device, surface) != 0)
+        if (render_buffer_ready && ag_present(&display_device, surface) != 0) {
+            display_ready = 0;
+            ag_device_shutdown(&display_device);
+            if (render_pixels) {
+                kfree(render_pixels);
+                render_pixels = 0;
+            }
+            render_buffer_ready = 0;
+            vbe_text_mode();
+            serial_str("display: frame present fault; switched to VGA recovery mode\\n");
             return -1;
+        }
         return 0;
     }
 
