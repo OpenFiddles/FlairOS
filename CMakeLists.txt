@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.20)
 project(airos C)
 
 if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "i686")
-  message(FATAL_ERROR "AirOS builds only i686 for now; x86-64 and ARM need their own boot layer")
+  message(FATAL_ERROR "FlairOS currently builds the i386 BIOS target; ARM64 HAL groundwork is present but its boot/platform layer is incomplete")
 endif()
 
 find_program(AIROS_NASM nasm REQUIRED)
@@ -36,6 +36,7 @@ set_source_files_properties(${AIROS_ASM_OBJS} PROPERTIES EXTERNAL_OBJECT TRUE GE
 
 file(GLOB_RECURSE AIROS_DRIVER_SRCS CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/drivers/*.c)
 set(AIROS_KERNEL_SRCS
+  arch/i386/hal.c
   kernel/desktop.c kernel/desktop_gfx.c kernel/desktop_render.c kernel/font5x7.c
   kernel/kernel.c kernel/drivers.c kernel/keyboard.c kernel/panic.c
   kernel/mouse_cursor.c kernel/mouse_init.c kernel/pit_timer.c
@@ -101,13 +102,7 @@ add_custom_command(OUTPUT ${B}/textile.img
   DEPENDS ${B}/stage1.bin ${B}/stage2.bin ${B}/kernel.bin ${B}/app.bin ${B}/explorer.airp VERBATIM)
 
 add_custom_target(image ALL DEPENDS ${B}/textile.img)
-
-add_custom_target(smoke
-  COMMAND ${AIROS_PYTHON} ${CMAKE_SOURCE_DIR}/tests/smoke.py ${B}/textile.img
-  DEPENDS image USES_TERMINAL)
-
+add_custom_target(smoke COMMAND ${AIROS_PYTHON} ${CMAKE_SOURCE_DIR}/tests/smoke.py ${B}/textile.img DEPENDS image USES_TERMINAL)
 if(AIROS_QEMU)
-  add_custom_target(run
-    COMMAND ${AIROS_QEMU} -fda ${B}/textile.img -serial stdio -no-reboot
-    DEPENDS image USES_TERMINAL)
+  add_custom_target(run COMMAND ${AIROS_QEMU} -fda ${B}/textile.img -serial stdio -no-reboot DEPENDS image USES_TERMINAL)
 endif()
