@@ -13,9 +13,9 @@ int main(void){
  CHECK(ag_surface_init(&s,pixels,20,24,20*4,AG_PIXEL_XRGB8888)==0);
  CHECK(ag_device_init(&d,&fb,0)==0);
  CHECK(desktop_render_cells(&d,&s,cells,2,1)==0);
- CHECK(pixels[0]==0x0000AA);
+ CHECK(pixels[0]==0x4965A4);
  CHECK(pixels[2+5*20]==0xFFFFFF);
- CHECK(pixels[10]==0xFFFF55);
+ CHECK(pixels[10]==0xFCD34D);
  CHECK(desktop_render_cells(&d,&s,cells,0,1)!=0);
 
  /* A 600-pixel-wide surface does not divide evenly into 80 columns.
@@ -34,8 +34,8 @@ int main(void){
      CHECK(ag_device_init(&portrait_device, &portrait_fb, 0) == 0);
      CHECK(desktop_render_cells(&portrait_device, &portrait_surface,
                                 row_cells, 80, 2) == 0);
-     CHECK(portrait_row[553] == 0x0000AA);  /* column 73 */
-     CHECK(portrait_row[592] == 0x00AAAAAA); /* column 79 */
+     CHECK(portrait_row[553] == 0x4965A4);  /* column 73 */
+     CHECK(portrait_row[592] == 0x1E293B); /* column 79 */
      ag_device_shutdown(&portrait_device);
  }
  ag_device_shutdown(&d);puts("Desktop pixel renderer host test: all checks passed");return 0;
