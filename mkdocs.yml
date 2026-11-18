@@ -1,0 +1,51 @@
+site_name: FlairOS Developer Hub
+site_description: Developer documentation for FlairOS.
+site_url: https://openfiddles.github.io/FlairOS/docs/
+repo_url: https://github.com/OpenFiddles/FlairOS
+repo_name: OpenFiddles/FlairOS
+edit_uri: edit/main/docs/
+theme:
+  name: material
+  features:
+    - navigation.instant
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+  palette:
+    - scheme: slate
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+    - scheme: default
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - tables
+nav:
+  - Home: index.md
+  - Getting Started: GETTING_STARTED.md
+  - Architecture:
+      - Overview: ARCHITECTURE.md
+      - Memory Management: MEMORY_MANAGEMENT.md
+      - AirGraph: AirGraph.md
+  - Boot & Storage:
+      - Boot Media: BOOT_MEDIA.md
+      - Pancake / PCK: PANCAKE.md
+  - App Development:
+      - SDK: SDK.md
+  - Project Notes:
+      - Architecture Audit: ARCHITECTURE_AUDIT.md
+      - MicroPython: MICROPYTHON.md
+      - ReactOS Integration Study: REACTOS_INTEGRATION.md
+      - SprunkUI: SPRUNKUI.md
