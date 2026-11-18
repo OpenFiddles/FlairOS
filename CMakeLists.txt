@@ -37,7 +37,7 @@ set_source_files_properties(${AIROS_ASM_OBJS} PROPERTIES EXTERNAL_OBJECT TRUE GE
 file(GLOB_RECURSE AIROS_DRIVER_SRCS CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/drivers/*.c)
 set(AIROS_KERNEL_SRCS
   arch/i386/hal.c
-  kernel/desktop.c kernel/desktop_gfx.c kernel/desktop_render.c kernel/font5x7.c
+  kernel/desktop.c kernel/desktop_gfx.c kernel/desktop_render.c kernel/desktop_chrome.c kernel/font5x7.c
   kernel/kernel.c kernel/drivers.c kernel/keyboard.c kernel/panic.c
   kernel/mouse_cursor.c kernel/mouse_init.c kernel/pit_timer.c
   kernel/axi.c kernel/fs.c kernel/sysdispatch.c kernel/boot.c
