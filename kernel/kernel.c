@@ -865,7 +865,6 @@ static void run_command(char *input) {
         puts("APPS / SESSION\n");
         puts("  run              launch the intro app (text mode only)\n");
         puts("  python           launch MicroPython (if installed)\n");
-        puts("  desktop          return to the desktop\n");
         puts("  reboot           restart the machine\n");
         puts("\n");
         puts("SHORTCUTS: Ctrl+Alt+D switches between Desktop and Dev Mode.\n");
@@ -1045,7 +1044,7 @@ static void text_shell_run(void) {
     puts("                 F L A R E O S   /   D E V                   \n");
     puts("===============================================================\n");
     cur_attr = ATTR_SQR;
-    puts("  OPENFID DLES  |  DEVELOPER CONSOLE  |  KERNEL 0.3\n");
+    puts("  OPENFIDDLES  |  DEVELOPER CONSOLE  |  KERNEL 0.3\n");
     cur_attr = ATTR_TEXT;
     puts("  Status: READY       Mode: VGA TEXT       Input: PS/2\n");
     puts("---------------------------------------------------------------\n");
