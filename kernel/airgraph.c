@@ -330,6 +330,34 @@ int ag_viewport_map_point(const struct ag_viewport *vp, int32_t lx, int32_t ly,
     return 0;
 }
 
+int ag_viewport_unmap_point(const struct ag_viewport *vp, int32_t dx, int32_t dy,
+                            int32_t *lx, int32_t *ly) {
+    int64_t right, bottom, logical_x, logical_y;
+
+    if (!vp || !lx || !ly || !vp->scale_x_16 || !vp->scale_y_16 ||
+        vp->width <= 0 || vp->height <= 0 ||
+        vp->logical_width <= 0 || vp->logical_height <= 0)
+        return -1;
+
+    right = (int64_t)vp->x + vp->width;
+    bottom = (int64_t)vp->y + vp->height;
+    if ((int64_t)dx < vp->x || (int64_t)dy < vp->y ||
+        (int64_t)dx >= right || (int64_t)dy >= bottom)
+        return -1;
+
+    /* Invert the same floor-rounded cell edges used by the renderer:
+       pixel p belongs to the greatest logical cell whose start edge <= p. */
+    logical_x = (((int64_t)dx - vp->x + 1) * vp->logical_width - 1) / vp->width;
+    logical_y = (((int64_t)dy - vp->y + 1) * vp->logical_height - 1) / vp->height;
+    if (logical_x < 0 || logical_y < 0 ||
+        logical_x >= vp->logical_width || logical_y >= vp->logical_height)
+        return -1;
+
+    *lx = (int32_t)logical_x;
+    *ly = (int32_t)logical_y;
+    return 0;
+}
+
 int ag_viewport_map_rect(const struct ag_viewport *vp, int32_t lx, int32_t ly,
                          int32_t lw, int32_t lh, int32_t *dx, int32_t *dy,
                          int32_t *dw, int32_t *dh) {

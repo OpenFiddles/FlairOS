@@ -1,4 +1,5 @@
 #include "kernel.h"
+#include "../include/desktop_gfx.h"
 
 #define TASK_ROW (VGA_ROWS - 1)
 #define BG_CHAR 0xB0
@@ -274,7 +275,14 @@ static void start_select(int item) {
     start_open = 0;
     if (item >= 0 && item < WIN_COUNT) open_win(item);
     else if (item == WIN_COUNT) launch_explorer();
-    else if (item == WIN_COUNT + 1) run_micropython();
+    else if (item == WIN_COUNT + 1) {
+        if (desktop_gfx_active()) {
+            open_win(WIN_TERM);
+            terminal_exec("echo Python needs a pixel-native app; legacy VGA app disabled");
+        } else {
+            run_micropython();
+        }
+    }
     serial_str("desktop: start menu select ");
     log_point("item", item + 1, 0);
 }
@@ -294,8 +302,17 @@ static void draw_taskbar(void) {
     draw_hms(TASK_ROW, VGA_COLS - 9, TASK_ATTR, t);
 }
 
+static void pointer_grid(i32 *x, i32 *y) {
+    if (desktop_gfx_active() &&
+        desktop_gfx_map_pointer(cursor_norm_x, cursor_norm_y, x, y) == 0)
+        return;
+    *x = (i32)cursor_x;
+    *y = (i32)cursor_y;
+}
+
 static void draw_cursor(void) {
-    i32 r = (i32)cursor_y, c = (i32)cursor_x;
+    i32 r, c;
+    pointer_grid(&c, &r);
     if (r < 0 || r >= VGA_ROWS || c < 0 || c >= VGA_COLS) return;
     back[r * VGA_COLS + c] = (u16)(0xDB | (CURSOR_ATTR << 8));
 }
@@ -317,6 +334,8 @@ static void draw_frame(void) {
     draw_taskbar();
     draw_start_menu();
     draw_cursor();
+    if (desktop_gfx_active() && desktop_gfx_present(back, VGA_COLS, VGA_ROWS) == 0)
+        return;
     for (int i = 0; i < VGA_ROWS * VGA_COLS; i++)
         VGA_MEM[i] = back[i];
 }
@@ -370,7 +389,8 @@ static void click(i32 mx, i32 my) {
 }
 
 static void handle_mouse(void) {
-    i32 mx = (i32)cursor_x, my = (i32)cursor_y;
+    i32 mx, my;
+    pointer_grid(&mx, &my);
     u8 b = mouse_buttons;
     if ((b & 1) && !(prev_buttons & 1)) click(mx, my);
     if (!(b & 1)) { drag_win = -1; }
@@ -443,7 +463,9 @@ static void handle_key(int c) {
         return;
     }
     if (c == '\n') {
-        click((i32)cursor_x, (i32)cursor_y);
+        i32 mx, my;
+        pointer_grid(&mx, &my);
+        click(mx, my);
         return;
     }
 }
@@ -452,6 +474,7 @@ int desktop_run(void) {
     /* Start with a clean workspace. The built-in Terminal remains available
        from its desktop icon and the Start menu; it is not restored on boot. */
     serial_str("desktop: start\n");
+    desktop_gfx_init();
     outb(0x3D4, 0x0A);
     outb(0x3D5, 0x20);
     prev_buttons = mouse_buttons;
@@ -477,8 +500,14 @@ int desktop_run(void) {
         handle_mouse();
         draw_frame();
         /* Drain queued input before honoring Ctrl+Alt+D. */
-        if (kbd_toggle_take())
-            break;
+        if (kbd_toggle_take()) {
+            if (desktop_gfx_active()) {
+                if (wins[WIN_TERM].open) raise_win(WIN_TERM);
+                else open_win(WIN_TERM);
+            } else {
+                break;
+            }
+        }
         wait_ticks(FRAME_TICKS);
     }
     outb(0x3D4, 0x0A);

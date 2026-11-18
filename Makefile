@@ -22,13 +22,25 @@ BUILD = build
 DRV_SRCS = $(shell find drivers -type f -name '*.c' -print)
 DRV_OBJS = $(patsubst drivers/%.c,$(BUILD)/d_%.o,$(DRV_SRCS))
 
-CFLAGS = $(ARCH_CFLAGS) -std=gnu99 -ffreestanding -mno-sse -mno-sse2 -mno-mmx -fno-pic -fno-stack-protector -fno-builtin -fno-common -fno-tree-loop-distribute-patterns -fcf-protection=none -fno-asynchronous-unwind-tables -O2 -Wall -Wextra
+DISPLAY ?= landscape
+ifeq ($(DISPLAY),portrait)
+CFLAGS_DISPLAY = -DFLAIROS_DISPLAY_PORTRAIT
+else ifeq ($(DISPLAY),wide)
+CFLAGS_DISPLAY = -DFLAIROS_DISPLAY_WIDE
+else
+CFLAGS_DISPLAY =
+endif
+
+CFLAGS = $(CFLAGS_DISPLAY) $(ARCH_CFLAGS) -std=gnu99 -ffreestanding -mno-sse -mno-sse2 -mno-mmx -fno-pic -fno-stack-protector -fno-builtin -fno-common -fno-tree-loop-distribute-patterns -fcf-protection=none -fno-asynchronous-unwind-tables -O2 -Wall -Wextra
 
 # Expanded to compile all the core kernel files visible in your tree
 OBJS = $(BUILD)/entry.o \
        $(BUILD)/isr.o \
        $(BUILD)/usermode.o \
        $(BUILD)/desktop.o \
+       $(BUILD)/desktop_gfx.o \
+       $(BUILD)/desktop_render.o \
+       $(BUILD)/font5x7.o \
        $(BUILD)/kernel.o \
        $(BUILD)/drivers.o \
        $(BUILD)/keyboard.o \
@@ -41,6 +53,7 @@ OBJS = $(BUILD)/entry.o \
        $(BUILD)/fs.o \
        $(BUILD)/sysdispatch.o \
        $(BUILD)/boot.o \
+       $(BUILD)/hwinfo.o \
        $(BUILD)/setup.o \
        $(BUILD)/airp.o \
        $(BUILD)/fb.o \
@@ -83,10 +96,19 @@ $(BUILD)/usermode.o: kernel/usermode.asm | $(BUILD)
 	$(AS) $(ARCH_ASFLAGS) $< -o $@
 
 # --- Kernel Core C Objects ---
-$(BUILD)/desktop.o: kernel/desktop.c kernel/kernel.h kernel/textile.h | $(BUILD)
+$(BUILD)/desktop.o: kernel/desktop.c kernel/kernel.h kernel/textile.h include/desktop_gfx.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/kernel.o: kernel/kernel.c kernel/kernel.h kernel/textile.h include/fb.h include/vbe.h include/airgraph.h | $(BUILD)
+$(BUILD)/desktop_gfx.o: kernel/desktop_gfx.c kernel/kernel.h kernel/textile.h include/desktop_gfx.h include/desktop_render.h include/vbe.h include/airgraph.h | $(BUILD)
+	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
+
+$(BUILD)/desktop_render.o: kernel/desktop_render.c include/desktop_render.h include/font5x7.h include/airgraph.h | $(BUILD)
+	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
+
+$(BUILD)/font5x7.o: kernel/font5x7.c include/font5x7.h | $(BUILD)
+	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
+
+$(BUILD)/kernel.o: kernel/kernel.c kernel/kernel.h kernel/textile.h include/desktop_gfx.h include/fb.h include/vbe.h include/airgraph.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD)/drivers.o: kernel/drivers.c kernel/kernel.h kernel/textile.h | $(BUILD)
@@ -111,6 +133,9 @@ $(BUILD)/sysdispatch.o: kernel/sysdispatch.c include/axi.h include/fs.h kernel/k
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD)/boot.o: kernel/boot.c include/boot.h | $(BUILD)
+	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
+
+$(BUILD)/hwinfo.o: kernel/hwinfo.c include/hwinfo.h include/boot.h include/hw.h | $(BUILD)
 	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
 
 $(BUILD)/setup.o: kernel/setup.c include/setup.h include/boot.h include/drv_ata.h kernel/kernel.h | $(BUILD)
@@ -255,6 +280,9 @@ win-demo: $(BUILD)/win-demo.img
 $(BUILD)/airgraph_host_test: tests/airgraph_host_test.c kernel/airgraph.c kernel/sprunkui.c kernel/fb.c include/airgraph.h include/sprunkui.h include/fb.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/airgraph_host_test.c kernel/airgraph.c kernel/sprunkui.c kernel/fb.c
 
+$(BUILD)/desktop_render_host_test: tests/desktop_render_host_test.c kernel/desktop_render.c kernel/font5x7.c kernel/airgraph.c kernel/fb.c include/desktop_render.h include/font5x7.h | $(BUILD)
+	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/desktop_render_host_test.c kernel/desktop_render.c kernel/font5x7.c kernel/airgraph.c kernel/fb.c
+
 $(BUILD)/driver_host_test: tests/driver_host_test.c drivers/drv_core.c include/drv.h include/drv_pic.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/driver_host_test.c drivers/drv_core.c
 
@@ -264,11 +292,12 @@ $(BUILD)/fb_host_test: tests/fb_host_test.c kernel/fb.c include/fb.h | $(BUILD)
 $(BUILD)/ata_identify_host_test: tests/ata_identify_host_test.c drivers/ata_identify.c include/ata_identify.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/ata_identify_host_test.c drivers/ata_identify.c
 
-test: $(BUILD)/textile.img $(BUILD)/livecd.iso $(BUILD)/bootcd.iso $(BUILD)/airgraph_host_test $(BUILD)/driver_host_test $(BUILD)/fb_host_test $(BUILD)/ata_identify_host_test
+test: $(BUILD)/textile.img $(BUILD)/livecd.iso $(BUILD)/bootcd.iso $(BUILD)/airgraph_host_test $(BUILD)/driver_host_test $(BUILD)/fb_host_test $(BUILD)/ata_identify_host_test $(BUILD)/desktop_render_host_test
 	$(BUILD)/airgraph_host_test
 	$(BUILD)/fb_host_test
 	$(BUILD)/driver_host_test
 	$(BUILD)/ata_identify_host_test
+	$(BUILD)/desktop_render_host_test
 	python3 tests/smoke.py $(BUILD)/textile.img
 	python3 tests/boot_media_test.py $(BUILD)/livecd.iso $(BUILD)/bootcd.iso
 
