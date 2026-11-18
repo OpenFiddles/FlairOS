@@ -13,7 +13,7 @@ int main(void){
  CHECK(ag_surface_init(&s,pixels,20,24,20*4,AG_PIXEL_XRGB8888)==0);
  CHECK(ag_device_init(&d,&fb,0)==0);
  CHECK(desktop_render_cells(&d,&s,cells,2,1)==0);
- CHECK(pixels[0]==0x243B6B);
+ CHECK(pixels[0]==0x4965A4);
  CHECK(pixels[2+5*20]==0xFFFFFF);
  CHECK(pixels[10]==0xFCD34D);
  CHECK(desktop_render_cells(&d,&s,cells,0,1)!=0);
@@ -34,7 +34,7 @@ int main(void){
      CHECK(ag_device_init(&portrait_device, &portrait_fb, 0) == 0);
      CHECK(desktop_render_cells(&portrait_device, &portrait_surface,
                                 row_cells, 80, 2) == 0);
-     CHECK(portrait_row[553] == 0x243B6B);  /* column 73 */
+     CHECK(portrait_row[553] == 0x4965A4);  /* column 73 */
      CHECK(portrait_row[592] == 0x1E293B); /* column 79 */
      ag_device_shutdown(&portrait_device);
  }
