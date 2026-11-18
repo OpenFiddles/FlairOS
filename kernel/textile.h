@@ -31,6 +31,8 @@ enum tx_syscall {
 #define ARROW_DOWN 2
 #define ARROW_LEFT 3
 #define ARROW_RIGHT 4
+#define ARROW_PAGE_UP 5
+#define ARROW_PAGE_DOWN 6
 
 enum tx_ease { EASE_LINEAR = 0, EASE_OUT_CUBIC = 1, EASE_IN_OUT = 2 };
 

@@ -13,7 +13,7 @@ Choose **Python** from the desktop Start menu, or type `python` in the text
 shell. From the AirGraph pixel desktop, the Start menu temporarily switches to
 the VGA text console for the REPL and restores the pixel desktop after
 `flareos.exit()`. The interpreter uses a 384 KiB garbage-collected heap allocated through
-`SYS_BRK`, with a 12 KiB stack-check limit. It exposes the FlareOS display,
+`SYS_BRK`, with a 12 KiB stack-check limit. In the GUI Terminal, use Ctrl+Up and Ctrl+Down to page through recent output; the right-edge scrollbar indicates the current position. It exposes the FlareOS display,
 keyboard, pointer, timer, speaker, and filesystem APIs through `import flareos`.
 Use `flareos.exit()` to leave the REPL and return to the desktop.
 

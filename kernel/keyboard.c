@@ -66,9 +66,9 @@ void keyboard_irq(void) {
         if (sc & 0x80)
             return;
         if (sc == 0x48)
-            arrow_push(ARROW_UP);
+            arrow_push(ctrl_down ? ARROW_PAGE_UP : ARROW_UP);
         else if (sc == 0x50)
-            arrow_push(ARROW_DOWN);
+            arrow_push(ctrl_down ? ARROW_PAGE_DOWN : ARROW_DOWN);
         else if (sc == 0x4B)
             arrow_push(ARROW_LEFT);
         else if (sc == 0x4D)

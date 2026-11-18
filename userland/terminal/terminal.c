@@ -27,6 +27,7 @@ static char history[HISTORY][INPUT_MAX + 1];
 static unsigned int history_count, history_next;
 static int history_pos = -1;
 static int exit_requested;
+static unsigned int scroll_offset;
 
 static void log_line(const char *s) {
     unsigned int i = 0;
@@ -42,17 +43,34 @@ static void log_line(const char *s) {
     }
     logbuf[log_count][i] = 0;
     ++log_count;
+    /* New output follows the live end unless the user scrolls again. */
+    scroll_offset = 0;
 }
 
 static void draw(void) {
     unsigned int rows = TERM_ROWS - 3;
-    unsigned int first = log_count > rows ? log_count - rows : 0;
-    unsigned int i;
+    unsigned int max_offset = log_count > rows ? log_count - rows : 0;
+    unsigned int first, thumb_size, thumb_top, i;
     char line[TERM_COLS + 1];
+    char track[2] = { (char)0xB0, 0 };
+    char thumb[2] = { (char)0xDB, 0 };
+    if (scroll_offset > max_offset) scroll_offset = max_offset;
+    first = log_count > rows + scroll_offset
+          ? log_count - rows - scroll_offset : 0;
     ax_clear(win, ATTR_BODY);
     ax_text(win, 0, 0, ATTR_HEAD, " FlareOS Terminal | Userland");
+    for (i = 0; i < rows; ++i)
+        ax_text(win, i + 1, TERM_COLS - 1, 0x78, track);
     for (i = 0; i < rows && first + i < log_count; ++i)
         ax_text(win, i + 1, 0, ATTR_BODY, logbuf[first + i]);
+    thumb_size = log_count > rows ? (rows * rows) / log_count : rows;
+    if (!thumb_size) thumb_size = 1;
+    thumb_top = max_offset
+              ? (rows - thumb_size) -
+                (scroll_offset * (rows - thumb_size)) / max_offset
+              : rows - thumb_size;
+    for (i = 0; i < thumb_size; ++i)
+        ax_text(win, thumb_top + i + 1, TERM_COLS - 1, 0x1F, thumb);
     memset(line, 0, sizeof(line));
     line[0] = '>';
     line[1] = ' ';
@@ -204,8 +222,10 @@ static void command(void) {
     if (same(arg[0], "help")) {
         log_line("help clear echo uptime beep ls pwd exit");
         log_line("cat NAME size NAME rm NAME mv OLD NEW touch NAME");
+        log_line("Ctrl+Up / Ctrl+Down: scroll output");
     } else if (same(arg[0], "clear")) {
         log_count = 0;
+        scroll_offset = 0;
     } else if (same(arg[0], "echo")) {
         char out[INPUT_MAX + 1];
         unsigned int n = 0;
@@ -295,7 +315,14 @@ void app_main(void) {
         key = (int)ax_call(SYS_GETKEY, 0, 0, 0);
         if (key > 0) on_char(key);
         arrow = (int)ax_call(SYS_GETARROW, 0, 0, 0);
-        if (arrow == ARROW_LEFT && cursor) --cursor;
+        if (arrow == ARROW_PAGE_UP) {
+            unsigned int page = TERM_ROWS - 3;
+            unsigned int max_offset = log_count > page ? log_count - page : 0;
+            scroll_offset = scroll_offset + page > max_offset ? max_offset : scroll_offset + page;
+        } else if (arrow == ARROW_PAGE_DOWN) {
+            unsigned int page = TERM_ROWS - 3;
+            scroll_offset = scroll_offset > page ? scroll_offset - page : 0;
+        } else if (arrow == ARROW_LEFT && cursor) --cursor;
         else if (arrow == ARROW_RIGHT && cursor < input_len) ++cursor;
         else if (arrow == ARROW_UP) load_history(1);
         else if (arrow == ARROW_DOWN) load_history(-1);
