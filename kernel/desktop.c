@@ -354,8 +354,17 @@ static void draw_frame(void) {
     draw_start_menu();
     draw_cursor();
     if (desktop_gfx_active() && desktop_gfx_present(back, VGA_COLS, VGA_ROWS) == 0) {
-        axi_gfx_render();
-        return;
+        for (int i = 0; i < WIN_COUNT; i++) {
+            int k = z[i];
+            if (wins[k].open)
+                desktop_gfx_draw_window(wins[k].x, wins[k].y,
+                                        wins[k].w, wins[k].h,
+                                        wins[k].title, top_win() == k);
+        }
+        if (desktop_gfx_flush() == 0) {
+            axi_gfx_render();
+            return;
+        }
     }
     for (int i = 0; i < VGA_ROWS * VGA_COLS; i++)
         VGA_MEM[i] = back[i];
