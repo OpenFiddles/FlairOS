@@ -37,6 +37,12 @@ int main(void) {
     struct ag_device dev;
     struct sp_theme theme;
     struct sp_context ui;
+    struct ag_viewport vp;
+    struct ag_resource_info resources;
+    struct ag_device gpu_dev;
+    static const struct ag_backend_ops fake_gpu = {
+        .name = "test-gpu", .capabilities = AG_CAP_FILL_RECT, .flags = AG_BACKEND_GPU
+    };
 
     memset(pixels, 0xA5, sizeof pixels);
     memset(display_mem, 0xA5, sizeof display_mem);
@@ -84,8 +90,30 @@ int main(void) {
     CHECK(ag_present(&dev, &s) == 0);
     CHECK(pixel_at(display_mem, 0, 0) == pixel_at(pixels, 0, 0));
     CHECK(padding_ok(display_mem));
+    CHECK(ag_get_resource_info(&dev, &resources) == 0);
+    CHECK(resources.cpu_renderer_available == 1 && resources.gpu_available == 0);
+    CHECK(ag_device_init(&gpu_dev, &fb, &fake_gpu) == 0);
+    CHECK(ag_get_resource_info(&gpu_dev, &resources) == 0);
+    CHECK(resources.gpu_available == 1 && resources.gpu_accelerated == 1);
+    CHECK(resources.cpu_renderer_available == 1);
+    ag_device_shutdown(&gpu_dev);
     ag_device_shutdown(&dev);
     CHECK(ag_present(&dev, &s) != 0);
+    CHECK(ag_viewport_init_adaptive(&vp, 360, 800, 800, 480, 360, 800, AG_SCALE_FIT) == 0);
+    CHECK(vp.orientation == AG_ORIENTATION_PORTRAIT);
+    CHECK(vp.logical_width == 360 && vp.logical_height == 800);
+    {
+        int32_t x, y, w, h;
+        CHECK(ag_viewport_map_point(&vp, 240, 400, &x, &y) == 0);
+        CHECK(x == 180 && y == 400);
+        CHECK(ag_viewport_map_rect(&vp, 10, 20, 100, 50, &x, &y, &w, &h) == 0);
+        CHECK(x == 10 && y == 20 && w == 100 && h == 50);
+    }
+    CHECK(ag_viewport_init_adaptive(&vp, 800, 600, 800, 480, 480, 800, AG_SCALE_FIT) == 0);
+    CHECK(vp.orientation == AG_ORIENTATION_LANDSCAPE && vp.y == 60);
+    CHECK(ag_viewport_init_adaptive(&vp, 360, 800, 800, 480, 360, 800, AG_SCALE_STRETCH) == 0);
+    CHECK(vp.width == 360 && vp.height == 800);
+    CHECK(ag_viewport_init_adaptive(&vp, 0, 800, 800, 480, 480, 800, AG_SCALE_FIT) != 0);
 
     ag_clear(&s, 0);
     ag_round_rect(0, &s, 1, 1, 6, 4, 2, 0x00ABCDEF);
