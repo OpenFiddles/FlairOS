@@ -44,6 +44,7 @@ nav:
       - Pancake / PCK: PANCAKE.md
   - App Development:
       - SDK: SDK.md
+      - C Library: LIBC.md
   - Project Notes:
       - Architecture Audit: ARCHITECTURE_AUDIT.md
       - MicroPython: MICROPYTHON.md

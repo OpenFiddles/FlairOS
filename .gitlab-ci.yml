@@ -25,13 +25,13 @@ pages:
     - cp /usr/share/seabios/bios-256k.bin public/v86/seabios.bin
     - cp /usr/share/seabios/vgabios-stdvga.bin public/v86/vgabios.bin
 
-    # Build the developer hub separately from OS tests, then publish it beside the web emulator.
+    # Generate the API files before MkDocs checks internal links.
+    - doxygen Doxyfile
+    - mkdir -p docs/api
+    - cp -a build/doxygen/html/. docs/api/
     - python3 -m venv /tmp/mkdocs-venv
     - /tmp/mkdocs-venv/bin/python -m pip install --disable-pip-version-check mkdocs-material
     - /tmp/mkdocs-venv/bin/mkdocs build --strict --site-dir public/docs
-    - doxygen Doxyfile
-    - mkdir -p public/docs/api
-    - cp -a build/doxygen/html/. public/docs/api/
   artifacts:
     paths:
       - public
