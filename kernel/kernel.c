@@ -1123,6 +1123,7 @@ void kmain(void) {
     splash_progress(56, "System drivers initialized");
     if (ata_is_ready())
         serial_str("ata: primary disk ready\n");
+    splash_progress(68, "Storage discovery complete");
     if (boot_handoff_valid())
         serial_str(boot_mode() == FLAIR_BOOT_LIVE ? "boot: LiveCD mode\n" :
                    boot_mode() == FLAIR_BOOT_SETUP ? "boot: Setup media mode\n" :
