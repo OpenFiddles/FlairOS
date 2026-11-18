@@ -4,9 +4,9 @@ img = sys.argv[1] if len(sys.argv) > 1 else 'build/textile.img'
 qemu = os.environ.get('QEMU', 'qemu-system-i386')
 work = tempfile.mkdtemp()
 
-disk = os.path.join(work, 'blank.img')
+disk = os.path.join(work, 'storage-30mb.img')
 with open(disk, 'wb') as f:
-    f.truncate(8 * 1024 * 1024)
+    f.truncate(30 * 1024 * 1024)
 
 keys = {' ': 'spc', '\n': 'ret'}
 
@@ -68,6 +68,7 @@ text = boot('first', ['help', 'time', 'uptime', 'in 60', 'echo hello textile', '
 with open(disk, 'rb') as f:
     head = f.read(398 * 512 + 4)
 fs_on_disk = head[398 * 512:398 * 512 + 4] == bytes.fromhex('59 44 53 46')
+disk_is_30mb = os.path.getsize(disk) == 30 * 1024 * 1024
 
 text2 = boot('reboot', ['load note'])
 
@@ -102,6 +103,7 @@ checks = [
     ('run replays the app', text.count('app: slide-in done') >= 2),
     ('ata detects blank disk', 'ata: primary disk ready'),
     ('format reports success', 'fs: disk formatted'),
+    ('30 MB ATA storage image', disk_is_30mb),
     ('format writes FlareOS magic to disk', fs_on_disk),
     ('save reports success', 'fs: saved note'),
     ('reboot detects formatted disk', 'ata: primary disk ready'),

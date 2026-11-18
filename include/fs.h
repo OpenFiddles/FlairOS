@@ -2,7 +2,7 @@
 FILE PATH: include/fs.h
 CONTRIBUTOR: Textile
 PURPOSE: FlareOS dynamic filesystem syscall numbers, limits and the int 0x80
-  wrappers shared by the kernel and apps. Files are variable-size (up to 64 KB),
+  wrappers shared by the kernel and apps. Files are variable-size (up to 1.8 MB each across a 30 MB ATA data disk),
   stored in dynamically allocated kernel memory, and persist on the ATA disk.
 */
 
@@ -29,7 +29,7 @@ PURPOSE: FlareOS dynamic filesystem syscall numbers, limits and the int 0x80
 #define FS_FAIL   0xFFFFFFFFu
 
 #define FS_NAME_MAX    12
-#define FS_FILE_MAX    65536
+#define FS_FILE_MAX    1843200u /* 3600 sectors per file; 16 slots use 28.8 MB */
 #define FS_FILES       16
 #define FS_HANDLES     8
 #define FS_DIR_LBA     398

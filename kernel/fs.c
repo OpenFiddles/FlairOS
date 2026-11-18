@@ -3,8 +3,9 @@ FILE PATH: kernel/fs.c
 CONTRIBUTOR: Textile
 PURPOSE: Dynamic filesystem for FlareOS. Files are variable-size (up to 64 KB),
   held in kernel heap buffers and written through to the ATA disk. Sector FS_DIR_LBA
-  holds the directory; file slot N owns a fixed 128-sector region starting at
-  sector 399 + N * 128, so a file that grows never overlaps another file.
+  holds the directory; file slot N owns a fixed 3600-sector region starting at
+  sector 399 + N * 3600, supporting up to 1.8 MB per file on a 30 MB data disk.
+  Existing 64 KB-slot disks are migrated in place when first opened.
   Paging is not involved: data buffers come from kmalloc, not the app address space.
 */
 
@@ -17,6 +18,7 @@ PURPOSE: Dynamic filesystem for FlareOS. Files are variable-size (up to 64 KB),
 #define FSK_DIR_LBA    FS_DIR_LBA
 #define FSK_DATA_LBA   (FS_DIR_LBA + 1)
 #define FSK_FILE_SECTS (FS_FILE_MAX / ATA_SECTOR_SIZE)
+#define FSK_LEGACY_FILE_SECTS 128u
 #define FSK_MAGIC      FS_MAGIC
 #define FSK_HDR        8
 #define FSK_ENTRY      FS_ENTRY_SIZE
@@ -154,6 +156,7 @@ static int fsk_commit(int file) {
 
 static void fsk_load(void) {
     int i, k, at;
+    int legacy_layout = 0;
 
     fsk_loaded = 1;
     fsk_disk = 0;
@@ -165,7 +168,7 @@ static void fsk_load(void) {
             fsk_files[i].size = 0;
             fsk_files[i].cap = 0;
             fsk_files[i].data = 0;
-            fsk_files[i].start_lba = fsk_file_lba(i);
+            fsk_files[i].start_lba = fsk_get32(at + 1 + FS_NAME_MAX + 5);
         }
         for (i = 0; i < FS_HANDLES; ++i)
             fsk_handles[i].used = 0;
@@ -193,6 +196,15 @@ static void fsk_load(void) {
             fsk_sector[at + 1 + FS_NAME_MAX] != 0 ||
             fsk_get32(at + 1 + FS_NAME_MAX + 1) > FS_FILE_MAX)
             return;
+        {
+            u32 stored_lba = fsk_get32(at + 1 + FS_NAME_MAX + 5);
+            u32 old_lba = FSK_DATA_LBA + (u32)i * FSK_LEGACY_FILE_SECTS;
+            u32 new_lba = fsk_file_lba(i);
+            if (stored_lba == old_lba && old_lba != new_lba)
+                legacy_layout = 1;
+            else if (stored_lba != new_lba)
+                return;
+        }
         for (k = 0; k < i; k++) {
             int prev = FSK_HDR + k * FSK_ENTRY;
             int n = 0;
@@ -226,6 +238,26 @@ static void fsk_load(void) {
             continue;
         if (fsk_reserve(&fsk_files[i], fsk_files[i].size) != 0 || fsk_file_read(i) != 0)
             fsk_drop(&fsk_files[i]);
+    }
+
+    /* Move old 128-sector extents only after every file has been read into RAM. */
+    if (legacy_layout) {
+        for (i = 0; i < FS_FILES; i++) {
+            if (!fsk_files[i].used)
+                continue;
+            fsk_files[i].start_lba = fsk_file_lba(i);
+            if (fsk_file_write(i) != 0) {
+                fsk_disk = 0; /* Keep the loaded files in RAM; never write mixed layouts. */
+                serial_str("fs: legacy migration failed; using RAM-only storage\\n");
+                return;
+            }
+        }
+        if (fsk_dir_write() != 0) {
+            fsk_disk = 0;
+            serial_str("fs: migration directory update failed; using RAM-only storage\\n");
+            return;
+        }
+        serial_str("fs: migrated legacy 64 KB file slots\\n");
     }
 }
 
