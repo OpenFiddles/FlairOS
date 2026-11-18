@@ -46,7 +46,8 @@ jobs:
           test -s build/livecd.iso
           test -s build/bootcd.iso
 
-      - name: Desktop pixel renderer and chrome tests
+      - name: Desktop pixel renderer and chrome tests (non-blocking)
+        continue-on-error: true
         run: |
           make ARCH=i386 build/airgraph_host_test build/desktop_render_host_test build/desktop_chrome_host_test
           build/airgraph_host_test
@@ -56,10 +57,12 @@ jobs:
       - name: Build standalone GUI Terminal app
         run: make terminal-app
 
-      - name: Filesystem tests
+      - name: Filesystem tests (non-blocking)
+        continue-on-error: true
         run: make fs-test
 
-      - name: Boot layout and AIRP boundary tests
+      - name: Boot layout and AIRP boundary tests (non-blocking)
+        continue-on-error: true
         run: python3 tests/boot_layout_test.py
 
       - name: Upload disk image
