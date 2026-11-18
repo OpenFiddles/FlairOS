@@ -35,6 +35,9 @@ extern u8 net_mac[6];
 /* --- Universal Mouse Tracking System Globals --- */
 extern u32 cursor_x;
 extern u32 cursor_y;
+/* Normalized 0..65535 pointer position, independent of framebuffer resolution. */
+extern u32 cursor_norm_x;
+extern u32 cursor_norm_y;
 extern volatile u8 mouse_buttons;
 
 /* System Call Parameter Mapping */
