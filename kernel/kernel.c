@@ -680,9 +680,8 @@ static void splash_frame(u8 bg) {
                 splash_cell(7 + r, col0 + i, 0xCD, 0x0B, bg);
         }
     }
-    splash_text(14, "OpenFiddles", 0x0F, bg);
-    splash_text(15, "FlairOS", 0x0F, bg);
-    splash_text(17, "OPENFIDDLES", 0x0B, bg);
+    splash_text(14, "FlairOS", 0x0F, bg);
+    splash_text(16, "OpenFiddles", 0x0B, bg);
 }
 
 /* The boot screen advances only when the corresponding initialization
