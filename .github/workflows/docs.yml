@@ -29,8 +29,8 @@ jobs:
 
       - name: Build Doxygen API reference
         run: |
+          mkdir -p build/doxygen docs/api
           doxygen Doxyfile
-          mkdir -p docs/api
           cp -a build/doxygen/html/. docs/api/
 
       - name: Build MkDocs site
