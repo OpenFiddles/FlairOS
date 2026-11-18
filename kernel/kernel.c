@@ -834,26 +834,42 @@ static void run_command(char *input) {
         return;
 
     if (str_eq(argv[0], "help")) {
-        puts("Commands:\n");
-        puts("  help           show this list\n");
-        puts("  clear          clear the screen\n");
-        puts("  echo TEXT      print TEXT\n");
-        puts("  time           read the CMOS clock\n");
-        puts("  uptime         seconds since boot\n");
-        puts("  in PORT        read one I/O port byte\n");
-        puts("                 example: in 60\n");
-        puts("  out PORT VAL   write one I/O port byte\n");
-        puts("                 example: out 80 0\n");
-        puts("  reboot         reset the machine\n");
-        puts("  net            show network controller and MAC\n");
-        puts("  ping IPv4      DHCP then ICMP echo\n");
-        puts("  mem            show free physical memory\n");
-        puts("  format         create an empty ATA filesystem\n");
-        puts("  sqr X Y        draw a 2x2 square at X,Y\n");
-        puts("  beep HZ MS     play a PC speaker tone\n");
-        puts("  Ctrl+Alt+D     switch text/desktop modes\n");
-        puts("  run            run the intro app again\n");
-        puts("  python         launch MicroPython image\n");
+        puts("FLAREOS DEVELOPER CONSOLE - COMMAND REFERENCE\n");
+        puts("------------------------------------------------\n");
+        puts("BASICS\n");
+        puts("  help             show this command reference\n");
+        puts("  clear            clear the console\n");
+        puts("  echo TEXT        print text\n");
+        puts("  time             show the hardware clock\n");
+        puts("  uptime           show time since boot\n");
+        puts("  mem              show free / managed memory\n");
+        puts("\n");
+        puts("FILESYSTEM (ATA disk required)\n");
+        puts("  save NAME WORD   save a one-word note\n");
+        puts("  load NAME        read a saved note\n");
+        puts("  format           create an empty filesystem (ERASES IT)\n");
+        puts("\n");
+        puts("NETWORK\n");
+        puts("  net              show network device, MAC, MTU and link\n");
+        puts("  ping IPv4        obtain DHCP lease, then send ICMP echo\n");
+        puts("                   example: ping 1.1.1.1\n");
+        puts("\n");
+        puts("HARDWARE / DEBUG\n");
+        puts("  in PORT          read one I/O port byte (hex)\n");
+        puts("                   example: in 60\n");
+        puts("  out PORT VALUE   write one I/O port byte (hex)\n");
+        puts("                   example: out 80 0\n");
+        puts("  sqr X Y          draw a 2x2 VGA test square\n");
+        puts("  beep HZ MS       play a PC speaker tone\n");
+        puts("\n");
+        puts("APPS / SESSION\n");
+        puts("  run              launch the intro app (text mode only)\n");
+        puts("  python           launch MicroPython (if installed)\n");
+        puts("  desktop          return to the desktop\n");
+        puts("  reboot           restart the machine\n");
+        puts("\n");
+        puts("SHORTCUTS: Ctrl+Alt+D switches between Desktop and Dev Mode.\n");
+        puts("NOTE: PORT arguments are hexadecimal; X, Y, HZ and MS are decimal.\n");
     } else if (str_eq(argv[0], "clear")) {
         clear_screen();
     } else if (str_eq(argv[0], "echo")) {
@@ -1025,10 +1041,23 @@ static void text_shell_run(void) {
     serial_str("ui: text mode\n");
     clear_screen();
     cur_attr = ATTR_OK;
-    puts("FlareOS 0.3 kernel\n");
+    puts("===============================================================\n");
+    puts("                 F L A R E O S   /   D E V                   \n");
+    puts("===============================================================\n");
+    cur_attr = ATTR_SQR;
+    puts("  OPENFID DLES  |  DEVELOPER CONSOLE  |  KERNEL 0.3\n");
     cur_attr = ATTR_TEXT;
-    puts("Text mode. Ctrl+Alt+D switches to the desktop. Type help.\n");
-    puts("textile> ");
+    puts("  Status: READY       Mode: VGA TEXT       Input: PS/2\n");
+    puts("---------------------------------------------------------------\n");
+    puts("  Welcome to FlairOS Dev Mode.\n");
+    puts("  Type help for commands and examples.\n");
+    puts("  Ctrl+Alt+D returns to the desktop.\n");
+    puts("===============================================================\n");
+    puts("\n");
+    cur_attr = ATTR_OK;
+    puts("textile");
+    cur_attr = ATTR_TEXT;
+    puts("> ");
 
     for (;;) {
         if (kbd_toggle_take())
