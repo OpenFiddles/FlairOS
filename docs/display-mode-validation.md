@@ -1,17 +1,17 @@
-# Display mode validation and resizing
+# Display mode validation
 
-The Bochs/QEMU DISPI driver now queries the adapter's advertised maximum
-resolution instead of relying only on a fixed 1024x768 ceiling. Requests are
-clamped to the adapter's actual limits, and the driver verifies the selected
-X/Y resolution, 32-bit pixel depth, virtual dimensions, and framebuffer pitch
-before exposing the framebuffer to AirGraph.
+The Bochs/QEMU DISPI driver validates the adapter identity, framebuffer BAR,
+PCI memory decoding, advertised video-memory size, requested dimensions,
+mode readback, 32-bit pixel depth, virtual dimensions, and framebuffer pitch
+before exposing a surface to AirGraph.
 
-The driver also checks that the PCI framebuffer BAR is a nonzero memory BAR
-and enables PCI memory decoding before use. Unsupported adapters and invalid
-mode readbacks fail cleanly so the desktop can retain its VGA recovery path.
+The driver bounds dimensions before arithmetic, rejects modes whose backing
+video memory is insufficient, and disables the graphics mode if readback or
+framebuffer validation fails. PCI command writes preserve the status halfword,
+whose bits have write-one-to-clear semantics.
 
-The current desktop still chooses a profile at build time
-(`DISPLAY=landscape|portrait|wide`). This improves safe mode selection and
-supports adapters with different maximum sizes; it does not yet detect a host
-window resize event. A later display hotplug/resize path must reinitialize the
-framebuffer, AirGraph surface, viewport, and pointer mapping together.
+The desktop still selects a profile at build time
+(`DISPLAY=landscape|portrait|wide`). This makes mode selection safer across
+different framebuffer capacities; it does not yet implement host-window
+resize events. A complete runtime resize must reinitialize the framebuffer,
+AirGraph surface, viewport, and pointer mapping as one operation.
