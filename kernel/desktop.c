@@ -1,4 +1,5 @@
 #include "kernel.h"
+#include "../include/desktop_gfx.h"
 
 #define TASK_ROW (VGA_ROWS - 1)
 #define BG_CHAR 0xB0
@@ -274,7 +275,14 @@ static void start_select(int item) {
     start_open = 0;
     if (item >= 0 && item < WIN_COUNT) open_win(item);
     else if (item == WIN_COUNT) launch_explorer();
-    else if (item == WIN_COUNT + 1) run_micropython();
+    else if (item == WIN_COUNT + 1) {
+        if (desktop_gfx_active()) {
+            open_win(WIN_TERM);
+            terminal_exec("echo Python needs a pixel-native app; legacy VGA app disabled");
+        } else {
+            run_micropython();
+        }
+    }
     serial_str("desktop: start menu select ");
     log_point("item", item + 1, 0);
 }
@@ -317,6 +325,8 @@ static void draw_frame(void) {
     draw_taskbar();
     draw_start_menu();
     draw_cursor();
+    if (desktop_gfx_active() && desktop_gfx_present(back, VGA_COLS, VGA_ROWS) == 0)
+        return;
     for (int i = 0; i < VGA_ROWS * VGA_COLS; i++)
         VGA_MEM[i] = back[i];
 }
@@ -452,6 +462,7 @@ int desktop_run(void) {
     /* Start with a clean workspace. The built-in Terminal remains available
        from its desktop icon and the Start menu; it is not restored on boot. */
     serial_str("desktop: start\n");
+    desktop_gfx_init();
     outb(0x3D4, 0x0A);
     outb(0x3D5, 0x20);
     prev_buttons = mouse_buttons;
@@ -477,8 +488,14 @@ int desktop_run(void) {
         handle_mouse();
         draw_frame();
         /* Drain queued input before honoring Ctrl+Alt+D. */
-        if (kbd_toggle_take())
-            break;
+        if (kbd_toggle_take()) {
+            if (desktop_gfx_active()) {
+                if (wins[WIN_TERM].open) raise_win(WIN_TERM);
+                else open_win(WIN_TERM);
+            } else {
+                break;
+            }
+        }
         wait_ticks(FRAME_TICKS);
     }
     outb(0x3D4, 0x0A);

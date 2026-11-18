@@ -33,11 +33,26 @@ interface in a later change.
 
 ## Current hardware status
 
-The current kernel still initializes the existing Bochs/QEMU linear framebuffer
-through vbe_init(). The boot-time color-bar test now draws through AirGraph's
-software path. This proves the API is linked into and used by the kernel, but
-it is NOT GPU acceleration: no accelerated GPU backend is registered yet.
-The CPU path remains the reliable fallback for v86 and older 32-bit machines.
+The desktop now initializes a persistent 800x600 Bochs/QEMU linear framebuffer
+through vbe_init() and renders its scene through AirGraph's CPU pixel path. The
+legacy VGA text renderer is retained only as a recovery path when framebuffer
+or AirGraph initialization fails. The current display is a framebuffer target,
+not GPU acceleration: no accelerated GPU backend is registered yet. The CPU
+path remains the reliable renderer for v86 and older 32-bit machines.
+
+## Desktop pixel bridge
+
+The current desktop keeps its existing 80x25 interaction model as a temporary
+scene representation, but the normal display path rasterizes every cell into
+an 800x600 XRGB8888 framebuffer through AirGraph. A built-in 5x7 bitmap font
+is scaled for the pixel cells. VGA text memory is written only when the
+framebuffer cannot initialize or the renderer reports a failure.
+
+The legacy VGA boot splash, intro app, and text shell are also restricted to
+that recovery path. In pixel mode Ctrl+Alt+D focuses the desktop Terminal
+instead of switching the machine back to VGA text mode. This bridge is not
+the final responsive desktop layout; portrait sizing, display-mode discovery,
+double buffering, and a pixel-native app interface remain later work.
 
 ## Build and tests
 
