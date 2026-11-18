@@ -106,7 +106,7 @@ $(BUILD)/usermode.o: kernel/usermode.asm | $(BUILD)
 $(BUILD)/desktop.o: kernel/desktop.c kernel/kernel.h kernel/textile.h include/desktop_gfx.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/desktop_gfx.o: kernel/desktop_gfx.c kernel/kernel.h kernel/textile.h include/desktop_gfx.h include/desktop_render.h include/vbe.h include/airgraph.h | $(BUILD)
+$(BUILD)/desktop_gfx.o: kernel/desktop_gfx.c kernel/kernel.h kernel/textile.h include/desktop_gfx.h include/desktop_render.h include/vbe.h include/airgraph.h include/sprunkui.h include/font5x7.h | $(BUILD)
 	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
 
 $(BUILD)/desktop_render.o: kernel/desktop_render.c include/desktop_render.h include/font5x7.h include/airgraph.h | $(BUILD)
@@ -130,7 +130,7 @@ $(BUILD)/panic.o: kernel/panic.c kernel/kernel.h kernel/textile.h | $(BUILD)
 $(BUILD)/rtl8139.o: kernel/rtl8139.c kernel/kernel.h kernel/textile.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/axi.o: kernel/axi.c include/axi.h kernel/kernel.h kernel/textile.h | $(BUILD)
+$(BUILD)/axi.o: kernel/axi.c include/axi.h include/desktop_gfx.h include/sprunkui.h kernel/kernel.h kernel/textile.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD)/fs.o: kernel/fs.c include/fs.h include/drv_ata.h include/kheap.h kernel/kernel.h kernel/textile.h | $(BUILD)
@@ -207,7 +207,7 @@ $(BUILD)/app.bin: $(BUILD)/app.elf
 	test `stat -c %s $@` -le 65536
 	truncate -s 65536 $@
 
-# --- Explorer as .airp (stage 1 loads it from LBA 389 to 0x50000) ---
+# --- Explorer and Terminal AIRP staging area (outside filesystem sectors) ---
 $(BUILD)/explorer.o: userland/explorer.c include/axi.h include/fs.h kernel/textile.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
@@ -216,35 +216,39 @@ $(BUILD)/explorer.elf: $(BUILD)/explorer.o $(BUILD)/rt.o userland/app.ld
 
 $(BUILD)/explorer.bin: $(BUILD)/explorer.elf
 	$(OBJCOPY) -O binary $< $@
-	test `stat -c %s $@` -le 65536
+	test `stat -c %s $@` -le 16348
 
 $(BUILD)/explorer.airp: $(BUILD)/explorer.bin tools/airpack.py
 	python3 tools/airpack.py $(BUILD)/explorer.bin $@ explorer
+	test `stat -c %s $@` -le 16384
 
 # Assembles the disk image using the precise structural sector positioning offsets
-$(BUILD)/textile.img: $(BUILD)/stage1.bin $(BUILD)/stage2.bin $(BUILD)/kernel.bin $(BUILD)/app.bin $(BUILD)/explorer.airp
+$(BUILD)/textile.img: $(BUILD)/stage1.bin $(BUILD)/stage2.bin $(BUILD)/kernel.bin $(BUILD)/app.bin $(BUILD)/explorer.airp $(BUILD)/terminal.airp
 	dd if=/dev/zero of=$@ bs=512 count=2880 status=none
 	dd if=$(BUILD)/stage1.bin of=$@ bs=512 count=1 conv=notrunc status=none
 	dd if=$(BUILD)/stage2.bin of=$@ bs=512 seek=1 count=4 conv=notrunc status=none
 	dd if=$(BUILD)/kernel.bin of=$@ bs=512 seek=5 count=256 conv=notrunc status=none
 	dd if=$(BUILD)/app.bin of=$@ bs=512 seek=261 count=128 conv=notrunc status=none
-	dd if=$(BUILD)/explorer.airp of=$@ bs=512 seek=389 count=9 conv=notrunc status=none
+	dd if=$(BUILD)/explorer.airp of=$@ bs=512 seek=2447 count=32 conv=notrunc status=none
+	dd if=$(BUILD)/terminal.airp of=$@ bs=512 seek=2479 count=64 conv=notrunc status=none
 
-$(BUILD)/livecd.img: $(BUILD)/stage1.bin $(BUILD)/stage2-live.bin $(BUILD)/kernel.bin $(BUILD)/app.bin $(BUILD)/explorer.airp
+$(BUILD)/livecd.img: $(BUILD)/stage1.bin $(BUILD)/stage2-live.bin $(BUILD)/kernel.bin $(BUILD)/app.bin $(BUILD)/explorer.airp $(BUILD)/terminal.airp
 	dd if=/dev/zero of=$@ bs=512 count=2880 status=none
 	dd if=$(BUILD)/stage1.bin of=$@ bs=512 count=1 conv=notrunc status=none
 	dd if=$(BUILD)/stage2-live.bin of=$@ bs=512 seek=1 count=4 conv=notrunc status=none
 	dd if=$(BUILD)/kernel.bin of=$@ bs=512 seek=5 count=256 conv=notrunc status=none
 	dd if=$(BUILD)/app.bin of=$@ bs=512 seek=261 count=128 conv=notrunc status=none
-	dd if=$(BUILD)/explorer.airp of=$@ bs=512 seek=389 count=9 conv=notrunc status=none
+	dd if=$(BUILD)/explorer.airp of=$@ bs=512 seek=2447 count=32 conv=notrunc status=none
+	dd if=$(BUILD)/terminal.airp of=$@ bs=512 seek=2479 count=64 conv=notrunc status=none
 
-$(BUILD)/bootcd.img: $(BUILD)/stage1.bin $(BUILD)/stage2-setup.bin $(BUILD)/kernel.bin $(BUILD)/app.bin $(BUILD)/explorer.airp
+$(BUILD)/bootcd.img: $(BUILD)/stage1.bin $(BUILD)/stage2-setup.bin $(BUILD)/kernel.bin $(BUILD)/app.bin $(BUILD)/explorer.airp $(BUILD)/terminal.airp
 	dd if=/dev/zero of=$@ bs=512 count=2880 status=none
 	dd if=$(BUILD)/stage1.bin of=$@ bs=512 count=1 conv=notrunc status=none
 	dd if=$(BUILD)/stage2-setup.bin of=$@ bs=512 seek=1 count=4 conv=notrunc status=none
 	dd if=$(BUILD)/kernel.bin of=$@ bs=512 seek=5 count=256 conv=notrunc status=none
 	dd if=$(BUILD)/app.bin of=$@ bs=512 seek=261 count=128 conv=notrunc status=none
-	dd if=$(BUILD)/explorer.airp of=$@ bs=512 seek=389 count=9 conv=notrunc status=none
+	dd if=$(BUILD)/explorer.airp of=$@ bs=512 seek=2447 count=32 conv=notrunc status=none
+	dd if=$(BUILD)/terminal.airp of=$@ bs=512 seek=2479 count=64 conv=notrunc status=none
 
 $(BUILD)/livecd.iso: $(BUILD)/livecd.img
 	mkdir -p $(BUILD)/livecd-root
@@ -381,10 +385,11 @@ $(BUILD)/terminal.elf: $(BUILD)/terminal.o $(BUILD)/rt.o userland/app.ld
 
 $(BUILD)/terminal.bin: $(BUILD)/terminal.elf
 	$(OBJCOPY) -O binary $< $@
-	test `stat -c %s $@` -le 65536
+	test `stat -c %s $@` -le 32732
 
 $(BUILD)/terminal.airp: $(BUILD)/terminal.bin tools/airpack.py
 	python3 tools/airpack.py $(BUILD)/terminal.bin $@ terminal
+	test `stat -c %s $@` -le 32768
 
 terminal-app: $(BUILD)/terminal.airp
 

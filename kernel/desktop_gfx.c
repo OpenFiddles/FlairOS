@@ -6,6 +6,8 @@
 #include "../include/bmp.h"
 #include "../include/fs.h"
 #include "../include/kheap.h"
+#include "../include/sprunkui.h"
+#include "../include/font5x7.h"
 
 /* DISPLAY=portrait selects a 600x750 framebuffer (Bochs DISPI limit-safe).
    The desktop scene remains 80x25 logical cells and is rasterized to pixels. */
@@ -24,6 +26,8 @@ static struct fb display_fb;
 static struct ag_surface display_surface;
 static struct ag_device display_device;
 static struct ag_viewport display_viewport;
+static struct sp_theme desktop_ui_theme;
+static struct sp_context desktop_ui_context;
 static int display_ready;
 static int display_attempted;
 struct desktop_bmp_asset {
@@ -74,6 +78,29 @@ static void draw_bmp_cover(const struct bmp_info *info, unsigned int length) {
     }
 }
 
+static void desktop_ui_draw_text(struct ag_surface *surface, int32_t x,
+                                 int32_t y, const char *text, uint32_t color) {
+    int scale;
+    if (!surface || !text) return;
+    scale = surface->width >= 960 ? 2 : 1;
+    for (unsigned int i = 0; text[i]; ++i) {
+        const uint8_t *glyph = font5x7_glyph(text[i]);
+        for (int gy = 0; gy < 7; ++gy) {
+            for (int gx = 0; gx < 5; ++gx) {
+                if (glyph[gy] & (1u << (4 - gx)))
+                    ag_fill_rect(0, surface, x + gx * scale, y + gy * scale,
+                                 scale, scale, color);
+            }
+        }
+        x += 6 * scale;
+        if (x >= surface->width) break;
+    }
+}
+
+struct sp_context *desktop_gfx_ui_context(void) {
+    return display_ready ? &desktop_ui_context : 0;
+}
+
 int desktop_gfx_active(void) {
     return display_ready;
 }
@@ -115,6 +142,11 @@ int desktop_gfx_init(void) {
     }
 
     display_ready = 1;
+    sp_theme_default(&desktop_ui_theme);
+    desktop_ui_context.device = &display_device;
+    desktop_ui_context.surface = &display_surface;
+    desktop_ui_context.theme = &desktop_ui_theme;
+    desktop_ui_context.draw_text = desktop_ui_draw_text;
     ag_clear(&display_surface, 0x00131A2A);
 
     /* Optional system-volume artwork. BOOT.BMP is shown once; WALL.BMP

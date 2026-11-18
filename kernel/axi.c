@@ -1,5 +1,9 @@
 #include "kernel.h"
 #include "../include/axi.h"
+#include "../include/desktop_gfx.h"
+#include "../include/sprunkui.h"
+
+void desktop_present_app(void);
 
 #define AXK_SLOTS 4
 #define AXK_TITLE_MAX 24
@@ -119,6 +123,8 @@ static u32 axk_alive(u32 handle) {
 static void axk_mouse(void) {
     i32 mx = (i32)cursor_x, my = (i32)cursor_y;
     u8 b = mouse_buttons;
+    if (desktop_gfx_active())
+        (void)desktop_gfx_map_pointer(cursor_norm_x, cursor_norm_y, &mx, &my);
     if ((b & 1) && !(axk_prev_buttons & 1)) {
         for (int i = AXK_SLOTS - 1; i >= 0; i--) {
             struct axk_win *w = &axk_wins[i];
@@ -170,8 +176,99 @@ static void axk_draw(void) {
     }
 }
 
+static int axk_is_terminal(const char *title) {
+    static const char name[] = "Terminal";
+    int i;
+    for (i = 0; name[i] && title[i] == name[i]; ++i) {}
+    return name[i] == 0 && title[i] == 0;
+}
+
+void axi_gfx_render(void) {
+    struct sp_context *ui = desktop_gfx_ui_context();
+    int32_t sw, sh;
+    if (!ui || !ui->surface || !ui->theme) return;
+    sw = ui->surface->width;
+    sh = ui->surface->height;
+
+    for (int k = 0; k < AXK_SLOTS; ++k) {
+        struct axk_win *w = &axk_wins[k];
+        int32_t x, y, width, height, title_h, body_h, body_rows;
+        if (!w->used || !w->open) continue;
+
+        x = (w->x * sw) / VGA_COLS;
+        y = (w->y * sh) / VGA_ROWS;
+        width = ((w->x + w->w) * sw + VGA_COLS - 1) / VGA_COLS - x;
+        height = ((w->y + w->h) * sh + VGA_ROWS - 1) / VGA_ROWS - y;
+        if (width < 40 || height < 30) continue;
+
+        title_h = sh / VGA_ROWS;
+        if (title_h < 12) title_h = 12;
+        if (title_h > height / 2) title_h = height / 2;
+        body_h = height - title_h;
+        body_rows = w->h - 1;
+        if (body_rows <= 0 || body_h <= 0) continue;
+
+        sp_panel(ui, x, y, width, height);
+        sp_button(ui, x + 3, y + 2, width - 34, title_h - 4,
+                  w->title, 1);
+        sp_badge(ui, x + width - 28, y + 2, "X",
+                 ui->theme->color.danger);
+        sp_separator(ui, x + 4, y + title_h, width - 8);
+
+        for (int row = 0; row < body_rows; ++row) {
+            char line[AX_MAX_BODY_W + 1];
+            int last = w->w;
+            int selected = 0, muted = 0;
+            int32_t row_y = y + title_h + (row * body_h) / body_rows;
+            int32_t row_end = y + title_h + ((row + 1) * body_h) / body_rows;
+            int32_t row_h = row_end - row_y;
+            for (int col = 0; col < w->w; ++col) {
+                u16 entry = w->body[row * AX_MAX_BODY_W + col];
+                unsigned char ch = (unsigned char)(entry & 0xFFu);
+                unsigned char attr = (unsigned char)(entry >> 8);
+                line[col] = (ch >= 32 && ch < 127) ? (char)ch : ' ';
+                if (col == 0) {
+                    selected = attr == 0x1Fu;
+                    muted = attr == 0x78u;
+                }
+            }
+            if (last > AX_MAX_BODY_W) last = AX_MAX_BODY_W;
+            while (last > 0 && line[last - 1] == ' ') --last;
+            line[last] = 0;
+            if (row_h <= 0 || !last) continue;
+
+            if (axk_is_terminal(w->title) && row == body_rows - 1) {
+                sp_text_field(ui, x + 4, row_y + 1, width - 8,
+                              row_h - 2, line, 1);
+            } else if (selected) {
+                sp_list_item(ui, x + 4, row_y, width - 8, row_h,
+                             line, 0, 1);
+            } else {
+                sp_label(ui, x + 8,
+                         row_y + (row_h > 7 ? (row_h - 7) / 2 : 0),
+                         line, muted);
+            }
+        }
+    }
+
+    /* Draw the pointer last so app windows do not cover it. */
+    {
+        int32_t mx = (int32_t)cursor_x, my = (int32_t)cursor_y;
+        if (desktop_gfx_map_pointer(cursor_norm_x, cursor_norm_y, &mx, &my) == 0) {
+            int32_t px = (mx * sw) / VGA_COLS;
+            int32_t py = (my * sh) / VGA_ROWS;
+            ag_fill_rect(ui->device, ui->surface, px, py, 3, 13, 0x000000);
+            ag_fill_rect(ui->device, ui->surface, px + 1, py + 1, 1, 10, 0x00FFFFFF);
+        }
+    }
+}
+
 static u32 axk_present(void) {
     axk_mouse();
+    if (desktop_gfx_active()) {
+        desktop_present_app();
+        if (desktop_gfx_active()) return 0;
+    }
     axk_draw();
     return 0;
 }

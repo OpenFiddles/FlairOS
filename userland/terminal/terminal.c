@@ -26,6 +26,7 @@ static unsigned int input_len, cursor;
 static char history[HISTORY][INPUT_MAX + 1];
 static unsigned int history_count, history_next;
 static int history_pos = -1;
+static int exit_requested;
 
 static void log_line(const char *s) {
     unsigned int i = 0;
@@ -55,8 +56,17 @@ static void draw(void) {
     memset(line, 0, sizeof(line));
     line[0] = '>';
     line[1] = ' ';
-    for (i = 0; i < input_len && i < TERM_COLS - 3; ++i)
-        line[i + 2] = input[i];
+    {
+        unsigned int out = 2;
+        line[0] = '>';
+        line[1] = ' ';
+        for (i = 0; i < input_len && out < TERM_COLS; ++i) {
+            if (i == cursor && out < TERM_COLS) line[out++] = '|';
+            if (out < TERM_COLS) line[out++] = input[i];
+        }
+        if (cursor == input_len && out < TERM_COLS) line[out++] = '|';
+        line[out] = 0;
+    }
     ax_text(win, TERM_ROWS - 1, 0, ATTR_INPUT, line);
     ax_present();
 }
@@ -93,6 +103,81 @@ static void load_history(int direction) {
     input_len = cursor = n;
 }
 
+static void cat_file(const char *name) {
+    unsigned int h = fs_open(name, FS_READ);
+    char chunk[128], line[INPUT_MAX + 1];
+    unsigned int used = 0, got;
+    if (h == FS_FAIL) {
+        log_line("cat: cannot open file");
+        return;
+    }
+    for (;;) {
+        got = fs_read(h, chunk, sizeof(chunk));
+        if (got == FS_FAIL) {
+            log_line("cat: read failed");
+            break;
+        }
+        if (!got) break;
+        for (unsigned int i = 0; i < got; ++i) {
+            char ch = chunk[i];
+            if (ch == '\r') continue;
+            if (ch == '\n') {
+                line[used] = 0;
+                log_line(line);
+                used = 0;
+                continue;
+            }
+            if (used == INPUT_MAX) {
+                line[used] = 0;
+                log_line(line);
+                used = 0;
+            }
+            line[used++] = ch;
+        }
+    }
+    if (used) {
+        line[used] = 0;
+        log_line(line);
+    }
+    fs_close(h);
+}
+
+static void log_file_size(const char *name) {
+    unsigned int h = fs_open(name, FS_READ);
+    unsigned int size, value, digits_count = 0, n = 0;
+    char digits[11], out[INPUT_MAX + 1];
+    if (h == FS_FAIL) {
+        log_line("size: cannot open file");
+        return;
+    }
+    size = fs_size(h);
+    fs_close(h);
+    if (size == FS_FAIL) {
+        log_line("size: unable to read size");
+        return;
+    }
+    while (name[n] && n < INPUT_MAX - 16) {
+        out[n] = name[n];
+        ++n;
+    }
+    out[n++] = ':';
+    out[n++] = ' ';
+    value = size;
+    do {
+        digits[digits_count++] = (char)('0' + value % 10u);
+        value /= 10u;
+    } while (value && digits_count < sizeof(digits));
+    while (digits_count) out[n++] = digits[--digits_count];
+    out[n++] = ' ';
+    out[n++] = 'b';
+    out[n++] = 'y';
+    out[n++] = 't';
+    out[n++] = 'e';
+    out[n++] = 's';
+    out[n] = 0;
+    log_line(out);
+}
+
 static unsigned int number(const char *s) {
     unsigned int n = 0;
     if (!*s) return 0xFFFFFFFFu;
@@ -117,8 +202,8 @@ static void command(void) {
     }
     if (!argc) return;
     if (same(arg[0], "help")) {
-        log_line("Commands: help clear echo uptime beep");
-        log_line("          ls cat NAME rm NAME touch NAME");
+        log_line("help clear echo uptime beep ls pwd exit");
+        log_line("cat NAME size NAME rm NAME mv OLD NEW touch NAME");
     } else if (same(arg[0], "clear")) {
         log_count = 0;
     } else if (same(arg[0], "echo")) {
@@ -147,22 +232,24 @@ static void command(void) {
         char name[FS_NAME_MAX + 1];
         for (i = 0; i < FS_FILES; ++i)
             if (fs_list(i, name) != FS_FAIL) log_line(name);
+    } else if (same(arg[0], "pwd")) {
+        log_line("/");
     } else if (same(arg[0], "cat") && argc > 1) {
-        char data[INPUT_MAX + 1];
-        unsigned int h = fs_open(arg[1], FS_READ), got;
-        if (h == FS_FAIL) log_line("cat: cannot open file");
-        else {
-            got = fs_read(h, data, INPUT_MAX);
-            fs_close(h);
-            if (got == FS_FAIL) log_line("cat: read failed");
-            else { data[got] = 0; log_line(data); }
-        }
+        cat_file(arg[1]);
+    } else if (same(arg[0], "size") && argc > 1) {
+        log_file_size(arg[1]);
     } else if (same(arg[0], "rm") && argc > 1) {
         log_line(fs_delete(arg[1]) == FS_FAIL ? "rm: failed" : "File deleted.");
+    } else if (same(arg[0], "mv") && argc > 2) {
+        log_line(fs_rename(arg[1], arg[2]) == FS_FAIL
+                 ? "mv: rename failed" : "File renamed.");
     } else if (same(arg[0], "touch") && argc > 1) {
         unsigned int h = fs_open(arg[1], FS_WRITE);
         if (h == FS_FAIL) log_line("touch: failed");
         else { fs_close(h); log_line("File created."); }
+    } else if (same(arg[0], "exit")) {
+        log_line("Closing Terminal.");
+        exit_requested = 1;
     } else {
         log_line("Unknown command. Type help.");
     }
@@ -200,9 +287,10 @@ void app_main(void) {
     int key, arrow;
     win = ax_open(12, 3, TERM_COLS, TERM_ROWS, "Terminal");
     if (win == AX_FAIL) return;
-    log_line("FlareOS Terminal - userland shell");
-    log_line("Type help to list commands.");
-    while (ax_alive(win)) {
+    exit_requested = 0;
+    log_line("FlairOS Terminal");
+    log_line("Type help to see available commands.");
+    while (ax_alive(win) && !exit_requested) {
         draw();
         key = (int)ax_call(SYS_GETKEY, 0, 0, 0);
         if (key > 0) on_char(key);

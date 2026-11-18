@@ -9,10 +9,16 @@ disk image. Stage 1 probes its AIRP magic and only reads the remaining sectors
 when the package is present.
 
 Choose **Python** from the desktop Start menu, or type `python` in the text
-shell. The interpreter uses a 384 KiB garbage-collected heap allocated through
+shell. From the AirGraph pixel desktop, the Start menu temporarily switches to
+the VGA text console for the REPL and restores the pixel desktop after
+`flareos.exit()`. The interpreter uses a 384 KiB garbage-collected heap allocated through
 `SYS_BRK`, with a 12 KiB stack-check limit. It exposes the FlareOS display,
 keyboard, pointer, timer, speaker, and filesystem APIs through `import flareos`.
 Use `flareos.exit()` to leave the REPL and return to the desktop.
+
+For browser testing, open `web/index.html`, select **Load local boot image**,
+and choose `build/textile-python.img` after running `make python-image`. The
+image is passed directly to v86 in the browser; it is not uploaded to the site.
 
 This is a minimal MicroPython port, not CPython. VFS imports, POSIX, sockets,
 threads, and CPython extension modules are not enabled. The separate experimental CI job is currently manual-only: the interpreter

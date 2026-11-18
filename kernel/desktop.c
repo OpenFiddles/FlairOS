@@ -19,8 +19,12 @@
 #define START_MENU_W 25
 #define START_MENU_H 7
 #define EXPLORER_STAGE ((const u8 *)0x34000)
-#define EXPLORER_STAGE_LEN 4608
+#define EXPLORER_STAGE_LEN (32u * 512u)
+#define TERMINAL_STAGE ((const u8 *)0x38000)
+#define TERMINAL_STAGE_LEN (64u * 512u)
 #define APP_STACK_TOP 0x7F000u
+
+void axi_gfx_render(void);
 
 int airp_load(const u8 *file, u32 len, u32 *entry);
 void enter_user(u32 entry, u32 user_esp);
@@ -142,6 +146,23 @@ static void open_win(int k) {
     serial_str("desktop: open ");
     serial_str(log_name[k]);
     serial_str("\n");
+}
+
+static void launch_terminal(void) {
+    u32 entry = 0;
+    if (airp_load(TERMINAL_STAGE, TERMINAL_STAGE_LEN, &entry) != 0) {
+        serial_str("desktop: terminal.airp did not load\n");
+        return;
+    }
+    serial_str("desktop: open terminal\n");
+    vm_run_app(entry, APP_STACK_TOP);
+}
+
+static void activate_win(int k) {
+    if (k == WIN_TERM)
+        launch_terminal();
+    else
+        open_win(k);
 }
 
 static void launch_explorer(void) {
@@ -273,15 +294,13 @@ static void draw_start_menu(void) {
 
 static void start_select(int item) {
     start_open = 0;
-    if (item >= 0 && item < WIN_COUNT) open_win(item);
+    if (item >= 0 && item < WIN_COUNT) activate_win(item);
     else if (item == WIN_COUNT) launch_explorer();
     else if (item == WIN_COUNT + 1) {
-        if (desktop_gfx_active()) {
-            open_win(WIN_TERM);
-            terminal_exec("echo Python needs a pixel-native app; legacy VGA app disabled");
-        } else {
-            run_micropython();
-        }
+        int restore_pixel_desktop = desktop_gfx_active();
+        if (restore_pixel_desktop) desktop_gfx_shutdown();
+        run_micropython();
+        if (restore_pixel_desktop) desktop_gfx_init();
     }
     serial_str("desktop: start menu select ");
     log_point("item", item + 1, 0);
@@ -334,10 +353,16 @@ static void draw_frame(void) {
     draw_taskbar();
     draw_start_menu();
     draw_cursor();
-    if (desktop_gfx_active() && desktop_gfx_present(back, VGA_COLS, VGA_ROWS) == 0)
+    if (desktop_gfx_active() && desktop_gfx_present(back, VGA_COLS, VGA_ROWS) == 0) {
+        axi_gfx_render();
         return;
+    }
     for (int i = 0; i < VGA_ROWS * VGA_COLS; i++)
         VGA_MEM[i] = back[i];
+}
+
+void desktop_present_app(void) {
+    draw_frame();
 }
 
 static void click(i32 mx, i32 my) {
@@ -357,7 +382,7 @@ static void click(i32 mx, i32 my) {
     }
     if (my == TASK_ROW) {
         for (int i = 0; i < WIN_COUNT; i++)
-            if (mx >= btn_col(i) && mx < btn_col(i) + 9) { open_win(i); return; }
+            if (mx >= btn_col(i) && mx < btn_col(i) + 9) { activate_win(i); return; }
         return;
     }
     int k = window_at(mx, my);
@@ -384,7 +409,7 @@ static void click(i32 mx, i32 my) {
         return;
     }
     for (int i = 0; i < WIN_COUNT; i++)
-        if (mx >= 2 && mx <= 10 && my == icon_row[i]) { open_win(i); return; }
+        if (mx >= 2 && mx <= 10 && my == icon_row[i]) { activate_win(i); return; }
     if (mx >= 2 && mx <= 10 && my == FILES_ROW) { launch_explorer(); return; }
 }
 

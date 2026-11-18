@@ -1,15 +1,17 @@
-; Stage 1 boot sector: loads Stage 2 (LBA 1..4) to 0x0000:0x9000,
-; the kernel (LBA 5..260) to 0x10000, the app (LBA 261..388) to 0x40000,
-; Explorer (LBA 389..397) to 0x34000, and optional MicroPython (LBA 2623..2879)
-; to 0x60000.
+; Stage 1 loads Explorer and Terminal from reserved sectors after filesystem
+; data (LBA 2447..2542), stages them below TX_APP_BASE, and probes optional
+; MicroPython at LBA 2623..2879. The primary filesystem occupies LBA 398..2446.
 [BITS 16]
 [ORG 0x7C00]
 
 STAGE2_SECTORS equ 4
 KERNEL_SECTORS equ 256
 APP_SECTORS    equ 128
-EXPLORER_SECTORS equ 9
-PYTHON_SECTORS  equ 257
+EXPLORER_LBA     equ 2447
+EXPLORER_SECTORS equ 32
+TERMINAL_LBA     equ 2479
+TERMINAL_SECTORS equ 64
+PYTHON_SECTORS   equ 257
 
 start:
     cli
@@ -46,16 +48,26 @@ start:
     mov word [remaining], APP_SECTORS
     call load_range
 
-    ; Load explorer.airp to 0x3400:0x0000 (Physical 0x34000)
+    ; Load explorer.airp to 0x3400:0x0000 (Physical 0x34000).
+    ; Its 16 KiB staging buffer ends at 0x38000.
     mov ax, 0x3400
     mov es, ax
-    mov word [lba], 389
+    mov word [lba], EXPLORER_LBA
     mov word [offset], 0
     mov word [remaining], EXPLORER_SECTORS
     call load_range
 
-    ; Probe the optional MicroPython AIRP slot. Only load the remaining 256
-    ; sectors when its first sector contains the AIRP magic.
+    ; Load terminal.airp to 0x3800:0x0000 (Physical 0x38000).
+    ; Its 32 KiB staging buffer ends at TX_APP_BASE (0x40000).
+    mov ax, 0x3800
+    mov es, ax
+    mov word [lba], TERMINAL_LBA
+    mov word [offset], 0
+    mov word [remaining], TERMINAL_SECTORS
+    call load_range
+
+    ; Probe the optional MicroPython AIRP slot. Only load the remaining sectors
+    ; when its first sector contains the AIRP magic.
     mov ax, 0x6000
     mov es, ax
     mov word [lba], 2623

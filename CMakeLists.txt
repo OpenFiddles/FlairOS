@@ -85,12 +85,19 @@ function(airos_app name src max_bytes pad)
 endfunction()
 
 airos_app(app ${CMAKE_SOURCE_DIR}/userland/app.c 65536 TRUE)
-airos_app(explorer ${CMAKE_SOURCE_DIR}/userland/explorer.c 65536 FALSE)
+airos_app(explorer ${CMAKE_SOURCE_DIR}/userland/explorer.c 16348 FALSE)
+airos_app(terminal ${CMAKE_SOURCE_DIR}/userland/terminal/terminal.c 32732 FALSE)
 airos_app(win_app ${CMAKE_SOURCE_DIR}/userland/win_app.c 65536 TRUE)
 
 add_custom_command(OUTPUT ${B}/explorer.airp
   COMMAND ${AIROS_PYTHON} ${CMAKE_SOURCE_DIR}/tools/airpack.py ${B}/explorer.bin ${B}/explorer.airp explorer
+  COMMAND sh -c "test $(stat -c %s ${B}/explorer.airp) -le 16384"
   DEPENDS ${B}/explorer.bin ${CMAKE_SOURCE_DIR}/tools/airpack.py VERBATIM)
+
+add_custom_command(OUTPUT ${B}/terminal.airp
+  COMMAND ${AIROS_PYTHON} ${CMAKE_SOURCE_DIR}/tools/airpack.py ${B}/terminal.bin ${B}/terminal.airp terminal
+  COMMAND sh -c "test $(stat -c %s ${B}/terminal.airp) -le 32768"
+  DEPENDS ${B}/terminal.bin ${CMAKE_SOURCE_DIR}/tools/airpack.py VERBATIM)
 
 add_custom_command(OUTPUT ${B}/textile.img
   COMMAND dd if=/dev/zero of=${B}/textile.img bs=512 count=2880 status=none
@@ -98,8 +105,9 @@ add_custom_command(OUTPUT ${B}/textile.img
   COMMAND dd if=${B}/stage2.bin of=${B}/textile.img bs=512 seek=1 count=4 conv=notrunc status=none
   COMMAND dd if=${B}/kernel.bin of=${B}/textile.img bs=512 seek=5 count=256 conv=notrunc status=none
   COMMAND dd if=${B}/app.bin of=${B}/textile.img bs=512 seek=261 count=128 conv=notrunc status=none
-  COMMAND dd if=${B}/explorer.airp of=${B}/textile.img bs=512 seek=389 count=9 conv=notrunc status=none
-  DEPENDS ${B}/stage1.bin ${B}/stage2.bin ${B}/kernel.bin ${B}/app.bin ${B}/explorer.airp VERBATIM)
+  COMMAND dd if=${B}/explorer.airp of=${B}/textile.img bs=512 seek=2447 count=32 conv=notrunc status=none
+  COMMAND dd if=${B}/terminal.airp of=${B}/textile.img bs=512 seek=2479 count=64 conv=notrunc status=none
+  DEPENDS ${B}/stage1.bin ${B}/stage2.bin ${B}/kernel.bin ${B}/app.bin ${B}/explorer.airp ${B}/terminal.airp VERBATIM)
 
 add_custom_target(image ALL DEPENDS ${B}/textile.img)
 
