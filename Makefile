@@ -285,8 +285,13 @@ $(BUILD)/win-demo.img: $(BUILD)/stage1.bin $(BUILD)/stage2.bin $(BUILD)/kernel.b
 	dd if=$(BUILD)/kernel.bin of=$@ bs=512 seek=5 count=256 conv=notrunc status=none
 	dd if=$(BUILD)/win_app.bin of=$@ bs=512 seek=261 count=128 conv=notrunc status=none
 
-run: $(BUILD)/textile.img
-	$(QEMU) -fda $(BUILD)/textile.img -serial stdio -no-reboot
+$(BUILD)/storage.img: | $(BUILD)
+	truncate -s 31457280 $@
+
+storage-image: $(BUILD)/storage.img
+
+run: $(BUILD)/textile.img $(BUILD)/storage.img
+	$(QEMU) -fda $(BUILD)/textile.img -hda $(BUILD)/storage.img -serial stdio -no-reboot
 
 win-demo: $(BUILD)/win-demo.img
 	$(QEMU) -fda $(BUILD)/win-demo.img -serial stdio -no-reboot
@@ -334,7 +339,7 @@ test: $(BUILD)/textile.img $(BUILD)/livecd.iso $(BUILD)/bootcd.iso $(BUILD)/airg
 clean:
 	rm -rf $(BUILD)
 
-.PHONY: all run win-demo test clean livecd bootcd boot-media
+.PHONY: all run win-demo test clean livecd bootcd boot-media storage-image
 
 # --- SDK example app (built on request, not on the disk image) ---
 $(BUILD)/hello.o: examples/hello/hello.c sdk/flareos.h | $(BUILD)
