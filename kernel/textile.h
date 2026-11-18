@@ -32,6 +32,8 @@ enum tx_syscall {
 #define ARROW_LEFT 3
 #define ARROW_RIGHT 4
 
+enum tx_ease { EASE_LINEAR = 0, EASE_OUT_CUBIC = 1, EASE_IN_OUT = 2 };
+
 #define SYS_POINTER 29 /* eax = x | y << 8 | buttons << 16 */
 #define SYS_SCREEN 30 /* eax = cols | rows << 8 */
 #define SYS_BRK 34 /* ebx = new break (0 queries); returns the break, below the request on failure */
