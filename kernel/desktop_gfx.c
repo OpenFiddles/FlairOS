@@ -145,25 +145,48 @@ int desktop_gfx_init(void) {
         return 0;
     display_attempted = 1;
 
+#if defined(FLAIROS_DEBUG_BUILD)
+    serial_str("debug: AirGraph init stage 1/4: probing VBE framebuffer\\n");
+#endif
     if (!vbe_init(&display_fb, DISPLAY_WIDTH, DISPLAY_HEIGHT)) {
-        serial_str("display: fatal: framebuffer unavailable; refusing VGA desktop fallback\n");
+        serial_str("display: framebuffer initialization failed\\n");
+#if defined(FLAIROS_DEBUG_BUILD)
+        serial_str("debug: AirGraph stopped at VBE framebuffer probe/configuration\\n");
+#endif
         return 0;
     }
-
-    if (ag_device_init(&display_device, &display_fb, 0) != 0 ||
-        ag_surface_init(&display_surface, display_fb.base,
+#if defined(FLAIROS_DEBUG_BUILD)
+    serial_str("debug: AirGraph init stage 2/4: framebuffer validated\\n");
+#endif
+    if (ag_device_init(&display_device, &display_fb, 0) != 0) {
+        serial_str("display: AirGraph device initialization failed\\n");
+        vbe_text_mode();
+        return 0;
+    }
+#if defined(FLAIROS_DEBUG_BUILD)
+    serial_str("debug: AirGraph init stage 3/4: device ready\\n");
+#endif
+    if (ag_surface_init(&display_surface, display_fb.base,
                         display_fb.width, display_fb.height,
-                        display_fb.pitch, AG_PIXEL_XRGB8888) != 0 ||
-        ag_viewport_init_adaptive(&display_viewport,
+                        display_fb.pitch, AG_PIXEL_XRGB8888) != 0) {
+        serial_str("display: AirGraph surface initialization failed\\n");
+        ag_device_shutdown(&display_device);
+        vbe_text_mode();
+        return 0;
+    }
+    if (ag_viewport_init_adaptive(&display_viewport,
                                   display_fb.width, display_fb.height,
                                   VGA_COLS, VGA_ROWS,
                                   VGA_COLS, VGA_ROWS,
                                   AG_SCALE_STRETCH) != 0) {
+        serial_str("display: AirGraph viewport initialization failed\\n");
         ag_device_shutdown(&display_device);
         vbe_text_mode();
-        serial_str("display: fatal: AirGraph initialization failed; refusing VGA desktop fallback\n");
         return 0;
     }
+#if defined(FLAIROS_DEBUG_BUILD)
+    serial_str("debug: AirGraph init stage 4/4: surface and viewport ready\\n");
+#endif
 
     /* Render into RAM first, then copy a complete frame to the scanout buffer.
        If contiguous memory is unavailable, retain the direct-framebuffer path. */

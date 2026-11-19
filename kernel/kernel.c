@@ -1130,6 +1130,13 @@ void kmain(void) {
     micropython_stage_init();
     splash_progress(90, "Runtime components staged");
     irq_on();
+#if defined(FLAIROS_DEBUG_BUILD)
+    if (boot_mode() == FLAIR_BOOT_RECOVERY) {
+        serial_str("recovery: debug recovery boot selected; AirGraph disabled\\n");
+        recovery_run();
+        for (;;) text_shell_run();
+    }
+#endif
     if (boot_mode() == FLAIR_BOOT_SETUP)
         setup_run();
     if (!desktop_gfx_init())

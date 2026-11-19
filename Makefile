@@ -19,6 +19,8 @@ LD = ld
 OBJCOPY = objcopy
 QEMU ?= qemu-system-i386
 BUILD = build
+DEBUG ?= 0
+BOOT_MODE ?= 0
 
 DRV_SRCS = $(shell find drivers -type f -name '*.c' -print)
 DRV_OBJS = $(patsubst drivers/%.c,$(BUILD)/d_%.o,$(DRV_SRCS))
@@ -35,7 +37,11 @@ CFLAGS_DISPLAY =
 endif
 
 # Keep project headers discoverable for every kernel/driver translation unit.
-CFLAGS = -Iinclude -Ikernel $(CFLAGS_DISPLAY) $(ARCH_CFLAGS) -std=gnu99 -ffreestanding -mno-sse -mno-sse2 -mno-mmx -fno-pic -fno-stack-protector -fno-builtin -fno-common -fno-tree-loop-distribute-patterns -fcf-protection=none -fno-asynchronous-unwind-tables -Os -ffunction-sections -fdata-sections -Wall -Wextra
+ifeq ($(DEBUG),1)
+CFLAGS_DEBUG = -DFLAIROS_DEBUG_BUILD
+endif
+
+CFLAGS = -Iinclude -Ikernel $(CFLAGS_DISPLAY) $(CFLAGS_DEBUG) $(ARCH_CFLAGS) -std=gnu99 -ffreestanding -mno-sse -mno-sse2 -mno-mmx -fno-pic -fno-stack-protector -fno-builtin -fno-common -fno-tree-loop-distribute-patterns -fcf-protection=none -fno-asynchronous-unwind-tables -Os -ffunction-sections -fdata-sections -Wall -Wextra
 
 # Expanded to compile all the core kernel files visible in your tree
 OBJS = $(BUILD)/hal.o \
@@ -82,7 +88,7 @@ $(BUILD)/stage1.bin: bootloader/stage1.asm | $(BUILD)
 	$(AS) -f bin $< -o $@
 
 $(BUILD)/stage2.bin: bootloader/stage2.asm | $(BUILD)
-	$(AS) -f bin -D FORCE_BOOT_MODE=0 $< -o $@
+	$(AS) -f bin -D FORCE_BOOT_MODE=$(BOOT_MODE) $< -o $@
 	test `stat -c %s $@` -le 2048
 	truncate -s 2048 $@
 
@@ -306,6 +312,10 @@ bootcd: $(BUILD)/bootcd.iso
 
 boot-media: $(BUILD)/textile.img $(BUILD)/livecd.iso $(BUILD)/bootcd.iso
 
+# Isolated diagnostic image: its own output tree and recovery boot mode.
+debug-image:
+	$(MAKE) BUILD=build-debug DEBUG=1 BOOT_MODE=3 build-debug/textile.img
+
 # --- Window API demo: same image layout, app slot holds userland/win_app.c ---
 $(BUILD)/win_app.o: userland/win_app.c include/axi.h kernel/textile.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -388,7 +398,7 @@ test: $(BUILD)/textile.img $(BUILD)/livecd.iso $(BUILD)/bootcd.iso $(BUILD)/airg
 clean:
 	rm -rf $(BUILD)
 
-.PHONY: all run win-demo test clean livecd bootcd boot-media storage-image
+.PHONY: all run win-demo test clean livecd bootcd boot-media debug-image storage-image
 
 # --- SDK example app (built on request, not on the disk image) ---
 $(BUILD)/hello.o: examples/hello/hello.c sdk/flareos.h | $(BUILD)

@@ -96,3 +96,34 @@ int setup_run(void) {
         }
     }
 }
+
+
+/* Text-only recovery must not depend on the framebuffer or AirGraph. */
+int recovery_run(void) {
+    for (;;) {
+        clear_screen();
+        cur_attr = ATTR_ERR;
+        puts("FlairOS Debug Recovery\\n");
+        cur_attr = ATTR_TEXT;
+        puts("----------------------\\n");
+        puts("The previous boot entered recovery after a kernel panic.\\n");
+        puts("Graphics are disabled in this environment.\\n\\n");
+        puts("  1. Open diagnostic text console\\n");
+        puts("  2. Show hardware diagnostics\\n");
+        puts("  3. Reboot into recovery again\\n\\n");
+        puts("Choose an option: ");
+        int key = setup_wait_key();
+        if (key == '1') return 0;
+        if (key == '2') {
+            clear_screen();
+            setup_diagnostics();
+            puts("\\nPress any key to return to Recovery.\\n");
+            setup_wait_key();
+        } else if (key == '3') {
+            puts("\\nRebooting...\\n");
+            irq_off();
+            outb(0x64, 0xFE);
+            for (;;) halt();
+        }
+    }
+}
