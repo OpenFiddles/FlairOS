@@ -306,7 +306,7 @@ static void draw_start_menu(void) {
     if (!start_open) return;
     fill(START_MENU_Y, START_MENU_X, START_MENU_H, START_MENU_W, ' ', 0x70);
     fill(START_MENU_Y, START_MENU_X, 1, START_MENU_W, ' ', 0x1F);
-    text(START_MENU_Y, START_MENU_X + 2, "FlareOS", 0x1F, START_MENU_W - 4);
+    text(START_MENU_Y, START_MENU_X + 2, "FlairOS", 0x1F, START_MENU_W - 4);
     for (int i = 0; i < 7; i++)
         text(START_MENU_Y + 1 + i, START_MENU_X + 2, items[i], 0x70, START_MENU_W - 4);
     fill(START_MENU_Y + START_MENU_H - 1, START_MENU_X, 1, START_MENU_W, ' ', 0x17);
@@ -361,7 +361,7 @@ static void draw_cursor(void) {
 static void draw_frame(void) {
     fill(0, 0, TASK_ROW, VGA_COLS, BG_CHAR, BG_ATTR);
     fill(0, 0, 1, VGA_COLS, ' ', 0x1F);
-    text(0, 2, "FlareOS  |  Workspace 1", 0x1F, 26);
+    text(0, 2, "FlairOS  |  Workspace 1", 0x1F, 26);
     text(0, VGA_COLS - 16, "SYSTEM READY", 0x1F, 14);
     text(1, 3, "Applications", 0x1E, 12);
     for (int i = 0; i < WIN_COUNT; i++) {
