@@ -7,7 +7,7 @@ edit_uri: edit/main/docs/
 theme:
   name: material
   features:
-    - AIRP: AIRP.md\n  - navigation.instant
+    - navigation.instant
     - navigation.sections
     - navigation.top
     - search.suggest
@@ -43,6 +43,7 @@ nav:
       - Boot Media: BOOT_MEDIA.md
       - Pancake / PCK: PANCAKE.md
   - App Development:
+      - AIRP Applications: AIRP.md
       - SDK: SDK.md
       - C Library: LIBC.md
   - Project Notes:

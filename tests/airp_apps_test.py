@@ -16,7 +16,7 @@ if len(sys.argv) != 3:
 for path in map(pathlib.Path, sys.argv[1:]):
     raw = path.read_bytes()
     magic, version, header_size, api, base, entry, image_size, name = HEADER.unpack_from(raw)
-    label = name.split(b"\\0", 1)[0].decode("ascii")
+    label = name.split(bytes([0]), 1)[0].decode("ascii")
     assert label in EXPECTED, f"unexpected AIRP name: {label}"
     assert magic == MAGIC and version == 1 and header_size == HEADER.size
     assert api == 2, f"{label}: expected API level 2, got {api}"
