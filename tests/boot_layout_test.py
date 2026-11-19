@@ -100,11 +100,11 @@ assert avail + bitmap_bytes <= managed
 assert managed + bitmap_bytes <= reserved
 assert reserved + bitmap_bytes <= 0x86000
 def stage_address(name):
-    return number(rf"#define {name}_STAGE\\s+\\(\\(const u8 \\*\\)(0x[0-9A-Fa-f]+)\\)",
+    return number(rf"#define {name}_STAGE\s+\(\(const u8 \*\)(0x[0-9A-Fa-f]+)\)",
                   desktop, f"{name} staging address")
 
 def stage_sectors(name):
-    return number(rf"#define {name}_STAGE_LEN\\s+\\((\\d+)u \\* 512u\\)",
+    return number(rf"#define {name}_STAGE_LEN\s+\((\d+)u \* 512u\)",
                   desktop, f"{name} staging size")
 
 settings_base, notes_base = stage_address("SETTINGS"), stage_address("NOTES")
