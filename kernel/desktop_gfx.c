@@ -268,7 +268,7 @@ int desktop_gfx_draw_window(int x, int y, int width, int height,
 int desktop_gfx_draw_shell(int start_open, const char *clock_text) {
     struct ag_surface *surface = desktop_render_surface();
     struct sp_context *ui = &desktop_ui_context;
-    int cw, ch, w, h, bar_y;
+    int cw, ch, sx, sy, w, h, bar_y;
     static const int icon_rows[4] = {2, 4, 6, 10};
     static const char *const labels[4] = {"Welcome", "Clock", "Terminal", "Files"};
     static const char *const menu[7] = {
@@ -279,41 +279,43 @@ int desktop_gfx_draw_shell(int start_open, const char *clock_text) {
     h = surface->height;
     cw = w / VGA_COLS;
     ch = h / VGA_ROWS;
+    sx = w / 800; if (sx < 1) sx = 1;
+    sy = h / 600; if (sy < 1) sy = 1;
     if (cw < 1 || ch < 1) return -1;
 
-    /* Keep hit targets aligned with the desktop's logical pointer grid. */
-    sp_panel(ui, 12*cw, 4, w-24*cw, ch-8);
-    sp_label(ui, 28*cw, ch/2-3, "FlairOS", 0);
-    sp_label(ui, 112*cw, ch/2-3, "Workspace 1", 1);
-    sp_badge(ui, w-132*cw, 2, "SYSTEM READY", ui->theme->color.success);
+    /* Keep interactive tiles aligned with the desktop's logical pointer grid. */
+    sp_panel(ui, 12*sx, 10*sy, w-24*sx, 42*sy);
+    sp_label(ui, 28*sx, 27*sy, "FlairOS", 0);
+    sp_label(ui, 112*sx, 27*sy, "Workspace 1", 1);
+    sp_badge(ui, w-124, 20*sy, "SYSTEM READY", ui->theme->color.success);
 
-    /* Launch tiles sit directly over their matching desktop click regions. */
     for (int i=0; i<4; ++i) {
-        int y = icon_rows[i]*ch + 2;
-        sp_card(ui, 2*cw, y, 9*cw, ch-4);
-        ag_round_rect(ui->device, surface, 2*cw+6, y+(ch-12)/2,
-                      12, 12, 4, i==0?0x007C83FF:
-                      (i==1?0x000F9D8A:(i==2?0x00D97757:0x006B8AC7)));
-        sp_label(ui, 2*cw+26, y+(ch-7)/2, labels[i], 0);
+        int y = icon_rows[i]*ch + 2*sy;
+        sp_card(ui, 2*cw, y, 9*cw, ch-4*sy);
+        ag_round_rect(ui->device, surface, 2*cw+6*sx,
+                      y+(ch-12*sy)/2, 12*sx, 12*sy, 4*sx,
+                      i==0?0x007C83FF:(i==1?0x000F9D8A:
+                      (i==2?0x00D97757:0x006B8AC7)));
+        sp_label(ui, 2*cw+26*sx, y+(ch-7*sy)/2, labels[i], 0);
     }
 
-    /* The taskbar is aligned to TASK_ROW, so its visible Start button is clickable. */
+    /* Taskbar controls now occupy the same bottom grid row as their hit tests. */
     bar_y = (VGA_ROWS-1)*ch;
-    sp_panel(ui, 12*cw, bar_y+2, w-24*cw, ch-4);
-    sp_button(ui, 2*cw, bar_y+4, 8*cw, ch-8, "Start", 1);
-    sp_label(ui, 12*cw, bar_y+(ch-7)/2, "Hello   Clock   Terminal", 1);
-    if (clock_text) sp_label(ui, w-104, bar_y+(ch-7)/2, clock_text, 0);
+    sp_panel(ui, 12*sx, bar_y+2*sy, w-24*sx, ch-4*sy);
+    sp_button(ui, 2*cw, bar_y+4*sy, 8*cw, ch-8*sy, "Start", 1);
+    sp_label(ui, 12*cw, bar_y+(ch-7*sy)/2, "Hello   Clock   Terminal", 1);
+    if (clock_text) sp_label(ui, w-72, bar_y+(ch-7*sy)/2, clock_text, 0);
 
     if (start_open) {
-        int menu_x = 1*cw;
-        int menu_y = (VGA_ROWS-9-1)*ch;
-        sp_panel(ui, menu_x, menu_y, 25*cw, START_MENU_H*ch);
-        sp_label(ui, menu_x+2*cw, menu_y+(ch-7)/2, "Applications", 0);
+        int menu_x = cw;
+        int menu_y = (VGA_ROWS-10)*ch;
+        sp_panel(ui, menu_x, menu_y, 25*cw, 9*ch);
+        sp_label(ui, menu_x+2*cw, menu_y+(ch-7*sy)/2, "Applications", 0);
         sp_separator(ui, menu_x+cw, menu_y+ch, 23*cw);
         for (int i=0; i<7; ++i)
             sp_list_item(ui, menu_x+cw, menu_y+(i+1)*ch,
-                         (START_MENU_W-2)*cw, ch, menu[i], 0, 0);
-        sp_label(ui, menu_x+2*cw, menu_y+8*ch+(ch-7)/2,
+                         23*cw, ch, menu[i], 0, 0);
+        sp_label(ui, menu_x+2*cw, menu_y+8*ch+(ch-7*sy)/2,
                  "Tab / Esc to close", 1);
     }
     return 0;
