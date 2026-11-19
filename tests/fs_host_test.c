@@ -11,6 +11,9 @@ PURPOSE: Host-side checks for the FlareOS filesystem. Compiles kernel/fs.c direc
 #define puts fsk_test_puts
 #include "../kernel/fs.c"
 
+/* Filesystem host tests do not exercise kernel serial output. */
+void serial_str(const char *text) { (void)text; }
+
 /* The host harness tests the persistent-disk path, not LiveCD mode. */
 int boot_is_live_session(void) { return 0; }
 
