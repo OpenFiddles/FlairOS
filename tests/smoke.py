@@ -43,6 +43,7 @@ def boot(tag, cmds):
         # The kernel now boots directly into the desktop. Wait for that state
         # before asking it to switch to the developer shell; a fixed delay can
         # send the shortcut during the VBE splash and leave it pending.
+        wait_for(log, 'display: AirGraph pixel desktop active')
         wait_for(log, 'desktop: start')
         mon.sendall(b'sendkey ctrl-alt-d\n')
         wait_for(log, 'desktop: open terminal')
@@ -74,6 +75,8 @@ text2 = boot('reboot', ['load note'])
 
 checks = [
     ('kernel banner', 'FlareOS 0.3'),
+    ('AirGraph pixel desktop initializes', 'display: AirGraph pixel desktop active'),
+    ('desktop never falls back to VGA', 'VGA recovery mode active' not in text),
     ('desktop boots first', 'desktop: start'),
     ('ctrl+alt+d opens the desktop Terminal', 'desktop: open terminal'),
     ('help list', 'Commands:'),

@@ -46,6 +46,13 @@ jobs:
           test -s build/livecd.iso
           test -s build/bootcd.iso
 
+      - name: Validate LiveCD and Setup boot media
+        run: python3 tests/boot_media_test.py build/livecd.iso build/bootcd.iso
+
+      - name: QEMU desktop and filesystem smoke (diagnostic)
+        continue-on-error: true
+        run: python3 tests/smoke.py build/textile.img
+
       - name: Validate built-in Settings and Notes AIRP packages
         run: python3 tests/airp_apps_test.py build/settings.airp build/notes.airp
 
