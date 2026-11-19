@@ -1,5 +1,6 @@
 #include "kernel.h"
 #include "../include/desktop_gfx.h"
+#include "../include/fs.h"
 #include "../include/desktop_render.h"
 #include "../include/desktop_chrome.h"
 #include "../include/vbe.h"
@@ -187,6 +188,11 @@ int desktop_gfx_init(void) {
 
     display_ready = 1;
     sp_theme_default(&desktop_ui_theme);
+    {
+        unsigned char accent = 0;
+        if (fs_kernel_read_file("UI.CFG", &accent, 1) == 1 && accent <= 1)
+            desktop_ui_theme.color.accent = accent ? 0x000F9D8Au : 0x007C83FFu;
+    }
     desktop_ui_context.device = &display_device;
     desktop_ui_context.surface = desktop_render_surface();
     desktop_ui_context.theme = &desktop_ui_theme;
