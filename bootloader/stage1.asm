@@ -1,5 +1,5 @@
-; Stage 1 loads Explorer and Terminal from reserved sectors after filesystem
-; data (LBA 2447..2542), stages them below TX_APP_BASE, and probes optional
+; Stage 1 loads built-in AIRP apps from reserved sectors after filesystem data
+; (LBA 2447..2590), stages them below TX_APP_BASE, and probes optional
 ; MicroPython at LBA 2623..2879. The primary filesystem occupies LBA 398..2446.
 [BITS 16]
 [ORG 0x7C00]
@@ -11,6 +11,10 @@ EXPLORER_LBA     equ 2447
 EXPLORER_SECTORS equ 32
 TERMINAL_LBA     equ 2479
 TERMINAL_SECTORS equ 64
+SETTINGS_LBA     equ 2543
+SETTINGS_SECTORS equ 32
+NOTES_LBA        equ 2575
+NOTES_SECTORS    equ 16
 PYTHON_SECTORS   equ 257
 
 start:
@@ -48,9 +52,9 @@ start:
     mov word [remaining], APP_SECTORS
     call load_range
 
-    ; Load explorer.airp to 0x3400:0x0000 (Physical 0x34000).
-    ; Its 16 KiB staging buffer ends at 0x38000.
-    mov ax, 0x3400
+    ; Load explorer.airp to 0x9000:0x0000 (Physical 0x90000),
+    ; separate from the contiguous built-in app staging region below 0x40000.
+    mov ax, 0x9000
     mov es, ax
     mov word [lba], EXPLORER_LBA
     mov word [offset], 0
@@ -64,6 +68,22 @@ start:
     mov word [lba], TERMINAL_LBA
     mov word [offset], 0
     mov word [remaining], TERMINAL_SECTORS
+    call load_range
+
+    ; Load Settings AIRP at physical 0x30000.
+    mov ax, 0x3000
+    mov es, ax
+    mov word [lba], SETTINGS_LBA
+    mov word [offset], 0
+    mov word [remaining], SETTINGS_SECTORS
+    call load_range
+
+    ; Load Notes AIRP at physical 0x34000.
+    mov ax, 0x3400
+    mov es, ax
+    mov word [lba], NOTES_LBA
+    mov word [offset], 0
+    mov word [remaining], NOTES_SECTORS
     call load_range
 
     ; Probe the optional MicroPython AIRP slot. Only load the remaining sectors

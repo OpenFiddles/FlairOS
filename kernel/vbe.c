@@ -22,8 +22,8 @@
 
 #define MIN_W 320
 #define MIN_H 200
-#define HARD_MAX_W 2048
-#define HARD_MAX_H 1536
+#define HARD_MAX_W 3840
+#define HARD_MAX_H 2160
 
 #define PCI_ADDR 0xCF8
 #define PCI_DATA 0xCFC

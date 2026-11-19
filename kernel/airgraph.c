@@ -1,4 +1,5 @@
 #include "../include/airgraph.h"
+#include "../include/image.h"
 
 static uint32_t *surface_row(const struct ag_surface *s, int32_t y) {
     return (uint32_t *)((uint8_t *)s->pixels + (uint32_t)y * s->pitch);
@@ -214,6 +215,62 @@ void ag_blit(struct ag_device *device, struct ag_surface *surface,
         for (int32_t dx = 0; dx < w; dx++)
             dst[dx] = opaque_color(surface, src[dx]);
     }
+}
+
+int ag_draw_image(struct ag_device *device, struct ag_surface *surface,
+                  int32_t x, int32_t y, const struct image_buffer *image) {
+    if (!image || !image->pixels || image->width == 0 || image->height == 0 ||
+        image->width > 0x3FFFFFFFu || image->height > 0x3FFFFFFFu ||
+        image->pitch < image->width * 4u || (image->pitch & 3u) != 0 ||
+        image->pitch > image->capacity ||
+        image->height > image->capacity / image->pitch ||
+        !surface_valid(surface))
+        return -1;
+    ag_blit(device, surface, x, y, (int32_t)image->width,
+            (int32_t)image->height, image->pixels, image->pitch);
+    return 0;
+}
+
+int ag_draw_image_scaled(struct ag_device *device, struct ag_surface *surface,
+                         int32_t x, int32_t y, int32_t width, int32_t height,
+                         const struct image_buffer *image) {
+    int64_t left, top, right, bottom;
+    int32_t clip_left, clip_top, clip_right, clip_bottom;
+
+    if (!image || !image->pixels || !image->width || !image->height ||
+        image->width > 0x3FFFFFFFu || image->height > 0x3FFFFFFFu ||
+        image->pitch < image->width * 4u || (image->pitch & 3u) != 0 ||
+        image->pitch > image->capacity ||
+        image->height > image->capacity / image->pitch ||
+        width <= 0 || height <= 0 || !surface_valid(surface))
+        return -1;
+
+    /* Use 64-bit edges so off-screen placement cannot overflow x + width. */
+    left = x;
+    top = y;
+    right = left + width;
+    bottom = top + height;
+    clip_left = left < 0 ? 0 : (left >= surface->width ? surface->width : (int32_t)left);
+    clip_top = top < 0 ? 0 : (top >= surface->height ? surface->height : (int32_t)top);
+    clip_right = right > surface->width ? surface->width :
+                 (right <= 0 ? 0 : (int32_t)right);
+    clip_bottom = bottom > surface->height ? surface->height :
+                  (bottom <= 0 ? 0 : (int32_t)bottom);
+    if (clip_left >= clip_right || clip_top >= clip_bottom)
+        return 0;
+
+    for (int32_t dy = clip_top; dy < clip_bottom; ++dy) {
+        uint32_t source_y = (uint32_t)(((int64_t)dy - top) * image->height / height);
+        const uint32_t *source_row = (const uint32_t *)
+            ((const uint8_t *)image->pixels + source_y * image->pitch);
+        uint32_t *destination_row = surface_row(surface, dy);
+        for (int32_t dx = clip_left; dx < clip_right; ++dx) {
+            uint32_t source_x = (uint32_t)(((int64_t)dx - left) * image->width / width);
+            destination_row[dx] = opaque_color(surface, source_row[source_x]);
+        }
+    }
+    (void)device;
+    return 0;
 }
 
 int ag_present(struct ag_device *device, const struct ag_surface *surface) {

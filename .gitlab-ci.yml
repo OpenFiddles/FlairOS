@@ -73,7 +73,9 @@ build-branch:
     - apt-get update -qq
     - DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nasm gcc-multilib binutils make python3 qemu-system-x86 xorriso > /dev/null
     - make ARCH=i386
+    - python3 tests/airp_apps_test.py build/settings.airp build/notes.airp
     - test -s build/textile.img
+    - python3 tests/boot_layout_test.py
     - make fs-test sdk-test sdk-header-test
 
 arm-qemu-hello:
@@ -103,3 +105,19 @@ cmake-ninja:
     - cmake -S . -B build-ninja -G Ninja -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-i686-clang.cmake
     - ninja -C build-ninja
     - test -s build-ninja/textile.img
+
+# Verifies the graphics/image path independently of the emulator smoke tests.
+airgraph-image-tests:
+  stage: test
+  script:
+    - apt-get update -qq
+    - DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nasm gcc-multilib binutils make > /dev/null
+    - make build/airgraph_host_test build/desktop_render_host_test build/desktop_chrome_host_test build/bmp_host_test build/image_host_test
+    - build/airgraph_host_test
+    - build/desktop_render_host_test
+    - build/desktop_chrome_host_test
+    - build/bmp_host_test
+    - build/image_host_test
+    - python3 tests/boot_layout_test.py
+    - make ARCH=i386 DISPLAY=4k BUILD=build-4k
+    - test -s build-4k/textile.img

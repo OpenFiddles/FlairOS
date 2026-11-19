@@ -46,13 +46,32 @@ jobs:
           test -s build/livecd.iso
           test -s build/bootcd.iso
 
-      - name: Desktop pixel renderer and chrome tests (non-blocking)
+      - name: Validate LiveCD and Setup boot media
+        run: python3 tests/boot_media_test.py build/livecd.iso build/bootcd.iso
+
+      - name: QEMU desktop and filesystem smoke (diagnostic)
         continue-on-error: true
+        run: python3 tests/smoke.py build/textile.img
+
+      - name: Validate built-in Settings and Notes AIRP packages
+        run: python3 tests/airp_apps_test.py build/settings.airp build/notes.airp
+
+      - name: AirGraph, desktop chrome, and image tests
         run: |
-          make ARCH=i386 build/airgraph_host_test build/desktop_render_host_test build/desktop_chrome_host_test
+          make ARCH=i386 build/airgraph_host_test build/desktop_render_host_test build/desktop_chrome_host_test build/bmp_host_test build/image_host_test
           build/airgraph_host_test
           build/desktop_render_host_test
           build/desktop_chrome_host_test
+          build/bmp_host_test
+          build/image_host_test
+
+      - name: Boot layout and app-memory safety tests
+        run: python3 tests/boot_layout_test.py
+
+      - name: Build 4K AirGraph profile
+        run: |
+          make ARCH=i386 DISPLAY=4k BUILD=build-4k
+          test -s build-4k/textile.img
 
       - name: Build standalone GUI Terminal app
         run: make terminal-app

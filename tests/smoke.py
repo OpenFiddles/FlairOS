@@ -40,12 +40,32 @@ def boot(tag, cmds):
         mon = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         mon.connect(sock)
 
-        # The kernel now boots directly into the desktop. Wait for that state
-        # before asking it to switch to the developer shell; a fixed delay can
-        # send the shortcut during the VBE splash and leave it pending.
+        # The kernel now boots directly into the desktop. Ctrl+Alt+D leaves the
+        # desktop for the developer text shell; it does not launch the .airp Terminal.
+        wait_for(log, 'display: AirGraph pixel desktop active')
         wait_for(log, 'desktop: start')
+
+        def send_key(key, delay=0.2):
+            mon.sendall(('sendkey %s\n' % key).encode())
+            time.sleep(delay)
+
+        # Exercise the built-in .airp apps before entering the developer shell.
+        send_key('tab')
+        send_key('6')
+        wait_for(log, 'desktop: open settings')
+        time.sleep(0.4)
+        send_key('esc', 0.6)
+        send_key('tab')
+        send_key('7')
+        wait_for(log, 'desktop: open notes')
+        time.sleep(0.4)
+        send_key('h')
+        send_key('i')
+        send_key('ctrl-s', 0.4)
+        send_key('esc', 0.6)
+
         mon.sendall(b'sendkey ctrl-alt-d\n')
-        wait_for(log, 'desktop: open terminal')
+        wait_for(log, 'desktop: exit')
 
         def type_line(text):
             for ch in text + '\n':
@@ -74,7 +94,12 @@ text2 = boot('reboot', ['load note'])
 
 checks = [
     ('kernel banner', 'FlareOS 0.3'),
+    ('AirGraph pixel desktop initializes', 'display: AirGraph pixel desktop active'),
+    ('desktop never falls back to VGA', 'VGA recovery mode active' not in text),
+    ('Settings AIRP launches', 'desktop: open settings'),
+    ('Notes AIRP launches', 'desktop: open notes'),
     ('desktop boots first', 'desktop: start'),
+    ('no kernel panic', 'PANIC' not in text.upper()),
     ('ctrl+alt+d opens the desktop Terminal', 'desktop: open terminal'),
     ('help list', 'Commands:'),
     ('help lists net', 'net            show'),

@@ -15,10 +15,14 @@
 #define CURSOR_ATTR 0x0F
 #define FILES_ROW 10
 #define START_MENU_X 1
-#define START_MENU_Y (TASK_ROW - 8)
+#define START_MENU_Y (TASK_ROW - 9)
 #define START_MENU_W 25
-#define START_MENU_H 7
-#define EXPLORER_STAGE ((const u8 *)0x34000)
+#define START_MENU_H 9
+#define SETTINGS_STAGE ((const u8 *)0x30000)
+#define SETTINGS_STAGE_LEN (32u * 512u)
+#define NOTES_STAGE ((const u8 *)0x34000)
+#define NOTES_STAGE_LEN (16u * 512u)
+#define EXPLORER_STAGE ((const u8 *)0x90000)
 #define EXPLORER_STAGE_LEN (32u * 512u)
 #define TERMINAL_STAGE ((const u8 *)0x38000)
 #define TERMINAL_STAGE_LEN (64u * 512u)
@@ -165,6 +169,22 @@ static void activate_win(int k) {
         open_win(k);
 }
 
+static void launch_settings(void) {
+    u32 entry = 0;
+    if (airp_load(SETTINGS_STAGE, SETTINGS_STAGE_LEN, &entry) != 0)
+        kernel_panic("settings.airp failed validation");
+    serial_str("desktop: open settings\\n");
+    vm_run_app(entry, APP_STACK_TOP);
+}
+
+static void launch_notes(void) {
+    u32 entry = 0;
+    if (airp_load(NOTES_STAGE, NOTES_STAGE_LEN, &entry) != 0)
+        kernel_panic("notes.airp failed validation");
+    serial_str("desktop: open notes\\n");
+    vm_run_app(entry, APP_STACK_TOP);
+}
+
 static void launch_explorer(void) {
     u32 entry = 0;
     if (airp_load(EXPLORER_STAGE, EXPLORER_STAGE_LEN, &entry) != 0) {
@@ -279,14 +299,15 @@ static void draw_window(int k) {
 }
 
 static void draw_start_menu(void) {
-    static const char *const items[5] = {
-        "1  Welcome", "2  Clock", "3  Terminal", "4  Files", "5  Python"
+    static const char *const items[7] = {
+        "1  Welcome", "2  Clock", "3  Terminal", "4  Files",
+        "5  Python", "6  Settings", "7  Notes"
     };
     if (!start_open) return;
     fill(START_MENU_Y, START_MENU_X, START_MENU_H, START_MENU_W, ' ', 0x70);
     fill(START_MENU_Y, START_MENU_X, 1, START_MENU_W, ' ', 0x1F);
-    text(START_MENU_Y, START_MENU_X + 2, "FlareOS", 0x1F, START_MENU_W - 4);
-    for (int i = 0; i < 5; i++)
+    text(START_MENU_Y, START_MENU_X + 2, "FlairOS", 0x1F, START_MENU_W - 4);
+    for (int i = 0; i < 7; i++)
         text(START_MENU_Y + 1 + i, START_MENU_X + 2, items[i], 0x70, START_MENU_W - 4);
     fill(START_MENU_Y + START_MENU_H - 1, START_MENU_X, 1, START_MENU_W, ' ', 0x17);
     text(START_MENU_Y + START_MENU_H - 1, START_MENU_X + 2, "Tab / Esc to close", 0x17, START_MENU_W - 4);
@@ -300,8 +321,9 @@ static void start_select(int item) {
         int restore_pixel_desktop = desktop_gfx_active();
         if (restore_pixel_desktop) desktop_gfx_shutdown();
         run_micropython();
-        if (restore_pixel_desktop) desktop_gfx_init();
-    }
+        if (restore_pixel_desktop && !desktop_gfx_init()) kernel_panic("AirGraph failed to resume after Python runtime");
+    } else if (item == WIN_COUNT + 2) launch_settings();
+    else if (item == WIN_COUNT + 3) launch_notes();
     serial_str("desktop: start menu select ");
     log_point("item", item + 1, 0);
 }
@@ -339,7 +361,7 @@ static void draw_cursor(void) {
 static void draw_frame(void) {
     fill(0, 0, TASK_ROW, VGA_COLS, BG_CHAR, BG_ATTR);
     fill(0, 0, 1, VGA_COLS, ' ', 0x1F);
-    text(0, 2, "FlareOS  |  Workspace 1", 0x1F, 26);
+    text(0, 2, "FlairOS  |  Workspace 1", 0x1F, 26);
     text(0, VGA_COLS - 16, "SYSTEM READY", 0x1F, 14);
     text(1, 3, "Applications", 0x1E, 12);
     for (int i = 0; i < WIN_COUNT; i++) {
@@ -353,21 +375,31 @@ static void draw_frame(void) {
     draw_taskbar();
     draw_start_menu();
     draw_cursor();
-    if (desktop_gfx_active() && desktop_gfx_present(back, VGA_COLS, VGA_ROWS) == 0) {
-        for (int i = 0; i < WIN_COUNT; i++) {
-            int k = z[i];
-            if (wins[k].open)
-                desktop_gfx_draw_window(wins[k].x, wins[k].y,
-                                        wins[k].w, wins[k].h,
-                                        wins[k].title, top_win() == k);
-        }
-        if (desktop_gfx_flush() == 0) {
-            axi_gfx_render();
-            return;
-        }
+    if (!desktop_gfx_active())
+        kernel_panic("AirGraph became unavailable while the desktop was running");
+    if (desktop_gfx_present(back, VGA_COLS, VGA_ROWS) != 0)
+        kernel_panic("AirGraph desktop renderer failed");
+    for (int i = 0; i < WIN_COUNT; i++) {
+        int k = z[i];
+        if (wins[k].open && desktop_gfx_draw_window(wins[k].x, wins[k].y,
+                wins[k].w, wins[k].h, wins[k].title, top_win() == k) != 0)
+            kernel_panic("WinDown window composition failed");
     }
-    for (int i = 0; i < VGA_ROWS * VGA_COLS; i++)
-        VGA_MEM[i] = back[i];
+    {
+        u8 now[6];
+        char clock_text[9];
+        rtc_now(now);
+        clock_text[0]=(char)('0'+now[2]/10); clock_text[1]=(char)('0'+now[2]%10);
+        clock_text[2]=':'; clock_text[3]=(char)('0'+now[1]/10);
+        clock_text[4]=(char)('0'+now[1]%10); clock_text[5]=':';
+        clock_text[6]=(char)('0'+now[0]/10); clock_text[7]=(char)('0'+now[0]%10);
+        clock_text[8]=0;
+        if (desktop_gfx_draw_shell(start_open, clock_text) != 0)
+            kernel_panic("Material desktop shell composition failed");
+    }
+    axi_gfx_render();
+    if (desktop_gfx_flush() != 0)
+        kernel_panic("AirGraph frame presentation failed");
 }
 
 void desktop_present_app(void) {
@@ -383,7 +415,7 @@ static void click(i32 mx, i32 my) {
     }
     if (start_open) {
         if (mx >= START_MENU_X && mx < START_MENU_X + START_MENU_W &&
-            my >= START_MENU_Y + 1 && my < START_MENU_Y + 6) {
+            my >= START_MENU_Y + 1 && my < START_MENU_Y + 8) {
             start_select(my - START_MENU_Y - 1);
             return;
         }
@@ -486,7 +518,7 @@ static void handle_key(int c) {
         return;
     }
     if (start_open) {
-        if (c >= '1' && c <= '5') {
+        if (c >= '1' && c <= '7') {
             start_select(c - '1');
             return;
         }
@@ -508,7 +540,7 @@ int desktop_run(void) {
     /* Start with a clean workspace. The built-in Terminal remains available
        from its desktop icon and the Start menu; it is not restored on boot. */
     serial_str("desktop: start\n");
-    desktop_gfx_init();
+    if (!desktop_gfx_init()) kernel_panic("Required AirGraph desktop initialization failed");
     outb(0x3D4, 0x0A);
     outb(0x3D5, 0x20);
     prev_buttons = mouse_buttons;

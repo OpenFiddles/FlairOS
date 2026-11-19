@@ -1,7 +1,7 @@
 #ifndef AXI_H
 #define AXI_H
 
-/* FlareOS window API. Apps call the kernel through int 0x80, like the other syscalls.
+/* FlairOS window API. Apps call the kernel through int 0x80, like the other syscalls.
    A window is a kernel-owned frame: row 0 is the title bar with a [x] close box,
    rows 1..h-1 are the body. Body coordinates start at row 0, col 0 under the title bar. */
 
@@ -12,6 +12,7 @@
 #define SYS_WIN_PRESENT 18  /* read the mouse, then draw every open window and the pointer */
 #define SYS_WIN_CLICK   19  /* ebx = handle; returns row | col << 16 of the last body click, or AX_FAIL */
 #define SYS_WIN_ALIVE   20  /* ebx = handle; 1 while the user has not closed it */
+#define SYS_UI_ACCENT   38  /* ebx = 0 violet, 1 teal */
 
 #define AX_FAIL 0xFFFFFFFFu
 #define AX_MAX_BODY_W 64
@@ -55,6 +56,9 @@ static inline unsigned int ax_click(unsigned int win) {
 
 static inline int ax_alive(unsigned int win) {
     return ax_call(SYS_WIN_ALIVE, win, 0, 0) != 0;
+}
+static inline unsigned int ax_set_accent(unsigned int accent) {
+    return ax_call(SYS_UI_ACCENT, accent, 0, 0);
 }
 
 #endif

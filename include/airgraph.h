@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include "fb.h"
+#include "image.h"
 
 enum ag_pixel_format { AG_PIXEL_XRGB8888 = 1, AG_PIXEL_ARGB8888 = 2 };
 enum ag_orientation { AG_ORIENTATION_LANDSCAPE = 0, AG_ORIENTATION_PORTRAIT = 1 };
@@ -64,6 +65,13 @@ void ag_round_rect(struct ag_device *, struct ag_surface *, int32_t, int32_t, in
 void ag_round_frame(struct ag_device *, struct ag_surface *, int32_t, int32_t, int32_t, int32_t, int32_t, uint32_t);
 void ag_blend_rect(struct ag_device *, struct ag_surface *, int32_t, int32_t, int32_t, int32_t, uint32_t);
 void ag_blit(struct ag_device *, struct ag_surface *, int32_t, int32_t, int32_t, int32_t, const uint32_t *, uint32_t);
+/* Draw a decoded image at native size; clipping is handled by AirGraph. */
+int ag_draw_image(struct ag_device *, struct ag_surface *, int32_t, int32_t,
+                  const struct image_buffer *);
+/* Nearest-neighbour scaling; destination dimensions are in pixels. */
+int ag_draw_image_scaled(struct ag_device *, struct ag_surface *,
+                         int32_t, int32_t, int32_t, int32_t,
+                         const struct image_buffer *);
 int ag_present(struct ag_device *, const struct ag_surface *);
 int ag_viewport_init_adaptive(struct ag_viewport *, int32_t, int32_t,
                               int32_t, int32_t, int32_t, int32_t,

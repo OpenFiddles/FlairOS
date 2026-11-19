@@ -1,5 +1,6 @@
 #include "kernel.h"
 #include "../include/desktop_gfx.h"
+#include "../include/fs.h"
 #include "../include/desktop_render.h"
 #include "../include/desktop_chrome.h"
 #include "../include/vbe.h"
@@ -12,7 +13,10 @@
 
 /* DISPLAY=portrait selects a 600x750 framebuffer (Bochs DISPI limit-safe).
    The desktop scene remains 80x25 logical cells and is rasterized to pixels. */
-#if defined(FLAIROS_DISPLAY_PORTRAIT)
+#if defined(FLAIROS_DISPLAY_4K)
+#define DISPLAY_WIDTH 3840
+#define DISPLAY_HEIGHT 2160
+#elif defined(FLAIROS_DISPLAY_PORTRAIT)
 #define DISPLAY_WIDTH 600
 #define DISPLAY_HEIGHT 750
 #elif defined(FLAIROS_DISPLAY_WIDE)
@@ -113,6 +117,12 @@ struct sp_context *desktop_gfx_ui_context(void) {
 int desktop_gfx_active(void) {
     return display_ready;
 }
+int desktop_gfx_set_accent(unsigned int accent) {
+    if (!display_ready || accent > 1u) return -1;
+    desktop_ui_theme.color.accent = accent ? 0x000F9D8Au : 0x007C83FFu;
+    desktop_ui_theme.color.accent_text = 0x00FFFFFFu;
+    return 0;
+}
 
 void desktop_gfx_shutdown(void) {
     if (display_ready)
@@ -136,7 +146,7 @@ int desktop_gfx_init(void) {
     display_attempted = 1;
 
     if (!vbe_init(&display_fb, DISPLAY_WIDTH, DISPLAY_HEIGHT)) {
-        serial_str("display: framebuffer unavailable; VGA recovery mode active\n");
+        serial_str("display: fatal: framebuffer unavailable; refusing VGA desktop fallback\n");
         return 0;
     }
 
@@ -151,7 +161,7 @@ int desktop_gfx_init(void) {
                                   AG_SCALE_STRETCH) != 0) {
         ag_device_shutdown(&display_device);
         vbe_text_mode();
-        serial_str("display: AirGraph setup failed; VGA recovery mode active\n");
+        serial_str("display: fatal: AirGraph initialization failed; refusing VGA desktop fallback\n");
         return 0;
     }
 
@@ -178,6 +188,11 @@ int desktop_gfx_init(void) {
 
     display_ready = 1;
     sp_theme_default(&desktop_ui_theme);
+    {
+        unsigned char accent = 0;
+        if (fs_kernel_read_file("UI.CFG", &accent, 1) == 1 && accent <= 1)
+            desktop_ui_theme.color.accent = accent ? 0x000F9D8Au : 0x007C83FFu;
+    }
     desktop_ui_context.device = &display_device;
     desktop_ui_context.surface = desktop_render_surface();
     desktop_ui_context.theme = &desktop_ui_theme;
@@ -201,7 +216,9 @@ int desktop_gfx_init(void) {
             serial_str("display: custom BMP wallpaper loaded\n");
     }
     serial_str("display: AirGraph pixel desktop active (");
-#if defined(FLAIROS_DISPLAY_PORTRAIT)
+#if defined(FLAIROS_DISPLAY_4K)
+    serial_str("3840x2160 4K");
+#elif defined(FLAIROS_DISPLAY_PORTRAIT)
     serial_str("600x750 portrait");
 #elif defined(FLAIROS_DISPLAY_WIDE)
     serial_str("1024x768 wide");
@@ -237,31 +254,12 @@ int desktop_gfx_present(const uint16_t *cells, int columns, int rows) {
             desktop_bmp_asset && desktop_bmp_asset->length
                 ? desktop_bmp_asset->bytes : 0,
             desktop_bmp_asset ? desktop_bmp_asset->length : 0) == 0) {
-        if (render_buffer_ready && ag_present(&display_device, surface) != 0) {
-            display_ready = 0;
-            ag_device_shutdown(&display_device);
-            if (render_pixels) {
-                kfree(render_pixels);
-                render_pixels = 0;
-            }
-            render_buffer_ready = 0;
-            vbe_text_mode();
-            serial_str("display: frame present fault; switched to VGA recovery mode\\n");
-            return -1;
-        }
+        if (render_buffer_ready && ag_present(&display_device, surface) != 0)
+            kernel_panic("AirGraph framebuffer present failed");
         return 0;
     }
 
-    display_ready = 0;
-    ag_device_shutdown(&display_device);
-    if (render_pixels) {
-        kfree(render_pixels);
-        render_pixels = 0;
-    }
-    render_buffer_ready = 0;
-    vbe_text_mode();
-    serial_str("display: renderer fault; switched to VGA recovery mode\n");
-    return -1;
+    kernel_panic("AirGraph pixel renderer failed");
 }
 
 int desktop_gfx_draw_window(int x, int y, int width, int height,
@@ -272,13 +270,67 @@ int desktop_gfx_draw_window(int x, int y, int width, int height,
                                title, active);
 }
 
+
+int desktop_gfx_draw_shell(int start_open, const char *clock_text) {
+    struct ag_surface *surface = desktop_render_surface();
+    struct sp_context *ui = &desktop_ui_context;
+    int cw, ch, sx, sy, w, h, bar_y;
+    static const int icon_rows[4] = {2, 4, 6, 10};
+    static const char *const labels[4] = {"Welcome", "Clock", "Terminal", "Files"};
+    static const char *const menu[7] = {
+        "Welcome", "Clock", "Terminal", "Files", "Python", "Settings", "Notes"
+    };
+    if (!display_ready || !surface || !ui->theme) return -1;
+    w = surface->width;
+    h = surface->height;
+    cw = w / VGA_COLS;
+    ch = h / VGA_ROWS;
+    sx = w / 800; if (sx < 1) sx = 1;
+    sy = h / 600; if (sy < 1) sy = 1;
+    if (cw < 1 || ch < 1) return -1;
+
+    /* Keep interactive tiles aligned with the desktop's logical pointer grid. */
+    sp_panel(ui, 12*sx, 10*sy, w-24*sx, 42*sy);
+    sp_label(ui, 28*sx, 27*sy, "FlairOS", 0);
+    sp_label(ui, 112*sx, 27*sy, "Workspace 1", 1);
+    sp_badge(ui, w-124, 20*sy, "SYSTEM READY", ui->theme->color.success);
+
+    for (int i=0; i<4; ++i) {
+        int y = icon_rows[i]*ch + 2*sy;
+        sp_card(ui, 2*cw, y, 9*cw, ch-4*sy);
+        ag_round_rect(ui->device, surface, 2*cw+6*sx,
+                      y+(ch-12*sy)/2, 12*sx, 12*sy, 4*sx,
+                      i==0?0x007C83FF:(i==1?0x000F9D8A:
+                      (i==2?0x00D97757:0x006B8AC7)));
+        sp_label(ui, 2*cw+26*sx, y+(ch-7*sy)/2, labels[i], 0);
+    }
+
+    /* Taskbar controls now occupy the same bottom grid row as their hit tests. */
+    bar_y = (VGA_ROWS-1)*ch;
+    sp_panel(ui, 12*sx, bar_y+2*sy, w-24*sx, ch-4*sy);
+    sp_button(ui, 2*cw, bar_y+4*sy, 8*cw, ch-8*sy, "Start", 1);
+    sp_label(ui, 12*cw, bar_y+(ch-7*sy)/2, "Hello   Clock   Terminal", 1);
+    if (clock_text) sp_label(ui, w-72, bar_y+(ch-7*sy)/2, clock_text, 0);
+
+    if (start_open) {
+        int menu_x = cw;
+        int menu_y = (VGA_ROWS-10)*ch;
+        sp_panel(ui, menu_x, menu_y, 25*cw, 9*ch);
+        sp_label(ui, menu_x+2*cw, menu_y+(ch-7*sy)/2, "Applications", 0);
+        sp_separator(ui, menu_x+cw, menu_y+ch, 23*cw);
+        for (int i=0; i<7; ++i)
+            sp_list_item(ui, menu_x+cw, menu_y+(i+1)*ch,
+                         23*cw, ch, menu[i], 0, 0);
+        sp_label(ui, menu_x+2*cw, menu_y+8*ch+(ch-7*sy)/2,
+                 "Tab / Esc to close", 1);
+    }
+    return 0;
+}
+
 int desktop_gfx_flush(void) {
     if (!display_ready) return -1;
-    if (render_buffer_ready && ag_present(&display_device, desktop_render_surface()) != 0) {
-        desktop_gfx_shutdown();
-        serial_str("display: chrome present fault; VGA recovery mode active\n");
-        return -1;
-    }
+    if (render_buffer_ready && ag_present(&display_device, desktop_render_surface()) != 0)
+        kernel_panic("AirGraph chrome presentation failed");
     return 0;
 }
 

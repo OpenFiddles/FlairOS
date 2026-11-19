@@ -85,6 +85,30 @@ int main(void) {
         CHECK(pixel_at(pixels, 0, 0) == 0x55);
     }
 
+    {
+        uint32_t image_pixels[2] = {0x00112233u, 0x00445566u};
+        struct image_buffer image = {image_pixels, 2, 1, 8, sizeof(image_pixels)};
+        ag_clear(&s, 0);
+        CHECK(ag_draw_image(0, &s, 2, 2, &image) == 0);
+        CHECK(pixel_at(pixels, 2, 2) == 0x00112233u);
+        CHECK(pixel_at(pixels, 3, 2) == 0x00445566u);
+        CHECK(ag_draw_image(0, &s, 7, 5, &image) == 0);
+        CHECK(pixel_at(pixels, 7, 5) == 0x00112233u);
+        ag_clear(&s, 0);
+        CHECK(ag_draw_image_scaled(0, &s, 1, 1, 4, 2, &image) == 0);
+        CHECK(pixel_at(pixels, 1, 1) == 0x00112233u);
+        CHECK(pixel_at(pixels, 2, 1) == 0x00112233u);
+        CHECK(pixel_at(pixels, 3, 1) == 0x00445566u);
+        CHECK(pixel_at(pixels, 4, 2) == 0x00445566u);
+        ag_clear(&s, 0);
+        CHECK(ag_draw_image_scaled(0, &s, -1, 0, 4, 2, &image) == 0);
+        CHECK(pixel_at(pixels, 0, 0) == 0x00112233u);
+        CHECK(pixel_at(pixels, 1, 0) == 0x00445566u);
+        CHECK(ag_draw_image_scaled(0, &s, 0, 0, 0, 2, &image) != 0);
+        image.capacity = 4;
+        CHECK(ag_draw_image(0, &s, 0, 0, &image) != 0);
+    }
+
     fb_init(&fb, display_mem, W, H, PITCH);
     CHECK(ag_device_init(&dev, &fb, 0) == 0);
     CHECK(ag_present(&dev, &s) == 0);
