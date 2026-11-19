@@ -116,6 +116,12 @@ struct sp_context *desktop_gfx_ui_context(void) {
 int desktop_gfx_active(void) {
     return display_ready;
 }
+int desktop_gfx_set_accent(unsigned int accent) {
+    if (!display_ready || accent > 1u) return -1;
+    desktop_ui_theme.color.accent = accent ? 0x000F9D8Au : 0x007C83FFu;
+    desktop_ui_theme.color.accent_text = 0x00FFFFFFu;
+    return 0;
+}
 
 void desktop_gfx_shutdown(void) {
     if (display_ready)

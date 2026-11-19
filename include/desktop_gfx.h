@@ -4,6 +4,7 @@
 struct sp_context;
 int desktop_gfx_init(void);
 int desktop_gfx_active(void);
+int desktop_gfx_set_accent(unsigned int accent);
 void desktop_gfx_shutdown(void);
 int desktop_gfx_present(const uint16_t *,int,int);
 int desktop_gfx_draw_window(int,int,int,int,const char *,int);

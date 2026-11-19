@@ -11,6 +11,10 @@ EXPLORER_LBA     equ 2447
 EXPLORER_SECTORS equ 32
 TERMINAL_LBA     equ 2479
 TERMINAL_SECTORS equ 64
+SETTINGS_LBA     equ 2543
+SETTINGS_SECTORS equ 32
+NOTES_LBA        equ 2575
+NOTES_SECTORS    equ 16
 PYTHON_SECTORS   equ 257
 
 start:
@@ -64,6 +68,22 @@ start:
     mov word [lba], TERMINAL_LBA
     mov word [offset], 0
     mov word [remaining], TERMINAL_SECTORS
+    call load_range
+
+    ; Load Settings AIRP at physical 0x30000.
+    mov ax, 0x3000
+    mov es, ax
+    mov word [lba], SETTINGS_LBA
+    mov word [offset], 0
+    mov word [remaining], SETTINGS_SECTORS
+    call load_range
+
+    ; Load Notes AIRP at physical 0x32000.
+    mov ax, 0x3200
+    mov es, ax
+    mov word [lba], NOTES_LBA
+    mov word [offset], 0
+    mov word [remaining], NOTES_SECTORS
     call load_range
 
     ; Probe the optional MicroPython AIRP slot. Only load the remaining sectors

@@ -294,6 +294,9 @@ int axi_dispatch(struct saved_regs *r) {
     case SYS_WIN_ALIVE:
         r->eax = axk_alive(r->ebx);
         return 1;
+    case SYS_UI_ACCENT:
+        r->eax = desktop_gfx_set_accent(r->ebx) == 0 ? 0u : AX_FAIL;
+        return 1;
     default:
         return 0;
     }

@@ -232,8 +232,32 @@ $(BUILD)/explorer.airp: $(BUILD)/explorer.bin tools/airpack.py
 	python3 tools/airpack.py $(BUILD)/explorer.bin $@ explorer
 	test `stat -c %s $@` -le 16384
 
+
+# --- Built-in Settings and Notes AIRP applications ---
+$(BUILD)/settings.o: userland/settings.c include/axi.h kernel/textile.h | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+$(BUILD)/settings.elf: $(BUILD)/settings.o $(BUILD)/rt.o userland/app.ld
+	$(LD) $(ARCH_LDFLAGS) -nostdlib -T userland/app.ld -o $@ $(BUILD)/settings.o $(BUILD)/rt.o
+$(BUILD)/settings.bin: $(BUILD)/settings.elf
+	$(OBJCOPY) -O binary $< $@
+	test `stat -c %s $@` -le 16348
+$(BUILD)/settings.airp: $(BUILD)/settings.bin tools/airpack.py
+	python3 tools/airpack.py $(BUILD)/settings.bin $@ settings
+	test `stat -c %s $@` -le 16384
+
+$(BUILD)/notes.o: userland/notes.c include/axi.h include/fs.h kernel/textile.h | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+$(BUILD)/notes.elf: $(BUILD)/notes.o $(BUILD)/rt.o userland/app.ld
+	$(LD) $(ARCH_LDFLAGS) -nostdlib -T userland/app.ld -o $@ $(BUILD)/notes.o $(BUILD)/rt.o
+$(BUILD)/notes.bin: $(BUILD)/notes.elf
+	$(OBJCOPY) -O binary $< $@
+	test `stat -c %s $@` -le 8156
+$(BUILD)/notes.airp: $(BUILD)/notes.bin tools/airpack.py
+	python3 tools/airpack.py $(BUILD)/notes.bin $@ notes
+	test `stat -c %s $@` -le 8192
+
 # Assembles the disk image using the precise structural sector positioning offsets
-$(BUILD)/textile.img: $(BUILD)/stage1.bin $(BUILD)/stage2.bin $(BUILD)/kernel.bin $(BUILD)/app.bin $(BUILD)/explorer.airp $(BUILD)/terminal.airp
+$(BUILD)/textile.img: $(BUILD)/stage1.bin $(BUILD)/stage2.bin $(BUILD)/kernel.bin $(BUILD)/app.bin $(BUILD)/explorer.airp $(BUILD)/terminal.airp $(BUILD)/settings.airp $(BUILD)/notes.airp
 	dd if=/dev/zero of=$@ bs=512 count=2880 status=none
 	dd if=$(BUILD)/stage1.bin of=$@ bs=512 count=1 conv=notrunc status=none
 	dd if=$(BUILD)/stage2.bin of=$@ bs=512 seek=1 count=4 conv=notrunc status=none
@@ -241,8 +265,14 @@ $(BUILD)/textile.img: $(BUILD)/stage1.bin $(BUILD)/stage2.bin $(BUILD)/kernel.bi
 	dd if=$(BUILD)/app.bin of=$@ bs=512 seek=261 count=128 conv=notrunc status=none
 	dd if=$(BUILD)/explorer.airp of=$@ bs=512 seek=2447 count=32 conv=notrunc status=none
 	dd if=$(BUILD)/terminal.airp of=$@ bs=512 seek=2479 count=64 conv=notrunc status=none
+	dd if=$(BUILD)/settings.airp of=$@ bs=512 seek=2543 count=32 conv=notrunc status=none
+	dd if=$(BUILD)/notes.airp of=$@ bs=512 seek=2575 count=16 conv=notrunc status=none
+	dd if=$(BUILD)/settings.airp of=$@ bs=512 seek=2543 count=32 conv=notrunc status=none
+	dd if=$(BUILD)/notes.airp of=$@ bs=512 seek=2575 count=16 conv=notrunc status=none
+	dd if=$(BUILD)/settings.airp of=$@ bs=512 seek=2543 count=32 conv=notrunc status=none
+	dd if=$(BUILD)/notes.airp of=$@ bs=512 seek=2575 count=16 conv=notrunc status=none
 
-$(BUILD)/livecd.img: $(BUILD)/stage1.bin $(BUILD)/stage2-live.bin $(BUILD)/kernel.bin $(BUILD)/app.bin $(BUILD)/explorer.airp $(BUILD)/terminal.airp
+$(BUILD)/livecd.img: $(BUILD)/stage1.bin $(BUILD)/stage2-live.bin $(BUILD)/kernel.bin $(BUILD)/app.bin $(BUILD)/explorer.airp $(BUILD)/terminal.airp $(BUILD)/settings.airp $(BUILD)/notes.airp
 	dd if=/dev/zero of=$@ bs=512 count=2880 status=none
 	dd if=$(BUILD)/stage1.bin of=$@ bs=512 count=1 conv=notrunc status=none
 	dd if=$(BUILD)/stage2-live.bin of=$@ bs=512 seek=1 count=4 conv=notrunc status=none
@@ -251,7 +281,7 @@ $(BUILD)/livecd.img: $(BUILD)/stage1.bin $(BUILD)/stage2-live.bin $(BUILD)/kerne
 	dd if=$(BUILD)/explorer.airp of=$@ bs=512 seek=2447 count=32 conv=notrunc status=none
 	dd if=$(BUILD)/terminal.airp of=$@ bs=512 seek=2479 count=64 conv=notrunc status=none
 
-$(BUILD)/bootcd.img: $(BUILD)/stage1.bin $(BUILD)/stage2-setup.bin $(BUILD)/kernel.bin $(BUILD)/app.bin $(BUILD)/explorer.airp $(BUILD)/terminal.airp
+$(BUILD)/bootcd.img: $(BUILD)/stage1.bin $(BUILD)/stage2-setup.bin $(BUILD)/kernel.bin $(BUILD)/app.bin $(BUILD)/explorer.airp $(BUILD)/terminal.airp $(BUILD)/settings.airp $(BUILD)/notes.airp
 	dd if=/dev/zero of=$@ bs=512 count=2880 status=none
 	dd if=$(BUILD)/stage1.bin of=$@ bs=512 count=1 conv=notrunc status=none
 	dd if=$(BUILD)/stage2-setup.bin of=$@ bs=512 seek=1 count=4 conv=notrunc status=none

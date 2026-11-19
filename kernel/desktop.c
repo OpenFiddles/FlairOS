@@ -15,9 +15,13 @@
 #define CURSOR_ATTR 0x0F
 #define FILES_ROW 10
 #define START_MENU_X 1
-#define START_MENU_Y (TASK_ROW - 8)
+#define START_MENU_Y (TASK_ROW - 9)
 #define START_MENU_W 25
-#define START_MENU_H 7
+#define START_MENU_H 9
+#define SETTINGS_STAGE ((const u8 *)0x30000)
+#define SETTINGS_STAGE_LEN (32u * 512u)
+#define NOTES_STAGE ((const u8 *)0x32000)
+#define NOTES_STAGE_LEN (16u * 512u)
 #define EXPLORER_STAGE ((const u8 *)0x34000)
 #define EXPLORER_STAGE_LEN (32u * 512u)
 #define TERMINAL_STAGE ((const u8 *)0x38000)
@@ -165,6 +169,22 @@ static void activate_win(int k) {
         open_win(k);
 }
 
+static void launch_settings(void) {
+    u32 entry = 0;
+    if (airp_load(SETTINGS_STAGE, SETTINGS_STAGE_LEN, &entry) != 0)
+        kernel_panic("settings.airp failed validation");
+    serial_str("desktop: open settings\\n");
+    vm_run_app(entry, APP_STACK_TOP);
+}
+
+static void launch_notes(void) {
+    u32 entry = 0;
+    if (airp_load(NOTES_STAGE, NOTES_STAGE_LEN, &entry) != 0)
+        kernel_panic("notes.airp failed validation");
+    serial_str("desktop: open notes\\n");
+    vm_run_app(entry, APP_STACK_TOP);
+}
+
 static void launch_explorer(void) {
     u32 entry = 0;
     if (airp_load(EXPLORER_STAGE, EXPLORER_STAGE_LEN, &entry) != 0) {
@@ -279,14 +299,15 @@ static void draw_window(int k) {
 }
 
 static void draw_start_menu(void) {
-    static const char *const items[5] = {
-        "1  Welcome", "2  Clock", "3  Terminal", "4  Files", "5  Python"
+    static const char *const items[7] = {
+        "1  Welcome", "2  Clock", "3  Terminal", "4  Files",
+        "5  Python", "6  Settings", "7  Notes"
     };
     if (!start_open) return;
     fill(START_MENU_Y, START_MENU_X, START_MENU_H, START_MENU_W, ' ', 0x70);
     fill(START_MENU_Y, START_MENU_X, 1, START_MENU_W, ' ', 0x1F);
     text(START_MENU_Y, START_MENU_X + 2, "FlareOS", 0x1F, START_MENU_W - 4);
-    for (int i = 0; i < 5; i++)
+    for (int i = 0; i < 7; i++)
         text(START_MENU_Y + 1 + i, START_MENU_X + 2, items[i], 0x70, START_MENU_W - 4);
     fill(START_MENU_Y + START_MENU_H - 1, START_MENU_X, 1, START_MENU_W, ' ', 0x17);
     text(START_MENU_Y + START_MENU_H - 1, START_MENU_X + 2, "Tab / Esc to close", 0x17, START_MENU_W - 4);
@@ -301,7 +322,8 @@ static void start_select(int item) {
         if (restore_pixel_desktop) desktop_gfx_shutdown();
         run_micropython();
         if (restore_pixel_desktop && !desktop_gfx_init()) kernel_panic("AirGraph failed to resume after Python runtime");
-    }
+    } else if (item == WIN_COUNT + 2) launch_settings();
+    else if (item == WIN_COUNT + 3) launch_notes();
     serial_str("desktop: start menu select ");
     log_point("item", item + 1, 0);
 }
@@ -381,7 +403,7 @@ static void click(i32 mx, i32 my) {
     }
     if (start_open) {
         if (mx >= START_MENU_X && mx < START_MENU_X + START_MENU_W &&
-            my >= START_MENU_Y + 1 && my < START_MENU_Y + 6) {
+            my >= START_MENU_Y + 1 && my < START_MENU_Y + 8) {
             start_select(my - START_MENU_Y - 1);
             return;
         }
@@ -484,7 +506,7 @@ static void handle_key(int c) {
         return;
     }
     if (start_open) {
-        if (c >= '1' && c <= '5') {
+        if (c >= '1' && c <= '7') {
             start_select(c - '1');
             return;
         }

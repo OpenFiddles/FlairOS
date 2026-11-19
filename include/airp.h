@@ -8,7 +8,7 @@
 
 #define AIRP_MAGIC        0x50524941u  /* bytes on disk: "AIRP" */
 #define AIRP_VERSION      1
-#define AIRP_API_LEVEL    1            /* window API 14-20, filesystem API 21-26 */
+#define AIRP_API_LEVEL    2            /* window API 14-20, filesystem API 21-26 */
 #define AIRP_NAME_MAX     12           /* name is NUL padded, at most 11 characters */
 #define AIRP_IMAGE_MAX    131072        /* maximum flat application image (256 sectors) */
 #define AIRP_SLOT_SIZE    262144        /* private app image plus stack region (64 pages) */
