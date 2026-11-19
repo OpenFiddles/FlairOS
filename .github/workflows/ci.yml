@@ -46,6 +46,9 @@ jobs:
           test -s build/livecd.iso
           test -s build/bootcd.iso
 
+      - name: Validate built-in Settings and Notes AIRP packages
+        run: python3 tests/airp_apps_test.py build/settings.airp build/notes.airp
+
       - name: Desktop pixel renderer and chrome tests (non-blocking)
         continue-on-error: true
         run: |

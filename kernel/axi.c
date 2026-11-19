@@ -10,7 +10,6 @@ void desktop_present_app(void);
 #define AXK_DESKTOP_ROWS 24
 #define AXK_BODY_ATTR 0x70
 #define AXK_TITLE_ATTR 0x1F
-#define AXK_CURSOR_ATTR 0x0F
 #define AXK_MIN_W 8
 #define AXK_MIN_H 3
 
@@ -26,14 +25,6 @@ struct axk_win {
 
 static struct axk_win axk_wins[AXK_SLOTS];
 static u8 axk_prev_buttons;
-static i32 axk_cur_r = -1, axk_cur_c = -1;
-static u16 axk_under;
-
-static void axk_vga(i32 r, i32 c, u8 ch, u8 attr) {
-    if (r < 0 || r >= VGA_ROWS || c < 0 || c >= VGA_COLS)
-        return;
-    VGA_MEM[r * VGA_COLS + c] = (u16)(ch | (attr << 8));
-}
 
 static struct axk_win *axk_get(u32 handle) {
     if (handle < 1 || handle > AXK_SLOTS)
@@ -144,36 +135,6 @@ static void axk_mouse(void) {
         }
     }
     axk_prev_buttons = b;
-}
-
-static void axk_draw(void) {
-    if (axk_cur_r >= 0)
-        VGA_MEM[axk_cur_r * VGA_COLS + axk_cur_c] = axk_under;
-    axk_cur_r = -1;
-
-    for (int k = 0; k < AXK_SLOTS; k++) {
-        struct axk_win *w = &axk_wins[k];
-        if (!w->used || !w->open)
-            continue;
-        for (i32 c = 0; c < w->w; c++)
-            axk_vga(w->y, w->x + c, ' ', AXK_TITLE_ATTR);
-        for (i32 c = 0; w->title[c] && c < w->w - 6; c++)
-            axk_vga(w->y, w->x + 1 + c, (u8)w->title[c], AXK_TITLE_ATTR);
-        axk_vga(w->y, w->x + w->w - 4, '[', AXK_TITLE_ATTR);
-        axk_vga(w->y, w->x + w->w - 3, 'x', AXK_TITLE_ATTR);
-        axk_vga(w->y, w->x + w->w - 2, ']', AXK_TITLE_ATTR);
-        for (i32 r = 0; r < w->h - 1; r++)
-            for (i32 c = 0; c < w->w; c++)
-                VGA_MEM[(w->y + 1 + r) * VGA_COLS + w->x + c] = w->body[r * AX_MAX_BODY_W + c];
-    }
-
-    i32 r = (i32)cursor_y, c = (i32)cursor_x;
-    if (r >= 0 && r < VGA_ROWS && c >= 0 && c < VGA_COLS) {
-        axk_cur_r = r;
-        axk_cur_c = c;
-        axk_under = VGA_MEM[r * VGA_COLS + c];
-        VGA_MEM[r * VGA_COLS + c] = (u16)(0xDB | (AXK_CURSOR_ATTR << 8));
-    }
 }
 
 static int axk_is_terminal(const char *title) {

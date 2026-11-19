@@ -38,7 +38,17 @@ void app_main(void) {
         } else if (key == 'r' || key == 'R') {
             accent = 0; ax_set_accent(0); status = "Default accent restored."; draw(win, accent, status);
         }
-        (void)ax_click(win);
+        {
+            unsigned int click = ax_click(win);
+            if (click != AX_FAIL && AX_CLICK_ROW(click) == 2) {
+                unsigned int col = AX_CLICK_COL(click);
+                if (col >= 4 && col < 16) accent = 0;
+                else if (col >= 18 && col < 30) accent = 1;
+                else continue;
+                status = ax_set_accent(accent) == 0 ? "Accent updated for this session." : "Could not update accent.";
+                draw(win, accent, status);
+            }
+        }
         ax_call(SYS_SLEEP, 1, 0, 0);
     }
     ax_close(win);

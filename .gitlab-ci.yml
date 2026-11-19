@@ -73,6 +73,7 @@ build-branch:
     - apt-get update -qq
     - DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nasm gcc-multilib binutils make python3 qemu-system-x86 xorriso > /dev/null
     - make ARCH=i386
+    - python3 tests/airp_apps_test.py build/settings.airp build/notes.airp
     - test -s build/textile.img
     - make fs-test sdk-test sdk-header-test
 

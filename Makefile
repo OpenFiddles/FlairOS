@@ -381,6 +381,7 @@ test: $(BUILD)/textile.img $(BUILD)/livecd.iso $(BUILD)/bootcd.iso $(BUILD)/airg
 	$(BUILD)/desktop_chrome_host_test
 	$(BUILD)/bmp_host_test
 	$(BUILD)/image_host_test
+	python3 tests/airp_apps_test.py $(BUILD)/settings.airp $(BUILD)/notes.airp
 	python3 tests/smoke.py $(BUILD)/textile.img
 	python3 tests/boot_media_test.py $(BUILD)/livecd.iso $(BUILD)/bootcd.iso
 
