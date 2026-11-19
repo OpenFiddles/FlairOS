@@ -146,7 +146,9 @@ int desktop_gfx_init(void) {
     display_attempted = 1;
 
     if (!vbe_init(&display_fb, DISPLAY_WIDTH, DISPLAY_HEIGHT)) {
-        serial_str("display: fatal: framebuffer unavailable; refusing VGA desktop fallback\n");
+        serial_str("display: fatal: framebuffer initialization failed: ");
+        serial_str(vbe_last_error());
+        serial_str("; refusing VGA desktop fallback\n");
         return 0;
     }
 
