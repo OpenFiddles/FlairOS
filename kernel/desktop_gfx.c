@@ -145,7 +145,7 @@ int desktop_gfx_init(void) {
     display_attempted = 1;
 
     if (!vbe_init(&display_fb, DISPLAY_WIDTH, DISPLAY_HEIGHT)) {
-        serial_str("display: framebuffer unavailable; VGA recovery mode active\n");
+        serial_str("display: fatal: framebuffer unavailable; refusing VGA desktop fallback\n");
         return 0;
     }
 
@@ -160,7 +160,7 @@ int desktop_gfx_init(void) {
                                   AG_SCALE_STRETCH) != 0) {
         ag_device_shutdown(&display_device);
         vbe_text_mode();
-        serial_str("display: AirGraph setup failed; VGA recovery mode active\n");
+        serial_str("display: fatal: AirGraph initialization failed; refusing VGA desktop fallback\n");
         return 0;
     }
 
