@@ -33,6 +33,19 @@
 #define DISPLAY_VENDOR 0x1234
 #define DISPLAY_DEVICE 0x1111
 
+#if defined(FLAIROS_DEBUG_BUILD)
+static void vbe_log_hex(const char *label, uint32_t value) {
+    static const char digits[] = "0123456789ABCDEF";
+    char text[9];
+    for (unsigned int i = 0; i < 8; ++i)
+        text[i] = digits[(value >> ((7u - i) * 4u)) & 0x0Fu];
+    text[8] = 0;
+    serial_str(label);
+    serial_str(text);
+    serial_str("\\n");
+}
+#endif
+
 static void dispi_write(uint16_t index, uint16_t value) {
     hw_outw(DISPI_INDEX_PORT, index);
     hw_outw(DISPI_DATA_PORT, value);

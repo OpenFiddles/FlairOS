@@ -88,7 +88,7 @@ $(BUILD)/stage1.bin: bootloader/stage1.asm | $(BUILD)
 	$(AS) -f bin $< -o $@
 
 $(BUILD)/stage2.bin: bootloader/stage2.asm | $(BUILD)
-	$(AS) -f bin -D FORCE_BOOT_MODE=$(BOOT_MODE) $< -o $@
+	$(AS) -f bin -D FORCE_BOOT_MODE=$(BOOT_MODE) -D DEBUG_RECOVERY=$(DEBUG) $< -o $@
 	test `stat -c %s $@` -le 2048
 	truncate -s 2048 $@
 

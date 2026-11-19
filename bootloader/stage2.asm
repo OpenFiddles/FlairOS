@@ -7,6 +7,10 @@
 %define FORCE_BOOT_MODE 0
 %endif
 
+%ifndef DEBUG_RECOVERY
+%define DEBUG_RECOVERY 0
+%endif
+
 BOOT_INFO_ADDR    equ 0x4FF0
 BOOT_INFO_MAGIC   equ 0x544F4F42
 BOOT_INFO_VERSION equ 1
@@ -45,12 +49,14 @@ stage2_start:
     mov dword [BOOT_INFO_ADDR], BOOT_INFO_MAGIC
     mov dword [BOOT_INFO_ADDR + 4], BOOT_INFO_VERSION
     mov dword [BOOT_INFO_ADDR + 8], FORCE_BOOT_MODE
+%if DEBUG_RECOVERY
     ; A warm reboot after a debug panic carries this marker into recovery.
     cmp dword [RECOVERY_MARKER_ADDR], RECOVERY_MARKER
     jne .boot_mode_ready
     mov dword [BOOT_INFO_ADDR + 8], 3
     mov dword [RECOVERY_MARKER_ADDR], 0
 .boot_mode_ready:
+%endif
     movzx eax, byte [boot_drive]
     mov dword [BOOT_INFO_ADDR + 12], eax
 
