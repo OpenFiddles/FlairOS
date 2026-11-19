@@ -28,7 +28,9 @@
 #define PCI_ADDR 0xCF8
 #define PCI_DATA 0xCFC
 #define PCI_COMMAND 0x04
+#define PCI_COMMAND_IO 0x0001
 #define PCI_COMMAND_MEMORY 0x0002
+#define PCI_COMMAND_DISPLAY (PCI_COMMAND_IO | PCI_COMMAND_MEMORY)
 #define DISPLAY_VENDOR 0x1234
 #define DISPLAY_DEVICE 0x1111
 
@@ -75,8 +77,23 @@ int vbe_init(struct fb *f, int32_t width, int32_t height) {
     uint32_t required_bytes;
 
     if (!f || width < MIN_W || height < MIN_H ||
-        !find_display(&slot, &lfb) ||
-        dispi_read(DISPI_ID) < DISPI_ID_MIN)
+        !find_display(&slot, &lfb))
+        return 0;
+
+    /*
+     * Bochs/QEMU DISPI is controlled through legacy I/O ports 0x1CE/0x1CF.
+     * Those ports are inaccessible until PCI I/O space is enabled.  The
+     * previous order probed DISPI first, so the ID read could return 0xFFFF
+     * and abort framebuffer startup before the desktop ever initialized.
+     *
+     * Only write the command halfword: the upper half of this dword contains
+     * PCI status bits, some of which are write-one-to-clear.
+     */
+    command = pci_read32(slot, PCI_COMMAND) & 0xFFFFu;
+    if ((command & PCI_COMMAND_DISPLAY) != PCI_COMMAND_DISPLAY)
+        pci_write32(slot, PCI_COMMAND, command | PCI_COMMAND_DISPLAY);
+
+    if (dispi_read(DISPI_ID) < DISPI_ID_MIN)
         return 0;
 
     /* Bound the request before multiplying dimensions or programming hardware. */
@@ -90,11 +107,6 @@ int vbe_init(struct fb *f, int32_t width, int32_t height) {
     required_bytes = (uint32_t)width * (uint32_t)height * 4u;
     if (required_bytes > (uint32_t)video_memory * 65536u)
         return 0;
-
-    /* Write only the PCI command halfword; status bits are write-one-to-clear. */
-    command = pci_read32(slot, PCI_COMMAND) & 0xFFFFu;
-    if ((command & PCI_COMMAND_MEMORY) == 0)
-        pci_write32(slot, PCI_COMMAND, command | PCI_COMMAND_MEMORY);
 
     dispi_write(DISPI_ENABLE, 0);
     dispi_write(DISPI_XRES, (uint16_t)width);
