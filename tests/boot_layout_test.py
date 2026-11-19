@@ -36,11 +36,18 @@ terminal_first = number(r"TERMINAL_LBA\s+equ\s+(\d+)", stage, "Terminal start LB
 terminal_sectors = number(r"TERMINAL_SECTORS\s+equ\s+(\d+)", stage, "Terminal sectors")
 assert explorer_first == 2447 and explorer_sectors == 32
 assert terminal_first == explorer_first + explorer_sectors and terminal_sectors == 64
+settings_first = number(r"SETTINGS_LBA\s+equ\s+(\d+)", stage, "Settings start LBA")
+settings_sectors = number(r"SETTINGS_SECTORS\s+equ\s+(\d+)", stage, "Settings sectors")
+notes_first = number(r"NOTES_LBA\s+equ\s+(\d+)", stage, "Notes start LBA")
+notes_sectors = number(r"NOTES_SECTORS\s+equ\s+(\d+)", stage, "Notes sectors")
+assert settings_first == terminal_first + terminal_sectors and settings_sectors == 32
+assert notes_first == settings_first + settings_sectors and notes_sectors == 16
 assert number(r"PYTHON_SECTORS\s+equ\s+(\d+)", stage, "Python sectors") == 257
 assert "mov word [lba], EXPLORER_LBA" in stage
 assert "mov word [lba], TERMINAL_LBA" in stage
 assert "mov word [lba], 2623" in stage
 assert "cmp dword [es:0], 0x50524941" in stage
+assert "mov ax, 0x3000" in stage and "mov ax, 0x3200" in stage
 assert "mov ax, 0x3400" in stage and "mov ax, 0x3800" in stage
 assert "mov ax, 0x6000" in stage
 
@@ -59,20 +66,29 @@ python_first = 2623
 python_last = python_first + 257 - 1
 explorer_last = explorer_first + explorer_sectors - 1
 terminal_last = terminal_first + terminal_sectors - 1
+settings_last = settings_first + settings_sectors - 1
+notes_last = notes_first + notes_sectors - 1
 assert fs_last == 2446 and explorer_first > fs_last
 assert explorer_last + 1 == terminal_first
-assert terminal_last < python_first
+assert terminal_last + 1 == settings_first
+assert settings_last + 1 == notes_first
+assert notes_last < python_first
 assert python_last == 2879 and python_last < 2880
 assert "seek=2447 count=32" in makefile
 assert "seek=2479 count=64" in makefile
+assert "seek=2543 count=32" in makefile
+assert "seek=2575 count=16" in makefile
 assert "seek=2623 count=257" in makefile
 
 avail = number(r"#define AVAIL_BITS\s+\(\(unsigned char \*\)(0x[0-9A-Fa-f]+)u\)", pmm, "available bitmap")
 managed = number(r"#define MANAGED_BITS\s+\(\(unsigned char \*\)(0x[0-9A-Fa-f]+)u\)", pmm, "managed bitmap")
+reserved = number(r"#define RESERVED_BITS\s+\(\(unsigned char \*\)(0x[0-9A-Fa-f]+)u\)", pmm, "reserved bitmap")
 frame_count = (0x10000000 - 0x00100000) // 4096
 bitmap_bytes = frame_count // 8
+assert avail == 0x80000
 assert avail + bitmap_bytes <= managed
-assert managed + bitmap_bytes <= 0x34000
+assert managed + bitmap_bytes <= reserved
+assert reserved + bitmap_bytes <= 0x86000
 assert "0x34000" in desktop and "0x7F000" in desktop
 assert "micropython_stage_init();" in kernel
 assert "pmm_alloc_contig(frames)" in kernel

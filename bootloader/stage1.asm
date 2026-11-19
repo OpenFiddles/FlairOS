@@ -1,5 +1,5 @@
-; Stage 1 loads Explorer and Terminal from reserved sectors after filesystem
-; data (LBA 2447..2542), stages them below TX_APP_BASE, and probes optional
+; Stage 1 loads built-in AIRP apps from reserved sectors after filesystem data
+; (LBA 2447..2590), stages them below TX_APP_BASE, and probes optional
 ; MicroPython at LBA 2623..2879. The primary filesystem occupies LBA 398..2446.
 [BITS 16]
 [ORG 0x7C00]

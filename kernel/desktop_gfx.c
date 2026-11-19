@@ -297,7 +297,7 @@ int desktop_gfx_draw_shell(int start_open, const char *clock_text) {
     sp_label(ui, 112*sx, bar_y+18*sy, "Hello   Clock   Terminal", 1);
     if (clock_text) sp_label(ui, w-104*sx, bar_y+18*sy, clock_text, 0);
     if (start_open) {
-        int menu_y=bar_y-238*sy;
+        int menu_y=bar_y-202*sy;
         sp_panel(ui, 12*sx, menu_y, 252*sx, 228*sy);
         sp_label(ui, 28*sx, menu_y+14*sy, "Applications", 0);
         sp_separator(ui, 24*sx, menu_y+32*sy, 224*sx);

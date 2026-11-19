@@ -12,9 +12,9 @@
 #define FRAME_MAX 0x10000000u
 #define FRAME_COUNT ((FRAME_MAX-FRAME_MIN)/PMM_FRAME_SIZE)
 #define BITMAP_BYTES (FRAME_COUNT/8u)
-#define AVAIL_BITS ((unsigned char *)0x30000u)
-#define MANAGED_BITS ((unsigned char *)0x32000u)
-#define RESERVED_BITS ((unsigned char *)0x34000u)
+#define AVAIL_BITS ((unsigned char *)0x80000u)
+#define MANAGED_BITS ((unsigned char *)0x82000u)
+#define RESERVED_BITS ((unsigned char *)0x84000u)
 static struct mm_frame_allocator frames;
 static void serial_dec(unsigned int v){char b[12];int n=11;b[n]=0;do{b[--n]=(char)('0'+v%10u);v/=10u;}while(v);serial_str(b+n);}
 void pmm_init(void){
