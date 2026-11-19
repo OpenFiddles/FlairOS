@@ -306,10 +306,10 @@ int desktop_gfx_draw_shell(int start_open, const char *clock_text) {
 
     if (start_open) {
         int menu_x = 1*cw;
-        int menu_y = (VGA_ROWS-START_MENU_H-1)*ch;
-        sp_panel(ui, menu_x, menu_y, START_MENU_W*cw, START_MENU_H*ch);
+        int menu_y = (VGA_ROWS-9-1)*ch;
+        sp_panel(ui, menu_x, menu_y, 25*cw, START_MENU_H*ch);
         sp_label(ui, menu_x+2*cw, menu_y+(ch-7)/2, "Applications", 0);
-        sp_separator(ui, menu_x+cw, menu_y+ch, (START_MENU_W-2)*cw);
+        sp_separator(ui, menu_x+cw, menu_y+ch, 23*cw);
         for (int i=0; i<7; ++i)
             sp_list_item(ui, menu_x+cw, menu_y+(i+1)*ch,
                          (START_MENU_W-2)*cw, ch, menu[i], 0, 0);
