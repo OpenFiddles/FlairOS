@@ -12,13 +12,16 @@ than the kernel supports.
 
 API level 2 retains the AXI window and filesystem calls and adds the session
 accent-colour call (`SYS_UI_ACCENT`, syscall 38). Settings uses it to switch
-between the default violet and teal accent.
+between the default violet and teal accent, and stores the selected value in
+`UI.CFG` when persistent storage is available.
 
 ## Built-in applications
 
-- **Settings** — desktop appearance accent, graphics/compositor information, and
-  FlairOS version information.
-- **Notes** — a small note editor that saves to `NOTE.TXT` through the filesystem API.
+- **Settings** — desktop accent, graphics/compositor information, and FlairOS
+  version information. The accent preference is loaded from and saved to
+  `UI.CFG`; LiveCD and RAM-only sessions report that the setting is temporary.
+- **Notes** — a small note editor that loads and saves `NOTE.TXT`. It reports
+  whether a save is persistent or only held in the current session.
 
 Both are built from `userland/`, packaged by `tools/airpack.py`, and included
 in disk, live, and setup images. The bootloader stages them before the kernel
