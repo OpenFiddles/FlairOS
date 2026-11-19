@@ -16,6 +16,7 @@ def source(path):
 
 stage = source("bootloader/stage1.asm")
 fs = source("include/fs.h")
+fs_kernel = source("kernel/fs.c")
 airp = source("include/airp.h")
 vm = source("drivers/vm.c")
 pmm = source("drivers/pmm.c")
@@ -60,15 +61,24 @@ app_lo = number(r"#define APP_LO\s+(0x[0-9A-Fa-f]+)", vm, "app lower bound")
 app_hi = number(r"#define APP_HI\s+(0x[0-9A-Fa-f]+)", vm, "app upper bound")
 assert image_max == 131072
 assert slot_size == 262144 == app_hi - app_lo
-assert file_max == 65536 and files == 16 and fs_dir == 398
-fs_last = fs_dir + 1 + files * (file_max // 512) - 1
+# The filesystem lives on the primary ATA data disk, not inside the
+# 1.44 MiB boot floppy. Its 16 fixed extents are 3600 sectors each.
+assert file_max == 1843200 and files == 16 and fs_dir == 398
+fs_file_sectors = file_max // 512
+fs_data_first = fs_dir + 1
+fs_data_end = fs_data_first + files * fs_file_sectors
+assert fs_file_sectors == 3600 and fs_data_first == 399
+assert fs_data_end == 57999
+assert "#define FSK_DATA_LBA   (FS_DIR_LBA + 1)" in fs_kernel
+assert "#define FSK_FILE_SECTS (FS_FILE_MAX / ATA_SECTOR_SIZE)" in fs_kernel
+assert "return ata_sector_count() >= fsk_file_lba(FS_FILES);" in fs_kernel
 python_first = 2623
 python_last = python_first + 257 - 1
 explorer_last = explorer_first + explorer_sectors - 1
 terminal_last = terminal_first + terminal_sectors - 1
 settings_last = settings_first + settings_sectors - 1
 notes_last = notes_first + notes_sectors - 1
-assert fs_last == 2446 and explorer_first > fs_last
+assert fs_data_end > 2880  # Separate ATA data disk; boot image is a 2880-sector floppy.
 assert explorer_last + 1 == terminal_first
 assert terminal_last + 1 == settings_first
 assert settings_last + 1 == notes_first
