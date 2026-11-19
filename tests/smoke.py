@@ -47,7 +47,7 @@ def boot(tag, cmds):
         wait_for(log, 'desktop: start')
 
         def send_key(key, delay=0.2):
-            mon.sendall(('sendkey %s\\n' % key).encode())
+            mon.sendall(('sendkey %s\n' % key).encode())
             time.sleep(delay)
 
         # Exercise the built-in .airp apps before entering the developer shell.
