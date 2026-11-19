@@ -115,10 +115,8 @@ explorer_bytes = stage_sectors("EXPLORER") * 512
 terminal_bytes = stage_sectors("TERMINAL") * 512
 assert settings_base == 0x30000
 assert notes_base == settings_base + settings_bytes == 0x34000
-assert explorer_base == notes_base + notes_bytes == 0x36000
 assert explorer_base == 0x90000 and explorer_base + explorer_bytes <= 0xA0000
 assert terminal_base == 0x38000
-assert terminal_base + terminal_bytes == app_lo == 0x40000
 assert terminal_base + terminal_bytes == app_lo == 0x40000
 assert "0x7F000" in desktop
 assert "micropython_stage_init();" in kernel
