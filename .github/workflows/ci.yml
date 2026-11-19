@@ -49,6 +49,20 @@ jobs:
       - name: Validate LiveCD and Setup boot media
         run: python3 tests/boot_media_test.py build/livecd.iso build/bootcd.iso
 
+      - name: Build isolated Debug image
+        run: |
+          make debug-image
+          test -s build-debug/textile.img
+
+      - name: Upload Debug image
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flairOS-debug-i386-image
+          path: build-debug/textile.img
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: QEMU desktop and filesystem smoke (diagnostic)
         continue-on-error: true
         run: python3 tests/smoke.py build/textile.img

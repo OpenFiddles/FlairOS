@@ -314,7 +314,7 @@ boot-media: $(BUILD)/textile.img $(BUILD)/livecd.iso $(BUILD)/bootcd.iso
 
 # Isolated diagnostic image: its own output tree and recovery boot mode.
 debug-image:
-	$(MAKE) BUILD=build-debug DEBUG=1 BOOT_MODE=3 build-debug/textile.img
+	$(MAKE) BUILD=build-debug DEBUG=1 BOOT_MODE=0 build-debug/textile.img
 
 # --- Window API demo: same image layout, app slot holds userland/win_app.c ---
 $(BUILD)/win_app.o: userland/win_app.c include/axi.h kernel/textile.h | $(BUILD)

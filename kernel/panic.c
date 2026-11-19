@@ -1,5 +1,6 @@
 #include "kernel.h"
 #include "../include/vbe.h"
+#include "../include/boot.h"
 
 static void panic_text(unsigned int row, unsigned int col, const char *text, u8 attr) {
     volatile u16 *vga = VGA_MEM;
@@ -42,7 +43,8 @@ void kernel_panic(const char *reason) {
     }
     irq_off();
     panic_text(9, 2, "Rebooting into Debug Recovery...", 0x4F);
-    serial_str("panic: rebooting into recovery boot mode\n");
+    *(volatile u32 *)FLAIR_RECOVERY_MARKER_ADDR = FLAIR_RECOVERY_MARKER;
+    serial_str("panic: recovery marker stored; rebooting into recovery boot mode\n");
     outb(0x64, 0xFE);
 #endif
     for (;;) halt();

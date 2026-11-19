@@ -1132,7 +1132,7 @@ void kmain(void) {
     irq_on();
 #if defined(FLAIROS_DEBUG_BUILD)
     if (boot_mode() == FLAIR_BOOT_RECOVERY) {
-        serial_str("recovery: debug recovery boot selected; AirGraph disabled\\n");
+        serial_str("recovery: debug recovery boot selected; AirGraph disabled\n");
         recovery_run();
         for (;;) text_shell_run();
     }

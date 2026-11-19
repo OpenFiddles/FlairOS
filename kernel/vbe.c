@@ -76,26 +76,26 @@ int vbe_init(struct fb *f, int32_t width, int32_t height) {
     uint32_t required_bytes;
 
 #if defined(FLAIROS_DEBUG_BUILD)
-    serial_str("vbe: probe begin\\n");
+    serial_str("vbe: probe begin\n");
 #endif
     if (!f || width < MIN_W || height < MIN_H) {
 #if defined(FLAIROS_DEBUG_BUILD)
-        serial_str("vbe: invalid framebuffer request\\n");
+        serial_str("vbe: invalid framebuffer request\n");
 #endif
         return 0;
     }
     if (!find_display(&slot, &lfb)) {
 #if defined(FLAIROS_DEBUG_BUILD)
-        serial_str("vbe: no supported Bochs/QEMU PCI display controller found\\n");
+        serial_str("vbe: no supported Bochs/QEMU PCI display controller found\n");
 #endif
         return 0;
     }
 #if defined(FLAIROS_DEBUG_BUILD)
-    serial_str("vbe: PCI display controller found\\n");
+    serial_str("vbe: PCI display controller found\n");
 #endif
     if (dispi_read(DISPI_ID) < DISPI_ID_MIN) {
 #if defined(FLAIROS_DEBUG_BUILD)
-        serial_str("vbe: DISPI interface ID unsupported\\n");
+        serial_str("vbe: DISPI interface ID unsupported\n");
 #endif
         return 0;
     }
@@ -108,19 +108,19 @@ int vbe_init(struct fb *f, int32_t width, int32_t height) {
     video_memory = dispi_read(DISPI_VIDEO_MEMORY_64K);
     if (!video_memory) {
 #if defined(FLAIROS_DEBUG_BUILD)
-        serial_str("vbe: adapter reported zero video memory\\n");
+        serial_str("vbe: adapter reported zero video memory\n");
 #endif
         return 0;
     }
     required_bytes = (uint32_t)width * (uint32_t)height * 4u;
     if (required_bytes > (uint32_t)video_memory * 65536u) {
 #if defined(FLAIROS_DEBUG_BUILD)
-        serial_str("vbe: requested mode exceeds reported video memory\\n");
+        serial_str("vbe: requested mode exceeds reported video memory\n");
 #endif
         return 0;
     }
 #if defined(FLAIROS_DEBUG_BUILD)
-    serial_str("vbe: configuring requested 32-bit linear mode\\n");
+    serial_str("vbe: configuring requested 32-bit linear mode\n");
 #endif
 
     /* Write only the PCI command halfword; status bits are write-one-to-clear. */
@@ -152,7 +152,7 @@ int vbe_init(struct fb *f, int32_t width, int32_t height) {
             (uint32_t)video_memory * 65536u) {
         dispi_write(DISPI_ENABLE, 0);
 #if defined(FLAIROS_DEBUG_BUILD)
-        serial_str("vbe: mode readback rejected dimensions, pitch, bpp, or memory bounds\\n");
+        serial_str("vbe: mode readback rejected dimensions, pitch, bpp, or memory bounds\n");
 #endif
         return 0;
     }
@@ -162,12 +162,12 @@ int vbe_init(struct fb *f, int32_t width, int32_t height) {
     if (!fb_is_valid(f)) {
         dispi_write(DISPI_ENABLE, 0);
 #if defined(FLAIROS_DEBUG_BUILD)
-        serial_str("vbe: framebuffer structure validation failed\\n");
+        serial_str("vbe: framebuffer structure validation failed\n");
 #endif
         return 0;
     }
 #if defined(FLAIROS_DEBUG_BUILD)
-    serial_str("vbe: framebuffer ready\\n");
+    serial_str("vbe: framebuffer ready\n");
 #endif
     return 1;
 }
