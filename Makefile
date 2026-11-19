@@ -234,7 +234,7 @@ $(BUILD)/explorer.airp: $(BUILD)/explorer.bin tools/airpack.py
 
 
 # --- Built-in Settings and Notes AIRP applications ---
-$(BUILD)/settings.o: userland/settings.c include/axi.h kernel/textile.h | $(BUILD)
+$(BUILD)/settings.o: userland/settings.c include/axi.h include/fs.h kernel/textile.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 $(BUILD)/settings.elf: $(BUILD)/settings.o $(BUILD)/rt.o userland/app.ld
 	$(LD) $(ARCH_LDFLAGS) -nostdlib -T userland/app.ld -o $@ $(BUILD)/settings.o $(BUILD)/rt.o
