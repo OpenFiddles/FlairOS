@@ -40,9 +40,8 @@ def boot(tag, cmds):
         mon = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         mon.connect(sock)
 
-        # The kernel now boots directly into the desktop. Wait for that state
-        # before asking it to switch to the developer shell; a fixed delay can
-        # send the shortcut during the VBE splash and leave it pending.
+        # The kernel now boots directly into the desktop. Ctrl+Alt+D leaves the
+        # desktop for the developer text shell; it does not launch the .airp Terminal.
         wait_for(log, 'display: AirGraph pixel desktop active')
         wait_for(log, 'desktop: start')
 
@@ -66,7 +65,7 @@ def boot(tag, cmds):
         send_key('esc', 0.6)
 
         mon.sendall(b'sendkey ctrl-alt-d\n')
-        wait_for(log, 'desktop: open terminal')
+        wait_for(log, 'desktop: exit')
 
         def type_line(text):
             for ch in text + '\n':

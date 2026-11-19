@@ -22,7 +22,7 @@
 #define SETTINGS_STAGE_LEN (32u * 512u)
 #define NOTES_STAGE ((const u8 *)0x34000)
 #define NOTES_STAGE_LEN (16u * 512u)
-#define EXPLORER_STAGE ((const u8 *)0x36000)
+#define EXPLORER_STAGE ((const u8 *)0x90000)
 #define EXPLORER_STAGE_LEN (32u * 512u)
 #define TERMINAL_STAGE ((const u8 *)0x38000)
 #define TERMINAL_STAGE_LEN (64u * 512u)

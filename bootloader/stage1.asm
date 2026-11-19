@@ -52,9 +52,9 @@ start:
     mov word [remaining], APP_SECTORS
     call load_range
 
-    ; Load explorer.airp to 0x3600:0x0000 (Physical 0x36000).
-    ; Its 16 KiB staging buffer ends at 0x38000.
-    mov ax, 0x3600
+    ; Load explorer.airp to 0x9000:0x0000 (Physical 0x90000),
+    ; separate from the contiguous built-in app staging region below 0x40000.
+    mov ax, 0x9000
     mov es, ax
     mov word [lba], EXPLORER_LBA
     mov word [offset], 0

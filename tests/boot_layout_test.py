@@ -49,7 +49,7 @@ assert "mov word [lba], TERMINAL_LBA" in stage
 assert "mov word [lba], 2623" in stage
 assert "cmp dword [es:0], 0x50524941" in stage
 assert "mov ax, 0x3000" in stage and "mov ax, 0x3400" in stage
-assert "mov ax, 0x3600" in stage and "mov ax, 0x3800" in stage
+assert "mov ax, 0x9000" in stage and "mov ax, 0x3800" in stage
 assert "mov ax, 0x6000" in stage
 
 fs_dir = number(r"#define FS_DIR_LBA\s+(\d+)", fs, "filesystem directory LBA")
@@ -116,7 +116,9 @@ terminal_bytes = stage_sectors("TERMINAL") * 512
 assert settings_base == 0x30000
 assert notes_base == settings_base + settings_bytes == 0x34000
 assert explorer_base == notes_base + notes_bytes == 0x36000
-assert terminal_base == explorer_base + explorer_bytes == 0x38000
+assert explorer_base == 0x90000 and explorer_base + explorer_bytes <= 0xA0000
+assert terminal_base == 0x38000
+assert terminal_base + terminal_bytes == app_lo == 0x40000
 assert terminal_base + terminal_bytes == app_lo == 0x40000
 assert "0x7F000" in desktop
 assert "micropython_stage_init();" in kernel
