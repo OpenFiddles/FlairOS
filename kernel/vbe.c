@@ -16,6 +16,7 @@
 #define DISPI_VIDEO_MEMORY_64K 0xA
 
 #define DISPI_ID_MIN 0xB0C0
+#define DISPI_ID_MASK 0xFFF0
 #define DISPI_ENABLED 0x01
 #define DISPI_LFB 0x40
 #define DISPI_NOCLEAR 0x80
@@ -141,14 +142,14 @@ int vbe_init(struct fb *f, int32_t width, int32_t height) {
          * PCI BAR. Its documented legacy LFB aperture is 0xE0000000. Accept
          * it only after the DISPI identity register confirms the adapter.
          */
-        if (dispi_read(DISPI_ID) < DISPI_ID_MIN) {
+        if ((dispi_read(DISPI_ID) & DISPI_ID_MASK) != DISPI_ID_MIN) {
             last_error = "no Bochs DISPI adapter found";
             return 0;
         }
         lfb = DISPI_ISA_LFB;
     }
 
-    if (dispi_read(DISPI_ID) < DISPI_ID_MIN) {
+    if ((dispi_read(DISPI_ID) & DISPI_ID_MASK) != DISPI_ID_MIN) {
         last_error = "Bochs DISPI identity check failed";
         return 0;
     }
