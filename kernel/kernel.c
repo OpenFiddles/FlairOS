@@ -1132,12 +1132,9 @@ void kmain(void) {
     irq_on();
     if (boot_mode() == FLAIR_BOOT_SETUP)
         setup_run();
-    desktop_gfx_init();
+    if (!desktop_gfx_init())
+        kernel_panic("Required AirGraph framebuffer initialization failed");
     splash_progress(100, "Starting your FlairOS session");
-    if (!boot_is_live_session() && !desktop_gfx_active())
-        run_app();
-    if (!desktop_gfx_active())
-        clear_screen();
 
     for (;;) {
         desktop_run();

@@ -242,31 +242,12 @@ int desktop_gfx_present(const uint16_t *cells, int columns, int rows) {
             desktop_bmp_asset && desktop_bmp_asset->length
                 ? desktop_bmp_asset->bytes : 0,
             desktop_bmp_asset ? desktop_bmp_asset->length : 0) == 0) {
-        if (render_buffer_ready && ag_present(&display_device, surface) != 0) {
-            display_ready = 0;
-            ag_device_shutdown(&display_device);
-            if (render_pixels) {
-                kfree(render_pixels);
-                render_pixels = 0;
-            }
-            render_buffer_ready = 0;
-            vbe_text_mode();
-            serial_str("display: frame present fault; switched to VGA recovery mode\\n");
-            return -1;
-        }
+        if (render_buffer_ready && ag_present(&display_device, surface) != 0)
+            kernel_panic("AirGraph framebuffer present failed");
         return 0;
     }
 
-    display_ready = 0;
-    ag_device_shutdown(&display_device);
-    if (render_pixels) {
-        kfree(render_pixels);
-        render_pixels = 0;
-    }
-    render_buffer_ready = 0;
-    vbe_text_mode();
-    serial_str("display: renderer fault; switched to VGA recovery mode\n");
-    return -1;
+    kernel_panic("AirGraph pixel renderer failed");
 }
 
 int desktop_gfx_draw_window(int x, int y, int width, int height,
@@ -279,11 +260,8 @@ int desktop_gfx_draw_window(int x, int y, int width, int height,
 
 int desktop_gfx_flush(void) {
     if (!display_ready) return -1;
-    if (render_buffer_ready && ag_present(&display_device, desktop_render_surface()) != 0) {
-        desktop_gfx_shutdown();
-        serial_str("display: chrome present fault; VGA recovery mode active\n");
-        return -1;
-    }
+    if (render_buffer_ready && ag_present(&display_device, desktop_render_surface()) != 0)
+        kernel_panic("AirGraph chrome presentation failed");
     return 0;
 }
 

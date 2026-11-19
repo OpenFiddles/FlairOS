@@ -265,11 +265,9 @@ void axi_gfx_render(void) {
 
 static u32 axk_present(void) {
     axk_mouse();
-    if (desktop_gfx_active()) {
-        desktop_present_app();
-        if (desktop_gfx_active()) return 0;
-    }
-    axk_draw();
+    if (!desktop_gfx_active()) kernel_panic("AXI window presentation requires AirGraph");
+    desktop_present_app();
+    if (!desktop_gfx_active()) kernel_panic("AirGraph failed during AXI window presentation");
     return 0;
 }
 

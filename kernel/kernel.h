@@ -133,6 +133,7 @@ extern volatile u8 mouse_buttons;
 void serial_str(const char *s);
 void rtc_now(u8 *out);
 int desktop_run(void);
+void kernel_panic(const char *reason) __attribute__((noreturn));
 void wait_ticks(u32 n);
 void sound_tone(u32 hz, u32 ms);
 

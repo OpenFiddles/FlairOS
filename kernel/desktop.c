@@ -300,7 +300,7 @@ static void start_select(int item) {
         int restore_pixel_desktop = desktop_gfx_active();
         if (restore_pixel_desktop) desktop_gfx_shutdown();
         run_micropython();
-        if (restore_pixel_desktop) desktop_gfx_init();
+        if (restore_pixel_desktop && !desktop_gfx_init()) kernel_panic("AirGraph failed to resume after Python runtime");
     }
     serial_str("desktop: start menu select ");
     log_point("item", item + 1, 0);
@@ -353,21 +353,19 @@ static void draw_frame(void) {
     draw_taskbar();
     draw_start_menu();
     draw_cursor();
-    if (desktop_gfx_active() && desktop_gfx_present(back, VGA_COLS, VGA_ROWS) == 0) {
-        for (int i = 0; i < WIN_COUNT; i++) {
-            int k = z[i];
-            if (wins[k].open)
-                desktop_gfx_draw_window(wins[k].x, wins[k].y,
-                                        wins[k].w, wins[k].h,
-                                        wins[k].title, top_win() == k);
-        }
-        if (desktop_gfx_flush() == 0) {
-            axi_gfx_render();
-            return;
-        }
+    if (!desktop_gfx_active())
+        kernel_panic("AirGraph became unavailable while the desktop was running");
+    if (desktop_gfx_present(back, VGA_COLS, VGA_ROWS) != 0)
+        kernel_panic("AirGraph desktop renderer failed");
+    for (int i = 0; i < WIN_COUNT; i++) {
+        int k = z[i];
+        if (wins[k].open && desktop_gfx_draw_window(wins[k].x, wins[k].y,
+                wins[k].w, wins[k].h, wins[k].title, top_win() == k) != 0)
+            kernel_panic("WinDown window composition failed");
     }
-    for (int i = 0; i < VGA_ROWS * VGA_COLS; i++)
-        VGA_MEM[i] = back[i];
+    if (desktop_gfx_flush() != 0)
+        kernel_panic("AirGraph frame presentation failed");
+    axi_gfx_render();
 }
 
 void desktop_present_app(void) {
@@ -508,7 +506,7 @@ int desktop_run(void) {
     /* Start with a clean workspace. The built-in Terminal remains available
        from its desktop icon and the Start menu; it is not restored on boot. */
     serial_str("desktop: start\n");
-    desktop_gfx_init();
+    if (!desktop_gfx_init()) kernel_panic("Required AirGraph desktop initialization failed");
     outb(0x3D4, 0x0A);
     outb(0x3D5, 0x20);
     prev_buttons = mouse_buttons;
