@@ -267,10 +267,6 @@ $(BUILD)/textile.img: $(BUILD)/stage1.bin $(BUILD)/stage2.bin $(BUILD)/kernel.bi
 	dd if=$(BUILD)/terminal.airp of=$@ bs=512 seek=2479 count=64 conv=notrunc status=none
 	dd if=$(BUILD)/settings.airp of=$@ bs=512 seek=2543 count=32 conv=notrunc status=none
 	dd if=$(BUILD)/notes.airp of=$@ bs=512 seek=2575 count=16 conv=notrunc status=none
-	dd if=$(BUILD)/settings.airp of=$@ bs=512 seek=2543 count=32 conv=notrunc status=none
-	dd if=$(BUILD)/notes.airp of=$@ bs=512 seek=2575 count=16 conv=notrunc status=none
-	dd if=$(BUILD)/settings.airp of=$@ bs=512 seek=2543 count=32 conv=notrunc status=none
-	dd if=$(BUILD)/notes.airp of=$@ bs=512 seek=2575 count=16 conv=notrunc status=none
 
 $(BUILD)/livecd.img: $(BUILD)/stage1.bin $(BUILD)/stage2-live.bin $(BUILD)/kernel.bin $(BUILD)/app.bin $(BUILD)/explorer.airp $(BUILD)/terminal.airp $(BUILD)/settings.airp $(BUILD)/notes.airp
 	dd if=/dev/zero of=$@ bs=512 count=2880 status=none
@@ -280,6 +276,8 @@ $(BUILD)/livecd.img: $(BUILD)/stage1.bin $(BUILD)/stage2-live.bin $(BUILD)/kerne
 	dd if=$(BUILD)/app.bin of=$@ bs=512 seek=261 count=128 conv=notrunc status=none
 	dd if=$(BUILD)/explorer.airp of=$@ bs=512 seek=2447 count=32 conv=notrunc status=none
 	dd if=$(BUILD)/terminal.airp of=$@ bs=512 seek=2479 count=64 conv=notrunc status=none
+	dd if=$(BUILD)/settings.airp of=$@ bs=512 seek=2543 count=32 conv=notrunc status=none
+	dd if=$(BUILD)/notes.airp of=$@ bs=512 seek=2575 count=16 conv=notrunc status=none
 
 $(BUILD)/bootcd.img: $(BUILD)/stage1.bin $(BUILD)/stage2-setup.bin $(BUILD)/kernel.bin $(BUILD)/app.bin $(BUILD)/explorer.airp $(BUILD)/terminal.airp $(BUILD)/settings.airp $(BUILD)/notes.airp
 	dd if=/dev/zero of=$@ bs=512 count=2880 status=none
@@ -289,6 +287,8 @@ $(BUILD)/bootcd.img: $(BUILD)/stage1.bin $(BUILD)/stage2-setup.bin $(BUILD)/kern
 	dd if=$(BUILD)/app.bin of=$@ bs=512 seek=261 count=128 conv=notrunc status=none
 	dd if=$(BUILD)/explorer.airp of=$@ bs=512 seek=2447 count=32 conv=notrunc status=none
 	dd if=$(BUILD)/terminal.airp of=$@ bs=512 seek=2479 count=64 conv=notrunc status=none
+	dd if=$(BUILD)/settings.airp of=$@ bs=512 seek=2543 count=32 conv=notrunc status=none
+	dd if=$(BUILD)/notes.airp of=$@ bs=512 seek=2575 count=16 conv=notrunc status=none
 
 $(BUILD)/livecd.iso: $(BUILD)/livecd.img
 	mkdir -p $(BUILD)/livecd-root

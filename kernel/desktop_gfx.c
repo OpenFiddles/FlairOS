@@ -264,6 +264,50 @@ int desktop_gfx_draw_window(int x, int y, int width, int height,
                                title, active);
 }
 
+
+int desktop_gfx_draw_shell(int start_open, const char *clock_text) {
+    struct ag_surface *surface = desktop_render_surface();
+    struct sp_context *ui = &desktop_ui_context;
+    int sx, sy, w, h, bar_y;
+    static const char *const labels[4] = {"Welcome", "Clock", "Terminal", "Files"};
+    static const char *const menu[7] = {
+        "Welcome", "Clock", "Terminal", "Files", "Python", "Settings", "Notes"
+    };
+    if (!display_ready || !surface || !ui->theme) return -1;
+    sx = surface->width / 800; if (sx < 1) sx = 1;
+    sy = surface->height / 600; if (sy < 1) sy = 1;
+    w = surface->width; h = surface->height;
+    /* Material-style top app bar. */
+    sp_panel(ui, 12*sx, 10*sy, w-24*sx, 42*sy);
+    sp_label(ui, 28*sx, 27*sy, "FlairOS", 0);
+    sp_label(ui, 112*sx, 27*sy, "Workspace 1", 1);
+    sp_badge(ui, w-132*sx, 20*sy, "SYSTEM READY", ui->theme->color.success);
+    /* Compact desktop launch tiles aligned to the existing hit targets. */
+    for (int i=0;i<4;i++) {
+        int y=(i==0?58:(i==1?106:(i==2?154:250)))*sy;
+        sp_card(ui, 16*sx, y, 104*sx, 28*sy);
+        ag_round_rect(ui->device,surface,24*sx,y+7*sy,12*sx,12*sy,4*sx,
+                      i==0?0x007C83FF:(i==1?0x000F9D8A:(i==2?0x00D97757:0x006B8AC7)));
+        sp_label(ui, 44*sx, y+10*sy, labels[i], 0);
+    }
+    /* Floating taskbar and start launcher. */
+    bar_y=h-54*sy;
+    sp_panel(ui, 12*sx, bar_y, w-24*sx, 42*sy);
+    sp_button(ui, 20*sx, bar_y+5*sy, 76*sx, 30*sy, "Start", 1);
+    sp_label(ui, 112*sx, bar_y+18*sy, "Hello   Clock   Terminal", 1);
+    if (clock_text) sp_label(ui, w-104*sx, bar_y+18*sy, clock_text, 0);
+    if (start_open) {
+        int menu_y=bar_y-238*sy;
+        sp_panel(ui, 12*sx, menu_y, 252*sx, 228*sy);
+        sp_label(ui, 28*sx, menu_y+14*sy, "Applications", 0);
+        sp_separator(ui, 24*sx, menu_y+32*sy, 224*sx);
+        for (int i=0;i<7;i++)
+            sp_list_item(ui, 20*sx, menu_y+(40+i*25)*sy, 236*sx, 23*sy,
+                         menu[i], 0, 0);
+    }
+    return 0;
+}
+
 int desktop_gfx_flush(void) {
     if (!display_ready) return -1;
     if (render_buffer_ready && ag_present(&display_device, desktop_render_surface()) != 0)

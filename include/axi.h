@@ -11,8 +11,8 @@
 #define SYS_WIN_CLEAR   17  /* ebx = handle, ecx = attr */
 #define SYS_WIN_PRESENT 18  /* read the mouse, then draw every open window and the pointer */
 #define SYS_WIN_CLICK   19  /* ebx = handle; returns row | col << 16 of the last body click, or AX_FAIL */
-#define SYS_WIN_ALIVE   20
-#define SYS_UI_ACCENT   38  /* ebx = 0 violet, 1 teal */  /* ebx = handle; 1 while the user has not closed it */
+#define SYS_WIN_ALIVE   20  /* ebx = handle; 1 while the user has not closed it */
+#define SYS_UI_ACCENT   38  /* ebx = 0 violet, 1 teal */
 
 #define AX_FAIL 0xFFFFFFFFu
 #define AX_MAX_BODY_W 64

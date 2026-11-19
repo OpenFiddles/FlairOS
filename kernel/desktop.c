@@ -385,9 +385,21 @@ static void draw_frame(void) {
                 wins[k].w, wins[k].h, wins[k].title, top_win() == k) != 0)
             kernel_panic("WinDown window composition failed");
     }
+    {
+        u8 now[6];
+        char clock_text[9];
+        rtc_now(now);
+        clock_text[0]=(char)('0'+now[2]/10); clock_text[1]=(char)('0'+now[2]%10);
+        clock_text[2]=':'; clock_text[3]=(char)('0'+now[1]/10);
+        clock_text[4]=(char)('0'+now[1]%10); clock_text[5]=':';
+        clock_text[6]=(char)('0'+now[0]/10); clock_text[7]=(char)('0'+now[0]%10);
+        clock_text[8]=0;
+        if (desktop_gfx_draw_shell(start_open, clock_text) != 0)
+            kernel_panic("Material desktop shell composition failed");
+    }
+    axi_gfx_render();
     if (desktop_gfx_flush() != 0)
         kernel_panic("AirGraph frame presentation failed");
-    axi_gfx_render();
 }
 
 void desktop_present_app(void) {
