@@ -14,6 +14,9 @@ PURPOSE: Host-side checks for the FlareOS filesystem. Compiles kernel/fs.c direc
 /* The host harness tests the persistent-disk path, not LiveCD mode. */
 int boot_is_live_session(void) { return 0; }
 
+/* The kernel filesystem reports migration diagnostics through this kernel-only hook. */
+void serial_str(const char *s) { (void)s; }
+
 #define FAKE_SECTORS 4096
 
 static u8 fake_disk[FAKE_SECTORS][ATA_SECTOR_SIZE];
