@@ -115,3 +115,63 @@ jobs:
       - name: Show final compiler cache statistics
         if: always()
         run: ccache --show-stats
+
+
+  pages:
+    name: Deploy FlairOS V2 browser emulator
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: [build-images]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Check out FlairOS V2
+        uses: actions/checkout@v4
+
+      - name: Download the verified V2 release image
+        uses: actions/download-artifact@v4
+        with:
+          name: flairos-i386-release
+          path: build-image
+
+      - name: Assemble the GitHub Pages site
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq seabios vgabios > /dev/null
+          test -s build-image/flairos-i386-release.img
+          mkdir -p public/v86 /tmp/v86
+          cp web/index.html public/index.html
+          cp build-image/flairos-i386-release.img public/flairos-i386-release.img
+          (cd /tmp/v86 && npm install --no-audit --no-fund v86@0.5.472)
+          cp /tmp/v86/node_modules/v86/build/libv86.js public/v86/
+          cp /tmp/v86/node_modules/v86/build/v86.wasm public/v86/
+          cp /usr/share/seabios/bios-256k.bin public/v86/seabios.bin
+          cp /usr/share/seabios/vgabios-stdvga.bin public/v86/vgabios.bin
+          touch public/.nojekyll
+          test -s public/index.html
+          test -s public/flairos-i386-release.img
+          test -s public/v86/libv86.js
+          test -s public/v86/v86.wasm
+          test -s public/v86/seabios.bin
+          test -s public/v86/vgabios.bin
+          grep -q 'hda: { url: "flairos-i386-release.img" }' public/index.html
+          echo "Prepared FlairOS V2 Pages site with the verified Linux disk image."
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
