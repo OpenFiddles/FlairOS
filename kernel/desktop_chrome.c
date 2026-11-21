@@ -1,27 +1,54 @@
 #include "../include/desktop_chrome.h"
 #include "../include/font5x7.h"
 
+/* Window chrome: original FlairOS design.
+   Layout contract shared with the input code in desktop.c (grid cells):
+     close button  = cell column x+1, minimize = x+3, zoom = x+5, on the title row.
+   The title bar is exactly one grid row tall so pointer hit tests match pixels. */
+
+static int title_pixel_width(const char *title, int scale) {
+    int n = 0;
+    while (title && title[n] && n < 48) ++n;
+    return n * 6 * scale;
+}
+
 static void draw_title_text(struct ag_device *device, struct ag_surface *surface,
-                            int x, int y, int max_width, const char *title,
+                            int x, int y, const char *title, int scale,
                             uint32_t color) {
-    int scale = surface->width >= 800 ? 2 : 1;
-    int text_width = 0;
-    if (!title) return;
-    for (int i = 0; title[i] && i < 48; ++i)
-        text_width += 6 * scale;
-    if (text_width > max_width) scale = 1;
-    for (int i = 0; title[i] && i < 48; ++i) {
+    for (int i = 0; title && title[i] && i < 48; ++i) {
         const uint8_t *glyph = font5x7_glyph(title[i]);
-        for (int gy = 0; gy < 7; ++gy) {
-            for (int gx = 0; gx < 5; ++gx) {
+        for (int gy = 0; gy < 7; ++gy)
+            for (int gx = 0; gx < 5; ++gx)
                 if (glyph[gy] & (1u << (4 - gx)))
-                    ag_fill_rect(device, surface,
-                                 x + gx * scale, y + gy * scale,
+                    ag_fill_rect(device, surface, x + gx * scale, y + gy * scale,
                                  scale, scale, color);
-            }
-        }
         x += 6 * scale;
         if (x >= surface->width) break;
+    }
+}
+
+/* Soft shadow: stacked translucent rings that fade outward. Only the area
+   outside the window is shaded, so window contents are never darkened. */
+static void blend_clip(struct ag_device *device, struct ag_surface *surface,
+                       int x0, int y0, int x1, int y1, uint32_t color) {
+    if (x1 > x0 && y1 > y0)
+        ag_blend_rect(device, surface, x0, y0, x1 - x0, y1 - y0, color);
+}
+
+static void draw_shadow(struct ag_device *device, struct ag_surface *surface,
+                        int px, int py, int pw, int ph) {
+    static const uint32_t alpha[5] = {0x30000000u, 0x24000000u, 0x18000000u,
+                                      0x0E000000u, 0x06000000u};
+    int ix0 = px, iy0 = py, ix1 = px + pw, iy1 = py + ph;
+    for (int i = 0; i < 5; ++i) {
+        int grow = 2 + i * 2;
+        int l = px - grow + 2, t = py - grow + 8;
+        int r = px + pw + grow - 2, b = py + ph + grow + 6;
+        int my0 = t > iy0 ? t : iy0, my1 = b < iy1 ? b : iy1;
+        blend_clip(device, surface, l, t, r, iy0 < b ? iy0 : b, alpha[i]);           /* top */
+        blend_clip(device, surface, l, iy1 > t ? iy1 : t, r, b, alpha[i]);           /* bottom */
+        blend_clip(device, surface, l, my0, ix0 < r ? ix0 : r, my1, alpha[i]);       /* left */
+        blend_clip(device, surface, ix1 > l ? ix1 : l, my0, r, my1, alpha[i]);       /* right */
     }
 }
 
@@ -29,8 +56,8 @@ int desktop_chrome_draw(struct ag_device *device, struct ag_surface *surface,
                         int grid_columns, int grid_rows,
                         int x, int y, int width, int height,
                         const char *title, int active) {
-    int px, py, right, bottom, pw, ph, title_height;
-    uint32_t title_color, border_color;
+    int px, py, right, bottom, pw, ph, cw, ch, title_height, scale, tw, tx;
+    uint32_t bar, border;
     if (!surface || !surface->pixels || grid_columns <= 0 || grid_rows <= 0 ||
         width <= 0 || height <= 0 || x < 0 || y < 0 ||
         x + width > grid_columns || y + height > grid_rows)
@@ -42,36 +69,41 @@ int desktop_chrome_draw(struct ag_device *device, struct ag_surface *surface,
     bottom = ((y + height) * surface->height) / grid_rows;
     pw = right - px;
     ph = bottom - py;
-    if (pw < 48 || ph < 32) return -1;
+    cw = surface->width / grid_columns;
+    ch = surface->height / grid_rows;
+    if (pw < 48 || ph < 32 || cw < 5 || ch < 12) return -1;
 
-    title_height = ph / 12;
-    if (title_height < 22) title_height = 22;
-    if (title_height > 32) title_height = 32;
-    title_color = active ? 0x00243B6B : 0x002B3A52;
-    border_color = active ? 0x006B8AC7 : 0x00465770;
+    title_height = ((y + 1) * surface->height) / grid_rows - py;
+    bar = active ? 0x00303544 : 0x00262A36;
+    border = active ? 0x00505A70 : 0x0036404F;
 
-    /* Soft drop shadow is kept outside the content area. */
-    ag_blend_rect(device, surface, px + 4, bottom - 1, pw - 2, 4, 0x50000000);
-    ag_blend_rect(device, surface, right - 1, py + 4, 4, ph - 2, 0x50000000);
+    draw_shadow(device, surface, px, py, pw, ph);
 
-    /* The existing cell renderer owns window contents; this layer owns chrome. */
-    ag_round_rect(device, surface, px, py, pw, title_height, 9, title_color);
-    if (title_height > 9)
-        ag_fill_rect(device, surface, px + 9, py + title_height / 2,
-                     pw - 18, title_height - title_height / 2, title_color);
-    ag_round_frame(device, surface, px, py, pw, ph, 10, border_color);
+    /* Title bar: rounded top, squared where it meets the content. */
+    ag_round_rect(device, surface, px, py, pw, title_height + 6, 7, bar);
+    ag_fill_rect(device, surface, px, py + title_height - 1, pw, 1,
+                 active ? 0x00222733 : 0x001E222C);
+    ag_round_frame(device, surface, px, py, pw, ph, 7, border);
 
-    /* Three compact traffic-light controls. */
+    /* Traffic-light controls: close, minimize, zoom. */
     {
-        int cy = py + (title_height - 9) / 2;
-        int cx = right - 14;
-        ag_round_rect(device, surface, cx, cy, 8, 8, 4, 0x00F87171);
-        ag_round_rect(device, surface, cx - 14, cy, 8, 8, 4, 0x00FBBF24);
-        ag_round_rect(device, surface, cx - 28, cy, 8, 8, 4, 0x0034D399);
+        int d = ch / 2;
+        int cy = py + (title_height - d) / 2;
+        static const uint32_t on[3] = {0x00F0605A, 0x00F2BE3C, 0x003CCB5B};
+        for (int i = 0; i < 3; ++i) {
+            int cx = px + cw * (1 + 2 * i) + (cw - d) / 2;
+            ag_round_rect(device, surface, cx, cy, d, d, d / 2,
+                          active ? on[i] : 0x004A5262);
+        }
     }
 
-    draw_title_text(device, surface, px + 12,
-                    py + (title_height - 14) / 2,
-                    pw - 58, title, 0x00F1F5F9);
+    /* Centered title, shrunk to scale 1 when it would collide with the buttons. */
+    scale = surface->width >= 800 ? 2 : 1;
+    tw = title_pixel_width(title, scale);
+    if (tw > pw - cw * 14) { scale = 1; tw = title_pixel_width(title, 1); }
+    tx = px + (pw - tw) / 2;
+    if (tx < px + cw * 7) tx = px + cw * 7;
+    draw_title_text(device, surface, tx, py + (title_height - 7 * scale) / 2,
+                    title, scale, active ? 0x00E8ECF4 : 0x008A93A6);
     return 0;
 }
