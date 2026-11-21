@@ -1,15 +1,28 @@
-# Building FlareOS
+# Building FlairOS V2
 
-A small x86 hobby kernel: a 512-byte boot sector loads a 64-sector kernel, switches to 32-bit protected mode, and runs a shell.
+The Linux build is performed by GitHub Actions. The workflow fetches upstream source repositories with shallow clones, builds the kernel, GNU GRUB, and BusyBox, then assembles one bootable i386 disk image.
 
-- Hardware it talks to: VGA text (0xB8000 and cursor ports), PS/2 keyboard (IRQ1), PIT timer (IRQ0), PIC, CMOS clock (ports 0x70/0x71), RTL8139 network card (PCI config and I/O ports, detection only for now), COM1 serial (mirrors the screen for tests), and any I/O port through `in` and `out`.
-- Shell commands: `help`, `clear`, `echo`, `time`, `uptime`, `in PORT`, `out PORT VALUE`, `reboot`, `net`, `sqr X Y`.
-- Boot shows a short Saturn splash with a pulsing background before the shell starts.
+## Local build
 
-## Build and run
+Install the dependencies listed in `.github/workflows/ci.yml`, then run:
 
-    make            # builds build/textile.img (1.44 MB floppy image)
-    make run        # boots in QEMU, serial output in the terminal
-    make test       # headless boot + keyboard test (tests/smoke.py), with an RTL8139 attached
+```sh
+./build/build-linux-image.sh debug
+./build/build-linux-image.sh release
+```
 
-Needs nasm, gcc with 32-bit support (gcc-multilib on Debian/Ubuntu), ld, objcopy and qemu-system-i386.
+Output:
+
+- `build-out/flairos-i386-debug.img`
+- `build-out/flairos-i386-release.img`
+
+The disk uses an MBR partition table, a FAT32 GRUB boot partition, and an ext2 root filesystem. The Linux kernel and root filesystem drivers required for this layout are built into the kernel.
+
+## Validation
+
+```sh
+sh tests/airp-package-test.sh
+qemu-system-i386 -m 256M -drive file=build-out/flairos-i386-debug.img,format=raw,if=ide
+```
+
+GitLab is used for source changes. GitHub Actions is the build, validation, and artifact system.
