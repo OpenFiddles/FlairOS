@@ -1,0 +1,153 @@
+#!/bin/sh
+# AirP (AirPacket): minimal local package manager for FlairOS.
+set -eu
+
+ROOT=${AIRP_ROOT:-/}
+[ "$ROOT" = "/" ] || ROOT=${ROOT%/}
+path() {
+  if [ "$ROOT" = "/" ]; then printf '%s' "$1"; else printf '%s%s' "$ROOT" "$1"; fi
+}
+APPS=$(path /opt/flairos/apps)
+PKGDB=$(path /var/lib/airp/packages)
+
+usage() {
+  cat <<'EOF'
+AirP (AirPacket)
+Usage:
+  airp install FILE.airp|FILE.airpkg
+  airp remove NAME
+  airp list
+  airp info NAME
+  airp help
+
+.airp   FlairOS application container (stored for the AIRP runtime)
+.airpkg System package archive containing manifest and rootfs/
+EOF
+}
+
+valid_name() {
+  case "$1" in
+    ""|"."|".."|*[!A-Za-z0-9._+-]*) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
+install_app() {
+  file=$1
+  [ -f "$file" ] || { echo "AirP: file not found: $file" >&2; exit 1; }
+  magic=$(dd if="$file" bs=1 count=4 2>/dev/null || true)
+  [ "$magic" = "AIRP" ] || { echo "AirP: invalid application container (missing AIRP magic)" >&2; exit 1; }
+  size=$(wc -c < "$file" | tr -d " ")
+  [ "$size" -ge 44 ] || { echo "AirP: truncated application container" >&2; exit 1; }
+  [ "$size" -le 131108 ] || { echo "AirP: application container exceeds the AIRP v1 size limit" >&2; exit 1; }
+  base=${file##*/}
+  name=${base%.airp}
+  valid_name "$name" || { echo "AirP: invalid application name" >&2; exit 1; }
+  mkdir -p "$APPS"
+  cp "$file" "$APPS/$name.airp"
+  printf 'type=application\nname=%s\nsource=%s\n' "$name" "$base" > "$APPS/$name.meta"
+  echo "AirP: installed application $name"
+}
+
+install_system_package() {
+  archive=$1
+  [ -f "$archive" ] || { echo "AirP: file not found: $archive" >&2; exit 1; }
+  command -v tar >/dev/null 2>&1 || { echo "AirP: tar is required" >&2; exit 1; }
+  if tar -tzf "$archive" | grep -E '(^/|(^|/)\.\.(/|$))' >/dev/null 2>&1; then
+    echo "AirP: unsafe path in package archive" >&2
+    exit 1
+  fi
+  if tar -tvzf "$archive" | grep -E '^[^d-]' >/dev/null 2>&1; then
+    echo "AirP: only regular files and directories are allowed in system packages" >&2
+    exit 1
+  fi
+
+  tmp=$(mktemp -d)
+  trap 'rm -rf "$tmp"' EXIT HUP INT TERM
+  tar -xzf "$archive" -C "$tmp"
+  [ -f "$tmp/manifest" ] && [ -d "$tmp/rootfs" ] || {
+    echo "AirP: package must contain manifest and rootfs/" >&2
+    exit 1
+  }
+  name=$(sed -n 's/^name=//p' "$tmp/manifest" | head -n 1)
+  version=$(sed -n 's/^version=//p' "$tmp/manifest" | head -n 1)
+  valid_name "$name" || { echo "AirP: manifest has an invalid package name" >&2; exit 1; }
+  [ -n "$version" ] || { echo "AirP: manifest is missing version" >&2; exit 1; }
+
+  mkdir -p "$PKGDB" "$(path /)"
+  cp -R "$tmp/rootfs/." "$(path /)"
+  find "$tmp/rootfs" -type f | sed "s#^$tmp/rootfs/##" > "$PKGDB/$name.files"
+  cp "$tmp/manifest" "$PKGDB/$name.meta"
+  echo "AirP: installed system package $name ($version)"
+  rm -rf "$tmp"
+  trap - EXIT HUP INT TERM
+}
+
+install_package() {
+  case "$1" in
+    *.airp) install_app "$1" ;;
+    *.airpkg) install_system_package "$1" ;;
+    *) echo "AirP: unsupported package type: $1" >&2; exit 2 ;;
+  esac
+}
+
+remove_package() {
+  name=$1
+  valid_name "$name" || { echo "AirP: invalid package name" >&2; exit 2; }
+  removed=0
+  if [ -f "$APPS/$name.airp" ]; then
+    rm -f "$APPS/$name.airp" "$APPS/$name.meta"
+    echo "AirP: removed application $name"
+    removed=1
+  fi
+  if [ -f "$PKGDB/$name.files" ]; then
+    while IFS= read -r item; do
+      case "$item" in ""|/*|../*|*/../*|*/..) continue ;; esac
+      rm -f "$(path "/$item")"
+    done < "$PKGDB/$name.files"
+    rm -f "$PKGDB/$name.files" "$PKGDB/$name.meta"
+    echo "AirP: removed system package $name"
+    removed=1
+  fi
+  [ "$removed" -eq 1 ] || { echo "AirP: package not installed: $name" >&2; exit 1; }
+}
+
+list_packages() {
+  echo "Installed FlairOS packages:"
+  for file in "$APPS"/*.airp; do
+    [ -f "$file" ] || continue
+    echo "  ${file##*/} (application)"
+  done
+  for file in "$PKGDB"/*.files; do
+    [ -f "$file" ] || continue
+    name=${file##*/}
+    name=${name%.files}
+    version=$(sed -n 's/^version=//p' "$PKGDB/$name.meta" | head -n 1)
+    echo "  $name $version (system)"
+  done
+}
+
+package_info() {
+  name=$1
+  valid_name "$name" || { echo "AirP: invalid package name" >&2; exit 2; }
+  if [ -f "$APPS/$name.airp" ]; then
+    echo "name=$name"
+    echo "type=application"
+    echo "file=$APPS/$name.airp"
+  elif [ -f "$PKGDB/$name.files" ]; then
+    cat "$PKGDB/$name.meta"
+    echo "type=system"
+  else
+    echo "AirP: package not installed: $name" >&2
+    exit 1
+  fi
+}
+
+case "${1:-help}" in
+  install) [ "$#" -eq 2 ] || { usage; exit 2; }; install_package "$2" ;;
+  remove|uninstall) [ "$#" -eq 2 ] || { usage; exit 2; }; remove_package "$2" ;;
+  list) list_packages ;;
+  info) [ "$#" -eq 2 ] || { usage; exit 2; }; package_info "$2" ;;
+  help|-h|--help) usage ;;
+  *) usage >&2; exit 2 ;;
+esac
