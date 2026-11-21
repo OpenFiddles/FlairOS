@@ -15,7 +15,13 @@ AIRP_ROOT="$TMP/root" sh "$ROOT/system/bin/airp" info airp-test | grep -q 'versi
 AIRP_ROOT="$TMP/root" sh "$ROOT/system/bin/airp" remove airp-test
 test ! -e "$TMP/root/usr/share/airp-test/marker"
 
-printf 'AIRP application container\n' > "$TMP/sample.airp"
+printf 'AIRP' > "$TMP/sample.airp"
+dd if=/dev/zero bs=1 count=40 >> "$TMP/sample.airp" 2>/dev/null
+printf "not-an-airp-file" > "$TMP/invalid.airp"
+if AIRP_ROOT="$TMP/root" sh "$ROOT/system/bin/airp" install "$TMP/invalid.airp"; then
+  echo "AirP accepted an invalid application container" >&2
+  exit 1
+fi
 AIRP_ROOT="$TMP/root" sh "$ROOT/system/bin/airp" install "$TMP/sample.airp"
 test -s "$TMP/root/opt/flairos/apps/sample.airp"
 AIRP_ROOT="$TMP/root" sh "$ROOT/system/bin/airp" remove sample

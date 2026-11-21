@@ -35,6 +35,10 @@ valid_name() {
 install_app() {
   file=$1
   [ -f "$file" ] || { echo "AirP: file not found: $file" >&2; exit 1; }
+  magic=$(dd if="$file" bs=1 count=4 2>/dev/null || true)
+  [ "$magic" = "AIRP" ] || { echo "AirP: invalid application container (missing AIRP magic)" >&2; exit 1; }
+  size=$(wc -c < "$file" | tr -d " ")
+  [ "$size" -ge 44 ] || { echo "AirP: truncated application container" >&2; exit 1; }
   base=${file##*/}
   name=${base%.airp}
   valid_name "$name" || { echo "AirP: invalid application name" >&2; exit 1; }
