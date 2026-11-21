@@ -1,38 +1,39 @@
-# AirP (AirPacket)
+# AIRP applications
 
-AirP is FlairOS V2's native package manager. It manages both FlairOS application containers and ordinary system packages.
+FlairOS applications are distributed as `.airp` containers. The current container
+format is version 1 with API level 2.
 
-## Package types
+## Container and API
 
-### FlairOS applications: `.airp`
+The 36-byte little-endian header identifies the image base, entry address, image
+size, and application name. The payload is a flat i386 application image linked
+for `TX_APP_BASE`. The loader accepts older API levels and rejects levels newer
+than the kernel supports.
 
-An `.airp` file is an application container. AirP installs it under `/opt/flairos/apps/` and tracks it for listing, inspection, and removal. The AIRP application execution/compatibility runtime is a separate component and is not yet part of this Linux-foundation milestone.
+API level 2 retains the AXI window and filesystem calls and adds the session
+accent-colour call (`SYS_UI_ACCENT`, syscall 38). Settings uses it to switch
+between the default violet and teal accent, and stores the selected value in
+`UI.CFG` when persistent storage is available.
 
-### System packages: `.airpkg`
+## Built-in applications
 
-An `.airpkg` file is a gzip-compressed tar archive containing:
+- **Settings** — desktop accent, graphics/compositor information, and FlairOS
+  version information. The accent preference is loaded from and saved to
+  `UI.CFG`; LiveCD and RAM-only sessions report that the setting is temporary.
+- **Notes** — a small note editor that loads and saves `NOTE.TXT`. It reports
+  whether a save is persistent or only held in the current session.
 
-- `manifest` with at least `name=` and `version=` fields
-- `rootfs/` containing files placed at the root of the FlairOS filesystem
+Both are built from `userland/`, packaged by `tools/airpack.py`, and included
+in disk, live, and setup images. The bootloader stages them before the kernel
+starts the desktop. Their reserved disk ranges are LBA 2543–2574 (Settings) and
+2575–2590 (Notes).
 
-Example manifest:
-
-```ini
-name=hello-tools
-version=1.0
-description=Example FlairOS system package
-```
-
-AirP rejects absolute paths, parent-directory traversal, symbolic and hard links, and special files in system package archives. Installed file paths are recorded under `/var/lib/airp/packages/` for removal.
-
-## Commands
+## Build and validation
 
 ```sh
-airp install ./application.airp
-airp install ./system-package.airpkg
-airp list
-airp info hello-tools
-airp remove hello-tools
+make build/settings.airp build/notes.airp
+python3 tests/airp_apps_test.py build/settings.airp build/notes.airp
 ```
 
-The first implementation supports local package files. A signed remote repository/index, dependency resolution, package upgrades, rollback, and the AIRP application runtime are future work; they are not silently assumed to exist in this initial foundation.
+The boot-layout test also checks that the application staging buffers do not
+overlap the physical-memory allocator bitmaps.

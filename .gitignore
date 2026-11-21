@@ -5,4 +5,3 @@ build-ninja/
 build-*/
 CMakeCache.txt
 CMakeFiles/
-build-out/

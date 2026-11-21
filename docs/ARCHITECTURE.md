@@ -1,35 +1,31 @@
-# FlairOS V2 Architecture
+# Architecture overview
 
-## Foundation
+This page is a navigation map, not a claim that every planned subsystem is
+already implemented.
 
-FlairOS V2 uses the upstream Linux kernel as its hardware and process foundation. The initial target is 32-bit x86 (i386) for the v86 emulator.
+## Main boundaries
 
-The build pipeline fetches three upstream projects directly:
+- **Boot and handoff:** the complete BIOS boot path is i386. The boot handoff
+  supplies memory information to the kernel.
+- **Kernel and hardware:** architecture-specific operations are separated from
+  architecture-neutral subsystem logic where the current implementation allows.
+- **Memory:** PMM owns physical frame inventory; VMM owns virtual mappings and
+  address-space mechanics. See [Memory Management](MEMORY_MANAGEMENT.md).
+- **Graphics:** AirGraph provides a graphics API and CPU rendering path.
+  The current Bochs/QEMU framebuffer is a display target, not an accelerated GPU.
+  See [AirGraph](AirGraph.md).
+- **Desktop:** WinDown is the window compositor. Keep it distinct from AirGraph,
+  which supplies graphics and rendering services.
+- **Applications:** AIRP is the executable application format; the C SDK exposes
+  the current application-facing calls. See [SDK](SDK.md).
+- **Resources:** Pancake uses the data-only PCK bundle format. PCK files are not
+  executable applications. See [Pancake / PCK](PANCAKE.md).
 
-1. Linux from kernel.org
-2. GNU GRUB from Savannah
-3. BusyBox from its official project repository
+## Current support notes
 
-All three checkouts are shallow clones. GitHub Actions builds them and assembles a single MBR disk image.
+The i386 BIOS path is the complete boot target described by the project.
+AArch64 work is a bring-up scaffold, not a second complete supported boot path.
+MicroPython is experimental and is built as a separate image.
 
-## Userspace
-
-The first userspace is intentionally small: static BusyBox, essential mount/runtime directories, an init script, and AirP. This is not a preassembled distribution and does not include a large desktop environment.
-
-## AirP
-
-AirP (AirPacket) is the native package manager. It installs `.airp` application containers and `.airpkg` system packages. The initial implementation provides local install, list, inspect, and remove operations. Network repositories, signatures, dependency solving, and the application execution runtime remain future milestones.
-
-## Graphics and desktop
-
-AirGraph and WinDown remain FlairOS design/subsystem goals. Their former custom-kernel implementations are not linked into the Linux foundation. They will need Linux userspace interfaces and integration work before they can be enabled in this architecture.
-
-## Image layout
-
-The generated raw disk image contains:
-
-- MBR + GRUB boot code
-- FAT32 boot partition with the Linux kernel and GRUB configuration
-- ext2 root partition with BusyBox, init, and AirP
-
-Debug and release images are built independently.
+For implementation details, use the subsystem pages and source-linked API
+reference rather than assuming future architecture diagrams are implemented.

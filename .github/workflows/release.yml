@@ -1,81 +1,69 @@
-name: FlairOS Linux Release
+name: Build and release
 
+# Runs every 2 hours on the GitHub mirror of GitLab main. For each commit without a release, it builds the i386 image, runs the host and QEMU checks, and publishes the image only if they pass.
 on:
-  workflow_dispatch:
   schedule:
-    - cron: "0 */2 * * *"
+    - cron: '0 */2 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: flairos-linux-release
+  group: build-release
   cancel-in-progress: false
 
 jobs:
   release:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
     steps:
-      - name: Check out the mirrored source
+      - name: Check out the mirror
         uses: actions/checkout@v4
 
-      - name: Compute release tag
-        id: tag
-        run: echo "tag=linux-build-$(git rev-parse --short=8 HEAD)" >> "$GITHUB_OUTPUT"
-
-      - name: Skip an existing build release
+      - name: Skip commits that already have a release
         id: check
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.tag.outputs.tag }}
         run: |
-          if gh release view "$TAG" >/dev/null 2>&1; then
+          tag="build-$(git rev-parse --short=8 HEAD)"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if gh release view "$tag" > /dev/null 2>&1; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Release $tag already exists; nothing to do."
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Install build dependencies
+      - name: Install the toolchain and QEMU
         if: steps.check.outputs.exists == 'false'
         run: |
           sudo apt-get update -qq
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
-            build-essential gcc-i686-linux-gnu libc6-dev-i386-cross \
-            bc bison flex libssl-dev libelf-dev libncurses-dev \
-            autoconf automake autopoint gettext libtool texinfo pkg-config \
-            mtools dosfstools parted e2fsprogs cpio qemu-system-x86 \
-            python3 git grub-common > /dev/null
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nasm gcc-multilib binutils make qemu-system-x86 python3 > /dev/null
+          qemu-system-i386 --version | head -1
 
-      - name: Validate AirP
+      - name: Build the i386 image
         if: steps.check.outputs.exists == 'false'
-        run: sh tests/airp-package-test.sh
-
-      - name: Build release image
-        if: steps.check.outputs.exists == 'false'
-        run: bash build/build-linux-image.sh release
-
-      - name: Verify boot in QEMU
-        if: steps.check.outputs.exists == 'false'
-        shell: bash
         run: |
-          set +e
-          timeout 35s qemu-system-i386 -m 256M \
-            -drive file=build-out/flairos-i386-release.img,format=raw,if=ide \
-            -boot c -serial stdio -display none -monitor none -no-reboot > qemu.log 2>&1
-          result=$?
-          set -e
-          cat qemu.log
-          grep -q "FlairOS userspace ready" qemu.log
-          echo "QEMU exited with $result after the boot marker."
+          make ARCH=i386
+          test -s build/textile.img
 
-      - name: Publish bootable image
+      - name: Host filesystem tests
+        if: steps.check.outputs.exists == 'false'
+        run: make fs-test
+
+      - name: Boot smoke test in QEMU
+        if: steps.check.outputs.exists == 'false'
+        run: make test
+
+      - name: Publish the image
         if: steps.check.outputs.exists == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.tag.outputs.tag }}
+          TAG: ${{ steps.check.outputs.tag }}
         run: |
-          gh release create "$TAG" build-out/flairos-i386-release.img \
+          cp build/textile.img "build/textile-$TAG.img"
+          gh release create "$TAG" "build/textile-$TAG.img" \
             --target "$GITHUB_SHA" \
-            --title "FlairOS Linux $TAG" \
-            --notes "Minimal Linux-based FlairOS V2 image. Built from upstream Linux, GNU GRUB, and BusyBox sources. AirP is included."
+            --title "Build $TAG" \
+            --notes "Built from commit $GITHUB_SHA. Passed the host filesystem tests and the QEMU boot smoke test."
