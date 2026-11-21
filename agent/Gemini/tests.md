@@ -27,3 +27,11 @@ Environment: Android Termux (aarch64), `clang --target=i386-none-elf`, `ld.lld`,
 - **Command**: `make build/airgraph_host_test build/desktop_render_host_test build/desktop_chrome_host_test build/bmp_host_test build/image_host_test && build/airgraph_host_test && build/desktop_render_host_test && build/desktop_chrome_host_test && build/bmp_host_test && build/image_host_test && python3 tests/boot_layout_test.py`
   - **Expected**: All 5 host C tests and `boot_layout_test.py` exit 0.
   - **Actual**: All 6 checks printed `all checks passed` / `checks passed`, exit 0. **PASS**
+
+## 2026-11-21 16:55 — WinDown Compositor Host & QEMU Verification
+- **Command**: `make -j4 all && make build/windown_host_test && build/windown_host_test`
+  - **Expected**: Kernel builds cleanly within `.bss` limits and `windown_host_test` passes all checks.
+  - **Actual**: `WinDown compositor host test: all checks passed`, exit 0. **PASS**
+- **Command**: `$PREFIX/tmp/qdrive2.sh wd "sendkey tab@1;sendkey 1@1;sendkey tab@1;sendkey 2@2;screendump @T@/wd_1.ppm@1"`
+  - **Expected**: `Hello` and `Clock` windows composite with z-order and active/inactive traffic-light chrome, zero panics.
+  - **Actual**: `serial_wd.log` logged `desktop: open hello`, `desktop: open clock`, `NO_PANICS`. Saved `2026-11-21_windown-multi-window-composite.png`. **PASS**

@@ -41,3 +41,13 @@ All entries are chronological in local time (`America/Chicago`, `-06:00`).
 
 ## 2026-11-21 16:47 — Created Mandatory Agent Recordkeeping Directory
 - Created `agent/Gemini/` with `what-i-did.md`, `current-task.md`, `decisions.md`, `issues.md`, `tests.md`, `handoff.md`, and `screenshots/`.
+
+## 2026-11-21 16:55 — Implemented WinDown Window Compositor (`include/windown.h`, `kernel/windown.c`)
+- **Created `include/windown.h` and `kernel/windown.c`**:
+  - Implemented `struct wd_compositor` supporting up to 16 windows (`WINDOWN_MAX_WINDOWS`), back-to-front `z_order`, active window tracking, visibility/minimize flags, optional per-window `ag_surface *client_surface` blitting with clipping, dirty-rect tracking (`wd_invalidate`, `wd_invalidate_all`), `wd_hit_test()`, `wd_hit_chrome()` (traffic-light regions), and `wd_composite()`.
+- **Integrated into `kernel/desktop.c` and `Makefile`**:
+  - Wired `$(BUILD)/windown.o` into `Makefile` and `tests/windown_host_test.c` into the `test` target.
+  - Replaced the ad-hoc `desktop_gfx_draw_window` loop in `kernel/desktop.c` with `wd_composite()`, allocating `desktop_wd` via `kmalloc` so kernel `.bss` stays within the `link.ld` PMM bitmap boundary.
+- **Verified**:
+  - `windown_host_test`, `airgraph_host_test`, `desktop_render_host_test`, `desktop_chrome_host_test` all passed.
+  - Booted in QEMU (`qdrive2.sh`), opened `Hello` (inactive) and `Clock` (active), confirmed `NO_PANICS` in `serial_wd.log`, and saved `agent/Gemini/screenshots/2026-11-21_windown-multi-window-composite.png`.
