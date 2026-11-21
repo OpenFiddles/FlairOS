@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#101113">
-<title>FlairOS LiveCD in the browser</title>
+<title>FlairOS V2 — Live in your browser</title>
 <style>
   :root {
     color-scheme: dark;
@@ -477,7 +477,7 @@
     <div>
       <p class="eyebrow">OpenFiddles · Web emulator</p>
       <h1>FlairOS, running in your browser</h1>
-      <p class="intro">The real FlairOS kernel, running inside an x86 emulator. Nothing to install.</p>
+      <p class="intro">Explore the Linux-based FlairOS V2 system in an x86 emulator, right in your browser.</p>
     </div>
   </header>
 
@@ -491,8 +491,8 @@
     </div>
     <div class="image-loader">
       <label class="image-picker" for="boot-image">Load local boot image</label>
-      <input id="boot-image" type="file" accept=".img,.ima,.flp,.iso,application/octet-stream">
-      <p id="image-hint">Choose a bootable raw .img/.ima/.flp or .iso test image. The file stays in this browser.</p>
+      <input id="boot-image" type="file" accept=".img,application/octet-stream">
+      <p id="image-hint">FlairOS V2 release image loads automatically. You can also choose a local raw .img disk image.</p>
     </div>
     <div id="screen" aria-label="Virtual machine display">
       <div id="screen_container"><div></div><canvas></canvas><div id="vm-input-overlay" aria-label="Virtual machine touch and pointer surface"></div></div>
@@ -544,26 +544,8 @@
     <p class="status" id="status" role="status" aria-live="polite">Loading the emulator...</p>
   </div>
 
-  <details class="network-card" id="network-settings">
-    <summary class="network-summary"><span><span class="eyebrow">CONNECTION</span><strong id="network-title">Internet access</strong></span><span class="network-summary-note">WISP relay settings <span aria-hidden="true">⌄</span></span></summary>
-    <div class="network-content">
-    <h2 id="network-title">Internet access</h2>
-    <p>FlairOS uses v86's NE2000 virtual Ethernet card with the Wisp WebSocket protocol. The hosted relay provides outbound TCP connectivity for web traffic without requiring a VPN or a local network adapter.</p>
-    <ol>
-      <li>Paste the OpenFiddles Wisp address below.</li>
-      <li>Choose <code>Save &amp; restart</code> to reconnect the virtual network.</li>
-      <li>Inside FlairOS, test with <code>ping 1.1.1.1</code> or open a TCP-based web client.</li>
-    </ol>
-    <label class="type-label" for="relay-url">Private relay WebSocket URL</label>
-    <div class="relay-row">
-      <input id="relay-url" type="url" inputmode="url" autocomplete="url" placeholder="wisps://flareos-wisp-relay.openfiddles.workers.dev/wisp/…/" aria-describedby="relay-hint">
-      <button class="primary" id="apply-relay" type="button">Save &amp; restart</button>
-    </div>
-    <p id="relay-hint">Wisp supports outbound TCP web traffic on ports 80 and 443. Arbitrary UDP, inbound connections, and access to private networks are intentionally disabled. Leave blank to use the isolated in-browser network. The relay URL is saved only in this browser.</p>
-    </div>
-  </details>
 
-  <p class="foot">Press Ctrl+Alt+D to switch between the desktop and text mode. In the desktop Terminal, try <code>help</code>, <code>time</code>, <code>uptime</code>, <code>net</code>, or <code>ping 1.1.1.1</code>.</p>
+  <p class="foot">FlairOS V2 currently boots a minimal Linux userspace with BusyBox and AirP. Graphics, networking, and the full desktop experience are still under development.</p>
   <p class="foot">Source: <a href="https://gitlab.com/openfiddles/FlairOS">OpenFiddles / FlairOS</a></p>
 </main>
 
@@ -576,7 +558,7 @@
   const resetButton = document.getElementById("reset");
   const bootImageInput = document.getElementById("boot-image");
   const imageHint = document.getElementById("image-hint");
-  let activeImageName = "FlairOS LiveCD";
+  let activeImageName = "FlairOS V2 Linux";
   const player = document.getElementById("player");
   const screen = document.getElementById("screen");
   const screenContainer = document.getElementById("screen_container");
@@ -590,11 +572,6 @@
   const rightClick = document.getElementById("right-click");
   const fullscreenButton = document.getElementById("fullscreen");
   const keyButtons = document.querySelectorAll("[data-key]");
-  const relayInput = document.getElementById("relay-url");
-  const applyRelayButton = document.getElementById("apply-relay");
-  const relayHint = document.getElementById("relay-hint");
-  const savedRelay = localStorage.getItem("flareos.relayUrl") || "inbrowser";
-  if (relayInput && savedRelay !== "inbrowser") relayInput.value = savedRelay;
   const SENTINEL = " ";
 
   const SC = {
@@ -615,10 +592,9 @@
     screen_container: screenContainer,
     bios: { url: "v86/seabios.bin" },
     vga_bios: { url: "v86/vgabios.bin" },
-    cdrom: { url: "flair-livecd.iso" },
-    boot_order: 0x213,
-    autostart: true,
-    net_device: { type: "ne2k", relay_url: savedRelay }
+    hda: { url: "flairos-i386-release.img" },
+    boot_order: 0x2,
+    autostart: true
   });
 
   const running = () => emulator.is_running();
@@ -626,24 +602,15 @@
   bootImageInput.addEventListener("change", async () => {
     const file = bootImageInput.files && bootImageInput.files[0];
     if (!file) return;
-    const name = file.name.toLowerCase();
-    const isIso = name.endsWith(".iso");
-    const isFloppy = /\.(img|ima|flp)$/.test(name);
-    if (!isIso && !isFloppy) {
-      imageHint.textContent = "Choose a raw floppy image (.img/.ima/.flp) or CD image (.iso).";
+    if (!file.name.toLowerCase().endsWith(".img")) {
+      imageHint.textContent = "Choose a raw bootable disk image ending in .img.";
       bootImageInput.value = "";
       return;
     }
 
     bootImageInput.disabled = true;
     try {
-      if (isIso) {
-        await emulator.set_cdrom({ buffer: file });
-        emulator.eject_fda();
-      } else {
-        await emulator.set_fda({ buffer: file });
-        emulator.eject_cdrom();
-      }
+      await emulator.set_hda({ buffer: file });
       activeImageName = file.name;
       emulator.restart();
       imageHint.textContent = "Loaded " + file.name + ". The local image was not uploaded.";
@@ -655,25 +622,6 @@
     }
   });
 
-  applyRelayButton.addEventListener("click", () => {
-    const value = relayInput.value.trim();
-    if (!value) {
-      localStorage.removeItem("flareos.relayUrl");
-      window.location.reload();
-      return;
-    }
-    let parsed;
-    try { parsed = new URL(value); } catch (_) {
-      relayHint.textContent = "Enter a valid secure WebSocket URL beginning with wss://.";
-      return;
-    }
-    if (parsed.protocol !== "wisps:" || parsed.username || parsed.password) {
-      relayHint.textContent = "For the hosted emulator, use a secure Wisp URL beginning with wisps://. Do not paste passwords or credentials into the URL.";
-      return;
-    }
-    localStorage.setItem("flareos.relayUrl", parsed.href);
-    window.location.reload();
-  });
   const sendKey = (name) => {
     if (running() && SC[name]) emulator.keyboard_send_scancodes(SC[name]);
   };
