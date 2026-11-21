@@ -18,10 +18,11 @@ int main(void) {
     CHECK(ag_device_init(&device, &fb, 0) == 0);
     CHECK(desktop_chrome_draw(&device, &surface, 80, 25,
                               10, 4, 40, 15, "Terminal", 1) == 0);
-    CHECK(pixels[26 * 160 + 30] == 0x00243B6B); /* active title bar interior */
-    CHECK(pixels[26 * 160 + 86] == 0x00F87171); /* close control */
-    CHECK(pixels[60 * 160 + 80] == 0x00111111); /* body stays untouched */
-    CHECK(pixels[76 * 160 + 80] != 0x00111111); /* bottom shadow */
+    /* Window at x=10, y=4, w=40, h=15 -> px=20, py=16, pw=80, ph=60, cw=2, ch=4 */
+    CHECK(pixels[18 * 160 + 40] == 0x00303544); /* active title bar interior */
+    CHECK(pixels[17 * 160 + 22] == 0x00F0605A); /* left close traffic-light control */
+    CHECK(pixels[50 * 160 + 60] == 0x00111111); /* body stays untouched */
+    CHECK(pixels[78 * 160 + 60] != 0x00111111); /* bottom shadow */
     CHECK(desktop_chrome_draw(&device, &surface, 80, 25,
                               -1, 4, 40, 15, "Bad", 0) != 0);
     ag_device_shutdown(&device);

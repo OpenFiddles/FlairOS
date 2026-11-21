@@ -71,7 +71,7 @@ int desktop_chrome_draw(struct ag_device *device, struct ag_surface *surface,
     ph = bottom - py;
     cw = surface->width / grid_columns;
     ch = surface->height / grid_rows;
-    if (pw < 48 || ph < 32 || cw < 5 || ch < 12) return -1;
+    if (pw < 48 || ph < 32 || cw < 2 || ch < 4) return -1;
 
     title_height = ((y + 1) * surface->height) / grid_rows - py;
     bar = active ? 0x00303544 : 0x00262A36;
@@ -87,7 +87,7 @@ int desktop_chrome_draw(struct ag_device *device, struct ag_surface *surface,
 
     /* Traffic-light controls: close, minimize, zoom. */
     {
-        int d = ch / 2;
+        int d = ch / 2; if (d < 2) d = 2;
         int cy = py + (title_height - d) / 2;
         static const uint32_t on[3] = {0x00F0605A, 0x00F2BE3C, 0x003CCB5B};
         for (int i = 0; i < 3; ++i) {
