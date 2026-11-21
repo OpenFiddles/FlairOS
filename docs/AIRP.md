@@ -23,7 +23,7 @@ version=1.0
 description=Example FlairOS system package
 ```
 
-AirP rejects absolute paths, parent-directory traversal, and symbolic or hard links in system package archives. Installed file paths are recorded under `/var/lib/airp/packages/` for removal.
+AirP rejects absolute paths, parent-directory traversal, symbolic and hard links, and special files in system package archives. Installed file paths are recorded under `/var/lib/airp/packages/` for removal.
 
 ## Commands
 
