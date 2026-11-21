@@ -12,11 +12,22 @@ ARCH_ASFLAGS = -f elf32
 ARCH_LDFLAGS = -m elf_i386
 endif
 
-# Override GNU make's built-in CC=cc default while preserving command-line overrides.
+# Toolchain selection. x86 hosts use the native gcc/ld with -m32. Any other host
+# (for example an ARM phone running Termux) cross-compiles with clang and LLD.
+HOST_ARCH := $(shell uname -m)
+ifneq ($(filter i386 i486 i586 i686 x86_64 amd64,$(HOST_ARCH)),)
 CC = gcc
-AS = nasm
 LD = ld
 OBJCOPY = objcopy
+TOOLCHAIN_CFLAGS = -fno-tree-loop-distribute-patterns
+else
+CC = clang --target=i386-none-elf
+LD = ld.lld
+OBJCOPY = llvm-objcopy
+TOOLCHAIN_CFLAGS =
+endif
+AS = nasm
+HOSTCC ?= cc
 QEMU ?= qemu-system-i386
 BUILD = build
 
@@ -35,7 +46,7 @@ CFLAGS_DISPLAY =
 endif
 
 # Keep project headers discoverable for every kernel/driver translation unit.
-CFLAGS = -Iinclude -Ikernel $(CFLAGS_DISPLAY) $(ARCH_CFLAGS) -std=gnu99 -ffreestanding -mno-sse -mno-sse2 -mno-mmx -fno-pic -fno-stack-protector -fno-builtin -fno-common -fno-tree-loop-distribute-patterns -fcf-protection=none -fno-asynchronous-unwind-tables -Os -ffunction-sections -fdata-sections -Wall -Wextra
+CFLAGS = -Iinclude -Ikernel $(CFLAGS_DISPLAY) $(ARCH_CFLAGS) -std=gnu99 -ffreestanding -mno-sse -mno-sse2 -mno-mmx -fno-pic -fno-stack-protector -fno-builtin -fno-common $(TOOLCHAIN_CFLAGS) -fcf-protection=none -fno-asynchronous-unwind-tables -Os -ffunction-sections -fdata-sections -Wall -Wextra
 
 # Expanded to compile all the core kernel files visible in your tree
 OBJS = $(BUILD)/hal.o \

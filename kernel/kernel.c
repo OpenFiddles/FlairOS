@@ -17,6 +17,10 @@ typedef unsigned short u16;
 typedef unsigned int u32;
 typedef int i32;
 
+/* Defined in keyboard.c and panic.c; declared here because this file does not include kernel.h. */
+int kbd_toggle_pending(void);
+void kernel_panic(const char *reason) __attribute__((noreturn));
+
 #define VGA_COLS 80
 #define VGA_ROWS 25
 #define VGA_MEM ((volatile u16 *)0xB8000)
