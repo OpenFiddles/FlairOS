@@ -14,6 +14,7 @@ IMAGE="$OUT/flairos-i386-$PROFILE.img"
 GRUB_PREFIX="$TOOLS/grub"
 JOBS="${JOBS:-$(nproc)}"
 
+rm -rf "$WORK"
 mkdir -p "$SRC" "$TOOLS" "$ROOTFS" "$OUT"
 for cmd in git make gcc ld objcopy tar gzip cpio parted losetup mkfs.vfat mkfs.ext2 mount umount; do
   command -v "$cmd" >/dev/null || { echo "Missing build dependency: $cmd" >&2; exit 1; }

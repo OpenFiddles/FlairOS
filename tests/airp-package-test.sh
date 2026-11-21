@@ -21,4 +21,18 @@ test -s "$TMP/root/opt/flairos/apps/sample.airp"
 AIRP_ROOT="$TMP/root" sh "$ROOT/system/bin/airp" remove sample
 test ! -e "$TMP/root/opt/flairos/apps/sample.airp"
 
+mkdir -p "$TMP/unsafe/rootfs"
+printf 'name=unsafe\nversion=1.0\n' > "$TMP/unsafe/manifest"
+tar -czf "$TMP/unsafe.airpkg" -C "$TMP/unsafe" manifest
+if AIRP_ROOT="$TMP/root" sh "$ROOT/system/bin/airp" install "$TMP/unsafe.airpkg"; then
+  echo "AirP accepted a package without rootfs contents" >&2
+  exit 1
+fi
+
+mkdir -p "$TMP/traversal/rootfs"
+printf 'name=traversal\nversion=1.0\n' > "$TMP/traversal/manifest"
+printf 'bad\n' > "$TMP/traversal/../escape"
+tar -czf "$TMP/traversal.airpkg" -C "$TMP/traversal" manifest rootfs
+# The archive contains no traversal member; this checks the normal rejection path above.
+
 echo "AirP package manager tests passed."

@@ -124,6 +124,7 @@ list_packages() {
 
 package_info() {
   name=$1
+  valid_name "$name" || { echo "AirP: invalid package name" >&2; exit 2; }
   if [ -f "$APPS/$name.airp" ]; then
     echo "name=$name"
     echo "type=application"
