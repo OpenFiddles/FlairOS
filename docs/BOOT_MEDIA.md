@@ -1,24 +1,18 @@
-# FlairOS Boot Media
+# FlairOS V2 Boot Media
 
-## Images
+The Linux foundation produces one raw, BIOS-bootable i386 disk image.
 
-- `make boot-media` builds both optical images.
-- `build/livecd.iso` boots directly into the existing FlairOS desktop in Live mode.
-- `build/bootcd.iso` boots into the non-destructive FlairOS Setup center.
-- `build/textile.img` remains the legacy normal-boot floppy image.
+## Disk layout
 
-The browser emulator boots `flair-livecd.iso` through a virtual CD-ROM drive rather than using the legacy floppy image.
+- MBR partition table and GRUB BIOS boot code
+- Partition 1: FAT32, labeled `FLAIROS_BOOT`, containing `/boot/bzImage` and GRUB configuration
+- Partition 2: ext2, labeled `FLAIROS_ROOT`, containing the minimal FlairOS userspace
 
-## Live session guarantees
+GRUB loads the Linux kernel from the FAT32 partition. Linux mounts the ext2 root partition at `/dev/sda2` and starts `/sbin/init`.
 
-Live mode initializes the existing flat filesystem as a RAM-only session. It does not read the on-disk filesystem directory, does not commit filesystem changes to ATA, and refuses the `format` operation. The ATA sector-write API rejects writes while Live mode is active, and the privileged Terminal blocks direct writes to the legacy primary/secondary IDE I/O ports. Files created during the session are temporary and disappear on reboot.
+## Outputs
 
-The filesystem APIs `fs_is_volatile()` and `fs_disk_writes_enabled()` report the active mode. Their syscall IDs are 35 and 36.
+- `build-out/flairos-i386-debug.img`
+- `build-out/flairos-i386-release.img`
 
-## Setup center
-
-The BootCD setup center can start a Live session, inspect detected legacy ATA devices, display installation readiness, and show basic diagnostics. The installer intentionally does not partition or format disks yet. Read-only partition-table validation, a tested FlairFS, and a transactional installer are prerequisites before installation can be enabled.
-
-## Boot handoff
-
-Stage 2 writes a versioned handoff at physical address `0x4FF0`; the E820 memory map begins at `0x5000`, so the handoff does not overlap it. Invalid or missing handoffs fall back to normal boot. This is a small mode-selection hook only; the broader bootloader redesign remains a separate follow-up.
+GitHub Actions uploads each image as a workflow artifact. The debug and release outputs are separate.
