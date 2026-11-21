@@ -93,7 +93,10 @@ mkdir -p "$ROOTFS"
 make -C "$SRC/busybox" CONFIG_PREFIX="$ROOTFS" install
 mkdir -p "$ROOTFS"/{dev,proc,sys,tmp,root,etc,sbin,usr/bin,usr/share/flairos,opt/flairos/apps,var/lib/airp/packages}
 chmod 1777 "$ROOTFS/tmp"
-cp "$ROOT/system/init" "$ROOTFS/sbin/init"
+rm -f "$ROOTFS/sbin/init"
+install -m 0755 "$ROOT/system/init" "$ROOTFS/sbin/init"
+# Fail early if init is not a regular executable file in the root filesystem.
+test -f "$ROOTFS/sbin/init" && test ! -L "$ROOTFS/sbin/init" && test -x "$ROOTFS/sbin/init"
 cp "$ROOT/system/bin/airp" "$ROOTFS/usr/bin/airp"
 chmod 0755 "$ROOTFS/sbin/init" "$ROOTFS/usr/bin/airp"
 cp "$ROOT/system/etc/os-release" "$ROOTFS/etc/os-release"
