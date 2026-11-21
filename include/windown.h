@@ -17,7 +17,28 @@ enum wd_hit_region {
     WD_HIT_MINIMIZE = 2,
     WD_HIT_ZOOM = 3,
     WD_HIT_TITLEBAR = 4,
-    WD_HIT_CLIENT = 5
+    WD_HIT_CLIENT = 5,
+    WD_HIT_RESIZE = 6
+};
+
+
+#define WD_EVENT_QUEUE_LEN 16
+
+enum wd_event_type {
+    WD_EVT_NONE = 0,
+    WD_EVT_MOUSE_DOWN = 1,
+    WD_EVT_MOUSE_UP = 2,
+    WD_EVT_KEY = 3,
+    WD_EVT_CLOSE = 4,
+    WD_EVT_RESIZE = 5
+};
+
+struct wd_event {
+    uint8_t type;
+    uint8_t button;
+    int16_t x;
+    int16_t y;
+    uint32_t key;
 };
 
 struct wd_rect {
@@ -31,6 +52,11 @@ struct wd_window {
     uint32_t flags;
     char title[WINDOWN_TITLE_MAX];
     struct ag_surface *client_surface;
+    struct wd_event events[WD_EVENT_QUEUE_LEN];
+    uint8_t evt_head;
+    uint8_t evt_tail;
+    int saved_x, saved_y, saved_w, saved_h;
+    int zoomed;
 };
 
 struct wd_compositor {
@@ -55,6 +81,9 @@ int wd_hit_test(const struct wd_compositor *c, int gx, int gy);
 enum wd_hit_region wd_hit_chrome(const struct wd_compositor *c, int id, int gx, int gy);
 void wd_invalidate(struct wd_compositor *c, int32_t x, int32_t y, int32_t w, int32_t h);
 void wd_invalidate_all(struct wd_compositor *c);
+int wd_post_event(struct wd_compositor *c, int id, const struct wd_event *ev);
+int wd_poll_event(struct wd_compositor *c, int id, struct wd_event *out);
+int wd_zoom_toggle(struct wd_compositor *c, int id, int max_w, int max_h);
 int wd_composite(struct wd_compositor *c, struct ag_device *device,
                  struct ag_surface *target, int grid_cols, int grid_rows);
 

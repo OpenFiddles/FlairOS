@@ -42,6 +42,9 @@ void wd_init(struct wd_compositor *c) {
         c->windows[i].flags = 0;
         c->windows[i].title[0] = 0;
         c->windows[i].client_surface = 0;
+        c->windows[i].evt_head = 0;
+        c->windows[i].evt_tail = 0;
+        c->windows[i].zoomed = 0;
         c->z_order[i] = 0;
     }
     c->z_count = 0;
@@ -99,6 +102,9 @@ int wd_create_window(struct wd_compositor *c, int x, int y, int w, int h, const 
             c->windows[i].flags = WD_FLAG_USED | WD_FLAG_VISIBLE;
             wd_copy_title(c->windows[i].title, title);
             c->windows[i].client_surface = 0;
+            c->windows[i].evt_head = 0;
+            c->windows[i].evt_tail = 0;
+            c->windows[i].zoomed = 0;
             c->z_order[c->z_count++] = i;
             c->active_id = id;
             wd_invalidate_all(c);
@@ -227,7 +233,48 @@ enum wd_hit_region wd_hit_chrome(const struct wd_compositor *c, int id, int gx, 
         if (gx >= w->x + 5 && gx <= w->x + 6) return WD_HIT_ZOOM;
         return WD_HIT_TITLEBAR;
     }
+    if (gx == w->x + w->w - 1 && gy == w->y + w->h - 1)
+        return WD_HIT_RESIZE;
     return WD_HIT_CLIENT;
+}
+
+int wd_post_event(struct wd_compositor *c, int id, const struct wd_event *ev) {
+    int slot = wd_find_slot(c, id);
+    if (slot < 0 || !ev) return -1;
+    struct wd_window *w = &c->windows[slot];
+    uint8_t next = (uint8_t)((w->evt_head + 1u) % WD_EVENT_QUEUE_LEN);
+    if (next == w->evt_tail) return -1;
+    w->events[w->evt_head] = *ev;
+    w->evt_head = next;
+    return 0;
+}
+
+int wd_poll_event(struct wd_compositor *c, int id, struct wd_event *out) {
+    int slot = wd_find_slot(c, id);
+    if (slot < 0 || !out) return -1;
+    struct wd_window *w = &c->windows[slot];
+    if (w->evt_head == w->evt_tail) return 0;
+    *out = w->events[w->evt_tail];
+    w->evt_tail = (uint8_t)((w->evt_tail + 1u) % WD_EVENT_QUEUE_LEN);
+    return 1;
+}
+
+int wd_zoom_toggle(struct wd_compositor *c, int id, int max_w, int max_h) {
+    int slot = wd_find_slot(c, id);
+    if (slot < 0 || max_w <= 0 || max_h <= 0) return -1;
+    struct wd_window *w = &c->windows[slot];
+    if (!w->zoomed) {
+        w->saved_x = w->x; w->saved_y = w->y;
+        w->saved_w = w->w; w->saved_h = w->h;
+        w->x = 0; w->y = 2; w->w = max_w; w->h = max_h - 2;
+        w->zoomed = 1;
+    } else {
+        w->x = w->saved_x; w->y = w->saved_y;
+        w->w = w->saved_w; w->h = w->saved_h;
+        w->zoomed = 0;
+    }
+    wd_invalidate_all(c);
+    return 0;
 }
 
 int wd_composite(struct wd_compositor *c, struct ag_device *device,

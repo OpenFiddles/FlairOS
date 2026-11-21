@@ -15,6 +15,13 @@ typedef uint32_t u32;
 #define SYS_SCREEN 30u
 #define SYS_EXIT 11u
 #define SYS_BRK 34u
+#define SYS_TIME 39u
+#define SYS_FS_STAT 40u
+#define SYS_GETRANDOM 41u
+#define SYS_YIELD 42u
+#define SYS_GETPID 43u
+#define SYS_MMAP 45u
+#define SYS_MUNMAP 46u
 #define VGA_COLS 80u
 #define VGA_ROWS 25u
 #define SYS_FS_OPEN 21u

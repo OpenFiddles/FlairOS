@@ -60,6 +60,16 @@ int main(void) {
     CHECK(comp.active_id == w2);
     CHECK(wd_hit_test(&comp, 12, 5) == -1);
 
+    /* Event queue, resize corner, and zoom toggle */
+    CHECK(wd_set_minimized(&comp, w1, 0) == 0);
+    CHECK(wd_hit_chrome(&comp, w1, 39, 15) == WD_HIT_RESIZE);
+    struct wd_event ev = { WD_EVT_KEY, 0, 0, 0, 'A' }, out;
+    CHECK(wd_post_event(&comp, w1, &ev) == 0);
+    CHECK(wd_poll_event(&comp, w1, &out) == 1 && out.type == WD_EVT_KEY && out.key == 'A');
+    CHECK(wd_poll_event(&comp, w1, &out) == 0);
+    CHECK(wd_zoom_toggle(&comp, w1, 80, 24) == 0);
+    CHECK(wd_zoom_toggle(&comp, w1, 80, 24) == 0);
+
     CHECK(wd_destroy_window(&comp, w1) == 0);
     CHECK(wd_destroy_window(&comp, w2) == 0);
     CHECK(comp.active_id == -1);

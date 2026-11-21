@@ -24,6 +24,28 @@ static const char *checked_name(mp_obj_t obj) {
         mp_raise_ValueError(MP_ERROR_TEXT("filename must be 1-12 characters"));
     return name;
 }
+static mp_obj_t flareos_time_unix(void) {
+    return mp_obj_new_int_from_uint(flareos_call(SYS_TIME, 0, 0, 0));
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(flareos_time_unix_obj, flareos_time_unix);
+static mp_obj_t flareos_getpid(void) {
+    return mp_obj_new_int((mp_int_t)flareos_call(SYS_GETPID, 0, 0, 0));
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(flareos_getpid_obj, flareos_getpid);
+static mp_obj_t flareos_yield_cpu(void) {
+    flareos_call(SYS_YIELD, 0, 0, 0);
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(flareos_yield_cpu_obj, flareos_yield_cpu);
+static mp_obj_t flareos_urandom(mp_obj_t n_obj) {
+    mp_int_t n = mp_obj_get_int(n_obj);
+    uint8_t buf[256];
+    if (n < 1 || n > 256) mp_raise_ValueError(MP_ERROR_TEXT("urandom expects 1-256 bytes"));
+    flareos_call(SYS_GETRANDOM, (uint32_t)(uintptr_t)buf, (uint32_t)n, 0);
+    return mp_obj_new_bytes(buf, (size_t)n);
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(flareos_urandom_obj, flareos_urandom);
+
 static mp_obj_t flareos_exit(void) {
     flareos_call(SYS_EXIT, 0, 0, 0);
     return mp_const_none; /* SYS_EXIT normally transfers control to the kernel. */
@@ -244,6 +266,10 @@ static const mp_rom_map_elem_t flareos_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_flareos) },
     { MP_ROM_QSTR(MP_QSTR_exit), MP_ROM_PTR(&flareos_exit_obj) },
     { MP_ROM_QSTR(MP_QSTR_ticks_ms), MP_ROM_PTR(&flareos_ticks_ms_obj) },
+    { MP_ROM_QSTR(MP_QSTR_time_unix), MP_ROM_PTR(&flareos_time_unix_obj) },
+    { MP_ROM_QSTR(MP_QSTR_getpid), MP_ROM_PTR(&flareos_getpid_obj) },
+    { MP_ROM_QSTR(MP_QSTR_yield_cpu), MP_ROM_PTR(&flareos_yield_cpu_obj) },
+    { MP_ROM_QSTR(MP_QSTR_urandom), MP_ROM_PTR(&flareos_urandom_obj) },
     { MP_ROM_QSTR(MP_QSTR_sleep_ms), MP_ROM_PTR(&flareos_sleep_ms_obj) },
     { MP_ROM_QSTR(MP_QSTR_beep), MP_ROM_PTR(&flareos_beep_obj) },
     { MP_ROM_QSTR(MP_QSTR_getkey), MP_ROM_PTR(&flareos_getkey_obj) },
