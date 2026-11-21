@@ -2,11 +2,18 @@
 #include "../include/drv_pic.h"
 
 #define POINTER_MAX 65535
-#define POINTER_STEP_X ((65536u + (VGA_COLS * 2u)) / (VGA_COLS * 4u))
-#define POINTER_STEP_Y ((65536u + (VGA_ROWS * 2u)) / (VGA_ROWS * 4u))
+#define POINTER_STEP_X 64u
+#define POINTER_STEP_Y 85u
 #define PS2_TRIES 100000
 
 volatile u8 mouse_buttons;
+volatile u8 mouse_click_latch;
+
+u8 mouse_take_clicks(void) {
+    u8 v = mouse_click_latch;
+    mouse_click_latch = 0;
+    return v;
+}
 static u8 packet[3];
 static u8 phase;
 
@@ -102,7 +109,11 @@ void mouse_irq_handler(void) {
     phase = 0;
     i32 dx = (i32)packet[1] - (i32)((packet[0] << 4) & 0x100);
     i32 dy = (i32)packet[2] - (i32)((packet[0] << 3) & 0x100);
-    mouse_buttons = packet[0] & 0x07;
+    {
+        u8 new_btn = packet[0] & 0x07;
+        mouse_click_latch |= (u8)(new_btn & (u8)~mouse_buttons);
+        mouse_buttons = new_btn;
+    }
     pointer_apply_delta(dx, -dy);
 }
 

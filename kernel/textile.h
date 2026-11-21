@@ -23,7 +23,9 @@ enum tx_syscall {
     SYS_CURSOR = 13,
     /* 14-20 belong to AXI window management; 21-28 belong to filesystem I/O.
        Keep this input-state query outside those public syscall ranges. */
-    SYS_TOGGLE_PENDING = 37
+    SYS_TOGGLE_PENDING = 37,
+    SYS_TIME = 39,
+    SYS_GETRANDOM = 41
 };
 
 /* Arrow codes returned by SYS_GETARROW (-1 when none is waiting). */
@@ -39,5 +41,16 @@ enum tx_ease { EASE_LINEAR = 0, EASE_OUT_CUBIC = 1, EASE_IN_OUT = 2 };
 #define SYS_POINTER 29 /* eax = x | y << 8 | buttons << 16 */
 #define SYS_SCREEN 30 /* eax = cols | rows << 8 */
 #define SYS_BRK 34 /* ebx = new break (0 queries); returns the break, below the request on failure */
+
+
+struct flare_time {
+    unsigned char sec;
+    unsigned char min;
+    unsigned char hour;
+    unsigned char day;
+    unsigned char month;
+    unsigned char pad;
+    unsigned short year;
+};
 
 #endif

@@ -13,7 +13,7 @@
 #define ICON_ATTR 0x70
 #define FRAME_TICKS 2
 #define CURSOR_ATTR 0x0F
-#define FILES_ROW 10
+#define FILES_ROW 9
 #define START_MENU_X 1
 #define START_MENU_Y (TASK_ROW - 9)
 #define START_MENU_W 25
@@ -50,7 +50,7 @@ static struct window wins[WIN_COUNT] = {
 
 static const char *const icon_label[WIN_COUNT] = {"Hello", "Clock", "Term"};
 static const char *const log_name[WIN_COUNT] = {"hello", "clock", "terminal"};
-static const i32 icon_row[WIN_COUNT] = {2, 4, 6};
+static const i32 icon_row[WIN_COUNT] = {3, 5, 7};
 
 static u16 back[VGA_ROWS * VGA_COLS];
 static int z[WIN_COUNT] = {WIN_HELLO, WIN_CLOCK, WIN_TERM};
@@ -359,22 +359,9 @@ static void draw_cursor(void) {
 }
 
 static void draw_frame(void) {
-    fill(0, 0, TASK_ROW, VGA_COLS, BG_CHAR, BG_ATTR);
-    fill(0, 0, 1, VGA_COLS, ' ', 0x1F);
-    text(0, 2, "FlairOS  |  Workspace 1", 0x1F, 26);
-    text(0, VGA_COLS - 16, "SYSTEM READY", 0x1F, 14);
-    text(1, 3, "Applications", 0x1E, 12);
-    for (int i = 0; i < WIN_COUNT; i++) {
-        fill(icon_row[i], 2, 1, 9, ' ', ICON_ATTR);
-        text(icon_row[i], 3, icon_label[i], ICON_ATTR, 7);
-    }
-    fill(FILES_ROW, 2, 1, 9, ' ', ICON_ATTR);
-    text(FILES_ROW, 3, "Files", ICON_ATTR, 7);
+    fill(0, 0, VGA_ROWS, VGA_COLS, BG_CHAR, BG_ATTR);
     for (int i = 0; i < WIN_COUNT; i++)
         if (wins[z[i]].open) draw_window(z[i]);
-    draw_taskbar();
-    draw_start_menu();
-    draw_cursor();
     if (!desktop_gfx_active())
         kernel_panic("AirGraph became unavailable while the desktop was running");
     if (desktop_gfx_present(back, VGA_COLS, VGA_ROWS) != 0)
@@ -429,12 +416,12 @@ static void click(i32 mx, i32 my) {
     int k = window_at(mx, my);
     if (k >= 0) {
         struct window *w = &wins[k];
-        if (my == w->y && mx >= w->x + w->w - 4 && mx <= w->x + w->w - 2) {
+        if (my == w->y && mx >= w->x + 1 && mx <= w->x + 2) {
             w->open = 0;
             if (keyboard_focus == k) keyboard_focus = top_win();
             return;
         }
-        if (my == w->y && mx >= w->x + w->w - 8 && mx <= w->x + w->w - 6) {
+        if (my == w->y && mx >= w->x + 3 && mx <= w->x + 4) {
             w->open = 0;
             if (keyboard_focus == k) keyboard_focus = top_win();
             serial_str("desktop: minimize\n");
@@ -450,15 +437,16 @@ static void click(i32 mx, i32 my) {
         return;
     }
     for (int i = 0; i < WIN_COUNT; i++)
-        if (mx >= 2 && mx <= 10 && my == icon_row[i]) { activate_win(i); return; }
-    if (mx >= 2 && mx <= 10 && my == FILES_ROW) { launch_explorer(); return; }
+        if (mx >= 2 && mx < 13 && my == icon_row[i]) { activate_win(i); return; }
+    if (mx >= 2 && mx < 13 && my == FILES_ROW) { launch_explorer(); return; }
 }
 
 static void handle_mouse(void) {
     i32 mx, my;
     pointer_grid(&mx, &my);
     u8 b = mouse_buttons;
-    if ((b & 1) && !(prev_buttons & 1)) click(mx, my);
+    u8 latched = mouse_take_clicks();
+    if (((b & 1) && !(prev_buttons & 1)) || (latched & 1)) click(mx, my);
     if (!(b & 1)) { drag_win = -1; }
     else if (drag_win >= 0) {
         struct window *w = &wins[drag_win];

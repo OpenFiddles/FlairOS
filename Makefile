@@ -344,6 +344,10 @@ storage-image: $(BUILD)/storage.img
 run: $(BUILD)/textile.img $(BUILD)/storage.img
 	$(QEMU) -fda $(BUILD)/textile.img -hda $(BUILD)/storage.img -serial stdio -no-reboot
 
+VNC ?= 0.0.0.0:0
+run-vnc: $(BUILD)/textile.img $(BUILD)/storage.img
+	$(QEMU) -fda $(BUILD)/textile.img -hda $(BUILD)/storage.img -vnc $(VNC) -k en-us -serial stdio -no-reboot -m 256M
+
 win-demo: $(BUILD)/win-demo.img
 	$(QEMU) -fda $(BUILD)/win-demo.img -serial stdio -no-reboot
 
@@ -399,7 +403,7 @@ test: $(BUILD)/textile.img $(BUILD)/livecd.iso $(BUILD)/bootcd.iso $(BUILD)/airg
 clean:
 	rm -rf $(BUILD)
 
-.PHONY: all run win-demo test clean livecd bootcd boot-media storage-image
+.PHONY: all run run-vnc win-demo test clean livecd bootcd boot-media storage-image
 
 # --- SDK example app (built on request, not on the disk image) ---
 $(BUILD)/hello.o: examples/hello/hello.c sdk/flareos.h | $(BUILD)

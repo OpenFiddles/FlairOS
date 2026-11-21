@@ -53,6 +53,9 @@ typedef int flare_i32;
 #define FLARE_SYS_FS_RENAME 31u
 #define FLARE_SYS_FS_EXISTS 32u
 #define FLARE_SYS_FS_SLOTS 33u
+#define FLARE_SYS_TIME 39u
+#define FLARE_SYS_FS_STAT 40u
+#define FLARE_SYS_GETRANDOM 41u
 
 #define FLARE_FS_READ 0u
 #define FLARE_FS_WRITE 1u
@@ -190,6 +193,33 @@ static inline flare_u32 flare_fs_exists(const char *name) {
 /* Returns how many of the 8 file slots are unused. */
 static inline flare_u32 flare_fs_slots(void) {
     return flare_call(FLARE_SYS_FS_SLOTS, 0, 0, 0);
+}
+
+typedef struct {
+    flare_u8 sec, min, hour, day, month, pad;
+    unsigned short year;
+} flare_time_t;
+
+typedef struct {
+    flare_u32 size;
+    flare_u32 flags;
+} flare_fs_stat_t;
+
+static inline flare_u32 flare_time_unix(void) {
+    return flare_call(FLARE_SYS_TIME, 0, 0, 0);
+}
+
+static inline flare_u32 flare_time_now(flare_time_t *out) {
+    return flare_call(FLARE_SYS_TIME, (flare_u32)(unsigned long)out, 0, 0);
+}
+
+static inline flare_u32 flare_fs_stat(const char *name, flare_fs_stat_t *out) {
+    return flare_call(FLARE_SYS_FS_STAT, (flare_u32)(unsigned long)name,
+                      (flare_u32)(unsigned long)out, 0);
+}
+
+static inline flare_u32 flare_getrandom(void *buf, flare_u32 len) {
+    return flare_call(FLARE_SYS_GETRANDOM, (flare_u32)(unsigned long)buf, len, 0);
 }
 
 #define FLARE_APP() \

@@ -19,6 +19,7 @@ PYTHON_SECTORS   equ 257
 
 start:
     cli
+    cld
     xor ax, ax
     mov ds, ax
     mov es, ax
@@ -110,6 +111,8 @@ load_range:
 .load:
     cmp word [remaining], 0
     je .done
+    mov byte [retries], 3
+.retry:
     mov ax, [lba]
     xor dx, dx
     mov cx, 36
@@ -127,9 +130,14 @@ load_range:
     mov bx, [offset]
     mov ax, 0x0201
     int 0x13
-    jc disk_error
-    
-    ; Handle segment overflow checks safely
+    jnc .read_ok
+    xor ah, ah
+    mov dl, [boot_drive]
+    int 0x13
+    dec byte [retries]
+    jnz .retry
+    jmp disk_error
+.read_ok:
     add word [offset], 512
     jnz .no_carry
     mov ax, es
@@ -161,6 +169,7 @@ print16:
     ret
 
 boot_drive  db 0
+retries     db 0
 lba         dw 0
 offset      dw 0
 remaining   dw 0

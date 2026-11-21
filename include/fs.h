@@ -22,6 +22,7 @@ PURPOSE: FlareOS dynamic filesystem syscall numbers, limits and the int 0x80
 #define SYS_FS_SLOTS  33  /* returns number of unused file slots */
 #define SYS_FS_IS_VOLATILE 35 /* returns 1 for a RAM-only session */
 #define SYS_FS_DISK_WRITES  36 /* returns 1 when filesystem writes may reach ATA */
+#define SYS_FS_STAT         40 /* ebx = name, ecx = struct fs_stat *out (or 0); returns 0 or FS_FAIL */
 
 #define FS_READ   0
 #define FS_WRITE  1
@@ -96,6 +97,20 @@ static inline int fs_disk_writes_enabled(void) {
     return fs_sys(SYS_FS_DISK_WRITES, 0, 0, 0) == 1;
 }
 
+
+
+#define FS_STAT_REG      1u
+#define FS_STAT_VOLATILE 2u
+
+struct fs_stat {
+    unsigned int size;
+    unsigned int flags;
+};
+
+static inline unsigned int fs_stat(const char *name, struct fs_stat *out) {
+    return fs_sys(SYS_FS_STAT, (unsigned int)(unsigned long)name,
+                  (unsigned int)(unsigned long)out, 0);
+}
 
 /* Kernel-only helper: read a complete file into a caller-owned buffer. */
 int fs_kernel_read_file(const char *name, void *out, unsigned int capacity);

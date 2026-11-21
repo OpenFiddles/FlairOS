@@ -114,9 +114,10 @@ static u32 axk_alive(u32 handle) {
 static void axk_mouse(void) {
     i32 mx = (i32)cursor_x, my = (i32)cursor_y;
     u8 b = mouse_buttons;
+    u8 latched = mouse_take_clicks();
     if (desktop_gfx_active())
         (void)desktop_gfx_map_pointer(cursor_norm_x, cursor_norm_y, &mx, &my);
-    if ((b & 1) && !(axk_prev_buttons & 1)) {
+    if (((b & 1) && !(axk_prev_buttons & 1)) || (latched & 1)) {
         for (int i = AXK_SLOTS - 1; i >= 0; i--) {
             struct axk_win *w = &axk_wins[i];
             if (!w->used || !w->open)

@@ -40,6 +40,7 @@ extern u32 cursor_y;
 extern u32 cursor_norm_x;
 extern u32 cursor_norm_y;
 extern volatile u8 mouse_buttons;
+u8 mouse_take_clicks(void);
 
 /* System Call Parameter Mapping */
 struct saved_regs {

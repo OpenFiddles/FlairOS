@@ -256,8 +256,6 @@ int desktop_gfx_present(const uint16_t *cells, int columns, int rows) {
             desktop_bmp_asset && desktop_bmp_asset->length
                 ? desktop_bmp_asset->bytes : 0,
             desktop_bmp_asset ? desktop_bmp_asset->length : 0) == 0) {
-        if (render_buffer_ready && ag_present(&display_device, surface) != 0)
-            kernel_panic("AirGraph framebuffer present failed");
         return 0;
     }
 
@@ -277,7 +275,7 @@ int desktop_gfx_draw_shell(int start_open, const char *clock_text) {
     struct ag_surface *surface = desktop_render_surface();
     struct sp_context *ui = &desktop_ui_context;
     int cw, ch, sx, sy, w, h, bar_y;
-    static const int icon_rows[4] = {2, 4, 6, 10};
+    static const int icon_rows[4] = {3, 5, 7, 9};
     static const char *const labels[4] = {"Welcome", "Clock", "Terminal", "Files"};
     static const char *const menu[7] = {
         "Welcome", "Clock", "Terminal", "Files", "Python", "Settings", "Notes"
@@ -292,14 +290,14 @@ int desktop_gfx_draw_shell(int start_open, const char *clock_text) {
     if (cw < 1 || ch < 1) return -1;
 
     /* Keep interactive tiles aligned with the desktop's logical pointer grid. */
-    sp_panel(ui, 12*sx, 10*sy, w-24*sx, 42*sy);
-    sp_label(ui, 28*sx, 27*sy, "FlairOS", 0);
-    sp_label(ui, 112*sx, 27*sy, "Workspace 1", 1);
-    sp_badge(ui, w-124, 20*sy, "SYSTEM READY", ui->theme->color.success);
+    sp_panel(ui, 12*sx, 6*sy, w-24*sx, 38*sy);
+    sp_label(ui, 28*sx, 21*sy, "FlairOS", 0);
+    sp_label(ui, 112*sx, 21*sy, "Workspace 1", 1);
+    sp_badge(ui, w-124, 15*sy, "SYSTEM READY", ui->theme->color.success);
 
     for (int i=0; i<4; ++i) {
-        int y = icon_rows[i]*ch + 2*sy;
-        sp_card(ui, 2*cw, y, 9*cw, ch-4*sy);
+        int y = icon_rows[i]*ch + sy;
+        sp_card(ui, 2*cw, y, 11*cw, ch-2*sy);
         ag_round_rect(ui->device, surface, 2*cw+6*sx,
                       y+(ch-12*sy)/2, 12*sx, 12*sy, 4*sx,
                       i==0?0x007C83FF:(i==1?0x000F9D8A:
@@ -325,6 +323,12 @@ int desktop_gfx_draw_shell(int start_open, const char *clock_text) {
                          23*cw, ch, menu[i], 0, 0);
         sp_label(ui, menu_x+2*cw, menu_y+8*ch+(ch-7*sy)/2,
                  "Tab / Esc to close", 1);
+    }
+    {
+        int32_t px = (int32_t)(((uint32_t)(cursor_norm_x > 65535u ? 65535u : cursor_norm_x) * (uint32_t)w) >> 16);
+        int32_t py = (int32_t)(((uint32_t)(cursor_norm_y > 65535u ? 65535u : cursor_norm_y) * (uint32_t)h) >> 16);
+        ag_fill_rect(ui->device, surface, px, py, 3, 13, 0x000000);
+        ag_fill_rect(ui->device, surface, px + 1, py + 1, 1, 10, 0x00FFFFFF);
     }
     return 0;
 }

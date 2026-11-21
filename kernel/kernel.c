@@ -699,6 +699,48 @@ static void splash_progress(u8 percent, const char *status) {
     splash_cell(22, 41, '%', 0x07, bg);
 }
 
+static u32 rtc_unix_seconds(struct flare_time *ft) {
+    static const u16 mdays[12] = {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};
+    u8 raw[6];
+    u32 y, m, d, days;
+    rtc_now(raw);
+    y = 2000u + (u32)raw[5];
+    m = raw[4] ? (u32)raw[4] : 1u;
+    if (m > 12u) m = 12u;
+    d = raw[3] ? (u32)raw[3] : 1u;
+    if (ft) {
+        ft->sec = raw[0];
+        ft->min = raw[1];
+        ft->hour = raw[2];
+        ft->day = (u8)d;
+        ft->month = (u8)m;
+        ft->pad = 0;
+        ft->year = (u16)y;
+    }
+    days = (y - 1970u) * 365u + ((y - 1969u) / 4u) - ((y - 1901u) / 100u) + ((y - 1601u) / 400u);
+    days += mdays[m - 1u] + (d - 1u);
+    if (m > 2u && (y % 4u == 0u && (y % 100u != 0u || y % 400u == 0u)))
+        days++;
+    return days * 86400u + (u32)raw[2] * 3600u + (u32)raw[1] * 60u + (u32)raw[0];
+}
+
+static u32 rng_state = 0x9E3779B9u;
+static u32 kernel_getrandom(u8 *buf, u32 len) {
+    u8 raw[6];
+    if (!buf || len == 0u || len > 256u)
+        return 0u;
+    rtc_now(raw);
+    rng_state ^= ticks ^ ((u32)inb(0x40) << 16) ^ ((u32)raw[0] << 8) ^ (u32)raw[1];
+    for (u32 i = 0; i < len; i++) {
+        rng_state ^= rng_state << 13;
+        rng_state ^= rng_state >> 17;
+        rng_state ^= rng_state << 5;
+        rng_state += (u32)inb(0x40) + ticks;
+        buf[i] = (u8)(rng_state >> 16);
+    }
+    return len;
+}
+
 struct saved_regs {
     u32 edi, esi, ebp, esp_unused, ebx, edx, ecx, eax;
 };
@@ -758,6 +800,12 @@ u32 syscall_dispatch(struct saved_regs *r) {
         break;
     case SYS_BRK:
         r->eax = vm_brk(r->ebx);
+        break;
+    case SYS_TIME:
+        r->eax = rtc_unix_seconds((struct flare_time *)(unsigned long)r->ebx);
+        break;
+    case SYS_GETRANDOM:
+        r->eax = kernel_getrandom((u8 *)(unsigned long)r->ebx, r->ecx);
         break;
     default:
         r->eax = (u32)-1;
@@ -1128,6 +1176,8 @@ void kmain(void) {
     if (boot_handoff_valid())
         serial_str(boot_mode() == FLAIR_BOOT_LIVE ? "boot: LiveCD mode\n" :
                    boot_mode() == FLAIR_BOOT_SETUP ? "boot: Setup media mode\n" :
+                   boot_mode() == FLAIR_BOOT_RECOVERY ? "boot: Recovery mode\n" :
+                   boot_mode() == FLAIR_BOOT_DIAGNOSTICS ? "boot: Diagnostics mode\n" :
                    "boot: normal mode\n");
     pmm_init();
     splash_progress(80, "Memory manager initialized");

@@ -491,6 +491,23 @@ static u32 fsk_rename(u32 old_ptr, u32 new_ptr) {
     return 0;
 }
 
+static u32 fsk_stat(u32 name_ptr, u32 stat_ptr) {
+    char name[FS_NAME_MAX + 1];
+    int file;
+
+    if (!fsk_copy_name(name, name_ptr))
+        return FS_FAIL;
+    file = fsk_find(name);
+    if (file < 0)
+        return FS_FAIL;
+    if (stat_ptr) {
+        struct fs_stat *out = (struct fs_stat *)(unsigned long)stat_ptr;
+        out->size = fsk_files[file].size;
+        out->flags = FS_STAT_REG | (fsk_volatile ? FS_STAT_VOLATILE : 0u);
+    }
+    return 0;
+}
+
 static u32 fsk_exists(u32 name_ptr) {
     char name[FS_NAME_MAX + 1];
 
@@ -617,6 +634,9 @@ int fs_dispatch(struct saved_regs *r) {
         return 1;
     case SYS_FS_DISK_WRITES:
         r->eax = (!fsk_volatile && fsk_disk) ? 1u : 0u;
+        return 1;
+    case SYS_FS_STAT:
+        r->eax = fsk_stat(r->ebx, r->ecx);
         return 1;
     default:
         return 0;
