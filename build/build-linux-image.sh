@@ -124,7 +124,7 @@ for _ in $(seq 1 20); do
 done
 [ -b "$BOOT_PART" ] && [ -b "$ROOT_PART" ] || { echo "Partition devices did not appear for $LOOP" >&2; exit 1; }
 
-sudo mkfs.vfat -F 32 -n FLAIROS_BOOT "$BOOT_PART"
+sudo mkfs.vfat -F 32 -n FLAIROSBOOT "$BOOT_PART"
 sudo mkfs.ext2 -F -L FLAIROS_ROOT -d "$ROOTFS" "$ROOT_PART"
 sudo mount "$BOOT_PART" "$MOUNT"
 sudo mkdir -p "$MOUNT/boot/grub"
