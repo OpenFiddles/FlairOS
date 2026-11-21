@@ -62,8 +62,14 @@ test -s "$KERNEL"
 
 echo "==> Building a static i386 BusyBox userspace"
 make -C "$SRC/busybox" ARCH=i386 CROSS_COMPILE=i686-linux-gnu- defconfig
-sed -i 's/^# CONFIG_STATIC is not set/CONFIG_STATIC=y/' "$SRC/busybox/.config"
+# Keep the first userspace small and avoid optional tc/CBQ code that no
+# longer builds against current upstream Linux UAPI headers.
+sed -i \
+  -e 's/^# CONFIG_STATIC is not set/CONFIG_STATIC=y/' \
+  -e 's/^CONFIG_TC=y/# CONFIG_TC is not set/' \
+  "$SRC/busybox/.config"
 grep -q '^CONFIG_STATIC=y' "$SRC/busybox/.config"
+grep -q '^# CONFIG_TC is not set' "$SRC/busybox/.config"
 make -C "$SRC/busybox" ARCH=i386 CROSS_COMPILE=i686-linux-gnu- -j"$JOBS"
 rm -rf "$ROOTFS"
 mkdir -p "$ROOTFS"
