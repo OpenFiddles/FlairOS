@@ -6,17 +6,21 @@ PROFILE="${1:-${PROFILE:-debug}}"
 case "$PROFILE" in debug|release) ;; *) echo "Usage: $0 [debug|release]" >&2; exit 2 ;; esac
 
 OUT="${BUILD_DIR:-$ROOT/build-out}"
-WORK="$OUT/work-$PROFILE"
+# Shared source/build trees let GRUB and BusyBox be reused when the CI job
+# creates both profiles on the same runner. Kernel outputs stay profile-specific.
+WORK="$OUT/work-shared"
+KERNEL_WORK="$OUT/work-$PROFILE"
 SRC="$WORK/src"
+KERNEL_SRC="$KERNEL_WORK/src"
 TOOLS="$WORK/tools"
-ROOTFS="$WORK/rootfs"
+ROOTFS="$KERNEL_WORK/rootfs"
 IMAGE="$OUT/flairos-i386-$PROFILE.img"
 GRUB_PREFIX="$TOOLS/grub"
 JOBS="${JOBS:-$(nproc)}"
 
 # Keep source trees and compiler outputs between CI runs. The workflow caches
 # this directory, allowing make and ccache to reuse unchanged compilation work.
-mkdir -p "$SRC" "$TOOLS" "$ROOTFS" "$OUT" "$HOME/.cache/ccache"
+mkdir -p "$SRC" "$KERNEL_SRC" "$TOOLS" "$ROOTFS" "$OUT" "$HOME/.cache/ccache" "$KERNEL_WORK"
 export CCACHE_DIR="$HOME/.cache/ccache"
 ccache -M 1G >/dev/null 2>&1 || true
 for cmd in git make gcc ld objcopy tar gzip cpio parted losetup mkfs.vfat mkfs.ext2 mount umount; do
@@ -35,14 +39,14 @@ sync_source() {
     git clone --depth=1 "$url" "$dir"
   fi
 }
-sync_source https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git "$SRC/linux"
+sync_source https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git "$KERNEL_SRC/linux"
 sync_source https://git.savannah.gnu.org/git/grub.git "$SRC/grub"
 sync_source https://git.busybox.net/busybox "$SRC/busybox"
 
 echo "==> Configuring and building the minimal i386 Linux kernel"
-make -C "$SRC/linux" ARCH=x86 i386_defconfig
+make -C "$KERNEL_SRC/linux" ARCH=x86 i386_defconfig
 (
-  cd "$SRC/linux"
+  cd "$KERNEL_SRC/linux"
   scripts/config --enable BLK_DEV_INITRD
   scripts/config --enable BINFMT_ELF
   scripts/config --enable PCI
@@ -69,8 +73,8 @@ make -C "$SRC/linux" ARCH=x86 i386_defconfig
   fi
   make ARCH=x86 olddefconfig
 )
-make -C "$SRC/linux" ARCH=x86 CC="ccache gcc" -j"$JOBS" bzImage
-KERNEL="$SRC/linux/arch/x86/boot/bzImage"
+make -C "$KERNEL_SRC/linux" ARCH=x86 CC="ccache gcc" -j"$JOBS" bzImage
+KERNEL="$KERNEL_SRC/linux/arch/x86/boot/bzImage"
 test -s "$KERNEL"
 
 echo "==> Building a static i386 BusyBox userspace"
@@ -122,7 +126,7 @@ parted -s "$IMAGE" mkpart primary ext2 128MiB 100%
 LOOP="$(sudo losetup --find --show --partscan "$IMAGE")"
 BOOT_PART="${LOOP}p1"
 ROOT_PART="${LOOP}p2"
-MOUNT="$WORK/mount"
+MOUNT="$KERNEL_WORK/mount"
 mkdir -p "$MOUNT"
 cleanup() {
   set +e

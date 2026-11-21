@@ -14,14 +14,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-image:
-    name: Build bootable i386 image (${{ matrix.profile }})
+  build-images:
+    name: Build debug and release i386 images
     runs-on: ubuntu-24.04
     timeout-minutes: 90
-    strategy:
-      fail-fast: false
-      matrix:
-        profile: [debug, release]
     steps:
       - name: Check out FlairOS
         uses: actions/checkout@v4
@@ -41,12 +37,14 @@ jobs:
         with:
           path: |
             ~/.cache/ccache
-            build-out/work-${{ matrix.profile }}/src
-            build-out/work-${{ matrix.profile }}/tools/grub
-          key: ${{ runner.os }}-flairos-${{ matrix.profile }}-${{ hashFiles('build/build-linux-image.sh') }}-${{ github.sha }}
+            build-out/work-shared/src
+            build-out/work-shared/tools/grub
+            build-out/work-debug/src
+            build-out/work-release/src
+          key: ${{ runner.os }}-flairos-linux-foundation-${{ hashFiles('build/build-linux-image.sh') }}-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-flairos-${{ matrix.profile }}-${{ hashFiles('build/build-linux-image.sh') }}-
-            ${{ runner.os }}-flairos-${{ matrix.profile }}-
+            ${{ runner.os }}-flairos-linux-foundation-${{ hashFiles('build/build-linux-image.sh') }}-
+            ${{ runner.os }}-flairos-linux-foundation-
 
       - name: Show compiler cache status
         run: ccache --show-stats
@@ -54,28 +52,52 @@ jobs:
       - name: Validate AirP package manager
         run: sh tests/airp-package-test.sh
 
-      - name: Build Linux, GRUB, BusyBox, and disk image
-        run: bash build/build-linux-image.sh "${{ matrix.profile }}"
+      - name: Build debug and release images
+        run: |
+          bash build/build-linux-image.sh debug
+          bash build/build-linux-image.sh release
 
-      - name: Boot image in QEMU
+      - name: Boot debug image in QEMU
         shell: bash
         run: |
           set +e
           timeout 35s qemu-system-i386 -m 256M \
-            -drive file=build-out/flairos-i386-${{ matrix.profile }}.img,format=raw,if=ide \
+            -drive file=build-out/flairos-i386-debug.img,format=raw,if=ide \
             -boot c -serial stdio -display none -monitor none -no-reboot \
-            > qemu-${{ matrix.profile }}.log 2>&1
+            > qemu-debug.log 2>&1
           result=$?
           set -e
-          cat qemu-${{ matrix.profile }}.log
-          grep -q "FlairOS userspace ready" qemu-${{ matrix.profile }}.log
-          echo "QEMU exited with $result after the boot marker (timeout is expected)."
+          cat qemu-debug.log
+          grep -q "FlairOS userspace ready" qemu-debug.log
+          echo "QEMU exited with $result after the debug boot marker (timeout is expected)."
 
-      - name: Upload bootable image
+      - name: Boot release image in QEMU
+        shell: bash
+        run: |
+          set +e
+          timeout 35s qemu-system-i386 -m 256M \
+            -drive file=build-out/flairos-i386-release.img,format=raw,if=ide \
+            -boot c -serial stdio -display none -monitor none -no-reboot \
+            > qemu-release.log 2>&1
+          result=$?
+          set -e
+          cat qemu-release.log
+          grep -q "FlairOS userspace ready" qemu-release.log
+          echo "QEMU exited with $result after the release boot marker (timeout is expected)."
+
+      - name: Upload debug bootable image
         uses: actions/upload-artifact@v4
         with:
-          name: flairos-i386-${{ matrix.profile }}
-          path: build-out/flairos-i386-${{ matrix.profile }}.img
+          name: flairos-i386-debug
+          path: build-out/flairos-i386-debug.img
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload release bootable image
+        uses: actions/upload-artifact@v4
+        with:
+          name: flairos-i386-release
+          path: build-out/flairos-i386-release.img
           if-no-files-found: error
           retention-days: 14
 
@@ -83,7 +105,13 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: flairos-i386-${{ matrix.profile }}-diagnostics
-          path: qemu-${{ matrix.profile }}.log
+          name: flairos-i386-boot-diagnostics
+          path: |
+            qemu-debug.log
+            qemu-release.log
           if-no-files-found: ignore
           retention-days: 7
+
+      - name: Show final compiler cache statistics
+        if: always()
+        run: ccache --show-stats
