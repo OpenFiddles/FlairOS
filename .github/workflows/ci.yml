@@ -34,7 +34,22 @@ jobs:
             bc bison flex libssl-dev libelf-dev libncurses-dev \
             autoconf automake autopoint gettext libtool texinfo pkg-config \
             mtools dosfstools parted e2fsprogs cpio qemu-system-x86 \
-            python3 git grub-common > /dev/null
+            python3 git grub-common ccache > /dev/null
+
+      - name: Restore compiler and incremental build caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/ccache
+            build-out/work-${{ matrix.profile }}/src
+            build-out/work-${{ matrix.profile }}/tools/grub
+          key: ${{ runner.os }}-flairos-${{ matrix.profile }}-${{ hashFiles('build/build-linux-image.sh') }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-flairos-${{ matrix.profile }}-${{ hashFiles('build/build-linux-image.sh') }}-
+            ${{ runner.os }}-flairos-${{ matrix.profile }}-
+
+      - name: Show compiler cache status
+        run: ccache --show-stats
 
       - name: Validate AirP package manager
         run: sh tests/airp-package-test.sh

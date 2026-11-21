@@ -14,17 +14,30 @@ IMAGE="$OUT/flairos-i386-$PROFILE.img"
 GRUB_PREFIX="$TOOLS/grub"
 JOBS="${JOBS:-$(nproc)}"
 
-rm -rf "$WORK"
-mkdir -p "$SRC" "$TOOLS" "$ROOTFS" "$OUT"
+# Keep source trees and compiler outputs between CI runs. The workflow caches
+# this directory, allowing make and ccache to reuse unchanged compilation work.
+mkdir -p "$SRC" "$TOOLS" "$ROOTFS" "$OUT" "$HOME/.cache/ccache"
+export CCACHE_DIR="$HOME/.cache/ccache"
+ccache -M 1G >/dev/null 2>&1 || true
 for cmd in git make gcc ld objcopy tar gzip cpio parted losetup mkfs.vfat mkfs.ext2 mount umount; do
   command -v "$cmd" >/dev/null || { echo "Missing build dependency: $cmd" >&2; exit 1; }
 done
 command -v sudo >/dev/null || { echo "sudo is required for disk image assembly" >&2; exit 1; }
 
-echo "==> Fetching official Linux, GRUB, and BusyBox sources (shallow clones)"
-git clone --depth=1 https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git "$SRC/linux"
-git clone --depth=1 https://git.savannah.gnu.org/git/grub.git "$SRC/grub"
-git clone --depth=1 https://git.busybox.net/busybox "$SRC/busybox"
+echo "==> Fetching or updating official Linux, GRUB, and BusyBox sources"
+sync_source() {
+  local url="$1" dir="$2"
+  if [ -d "$dir/.git" ]; then
+    git -C "$dir" fetch --depth=1 origin
+    git -C "$dir" reset --hard FETCH_HEAD
+  else
+    rm -rf "$dir"
+    git clone --depth=1 "$url" "$dir"
+  fi
+}
+sync_source https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git "$SRC/linux"
+sync_source https://git.savannah.gnu.org/git/grub.git "$SRC/grub"
+sync_source https://git.busybox.net/busybox "$SRC/busybox"
 
 echo "==> Configuring and building the minimal i386 Linux kernel"
 make -C "$SRC/linux" ARCH=x86 i386_defconfig
@@ -56,7 +69,7 @@ make -C "$SRC/linux" ARCH=x86 i386_defconfig
   fi
   make ARCH=x86 olddefconfig
 )
-make -C "$SRC/linux" ARCH=x86 -j"$JOBS" bzImage
+make -C "$SRC/linux" ARCH=x86 CC="ccache gcc" -j"$JOBS" bzImage
 KERNEL="$SRC/linux/arch/x86/boot/bzImage"
 test -s "$KERNEL"
 
@@ -70,7 +83,7 @@ sed -i \
   "$SRC/busybox/.config"
 grep -q '^CONFIG_STATIC=y' "$SRC/busybox/.config"
 grep -q '^# CONFIG_TC is not set' "$SRC/busybox/.config"
-make -C "$SRC/busybox" ARCH=i386 CROSS_COMPILE=i686-linux-gnu- -j"$JOBS"
+make -C "$SRC/busybox" ARCH=i386 CROSS_COMPILE="ccache i686-linux-gnu-" -j"$JOBS"
 rm -rf "$ROOTFS"
 mkdir -p "$ROOTFS"
 make -C "$SRC/busybox" CONFIG_PREFIX="$ROOTFS" install
@@ -89,10 +102,10 @@ echo "==> Building GRUB from the official GNU GRUB source"
 (
   cd "$SRC/grub"
   ./bootstrap
-  ./configure --target=i386 --with-platform=pc --prefix="$GRUB_PREFIX" \
+  CC="ccache gcc" ./configure --target=i386 --with-platform=pc --prefix="$GRUB_PREFIX" \
     --disable-werror --disable-grub-mkfont --disable-device-mapper \
     --disable-efiemu --disable-grub-mount --disable-nls
-  make -j"$JOBS"
+  make CC="ccache gcc" -j"$JOBS"
   make install
 )
 export PATH="$GRUB_PREFIX/bin:$GRUB_PREFIX/sbin:$PATH"
