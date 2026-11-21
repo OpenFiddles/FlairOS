@@ -40,7 +40,7 @@ jobs:
         run: sh tests/airp-package-test.sh
 
       - name: Build Linux, GRUB, BusyBox, and disk image
-        run: ./build/build-linux-image.sh "${{ matrix.profile }}"
+        run: bash build/build-linux-image.sh "${{ matrix.profile }}"
 
       - name: Boot image in QEMU
         shell: bash

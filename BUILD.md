@@ -7,8 +7,8 @@ The Linux build is performed by GitHub Actions. The workflow fetches upstream so
 Install the dependencies listed in `.github/workflows/ci.yml`, then run:
 
 ```sh
-./build/build-linux-image.sh debug
-./build/build-linux-image.sh release
+bash build/build-linux-image.sh debug
+bash build/build-linux-image.sh release
 ```
 
 Output:

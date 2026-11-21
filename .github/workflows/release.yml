@@ -53,7 +53,7 @@ jobs:
 
       - name: Build release image
         if: steps.check.outputs.exists == 'false'
-        run: ./build/build-linux-image.sh release
+        run: bash build/build-linux-image.sh release
 
       - name: Verify boot in QEMU
         if: steps.check.outputs.exists == 'false'

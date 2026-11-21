@@ -4,7 +4,7 @@ PROFILE ?= debug
 all: linux-image
 
 linux-image:
-	./build/build-linux-image.sh $(PROFILE)
+	bash build/build-linux-image.sh $(PROFILE)
 
 test-airp:
 	sh tests/airp-package-test.sh

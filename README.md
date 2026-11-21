@@ -18,7 +18,7 @@ This is a minimal FlairOS system, not an Alpine or other preassembled Linux dist
 GitHub Actions is the authoritative build and artifact pipeline. For a local Linux build, install the dependencies listed in `.github/workflows/ci.yml`, then run:
 
 ```sh
-./build/build-linux-image.sh debug
+bash build/build-linux-image.sh debug
 ```
 
 The image is written to `build-out/flairos-i386-debug.img`. Use `release` for the release profile.

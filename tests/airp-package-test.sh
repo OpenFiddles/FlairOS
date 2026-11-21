@@ -29,10 +29,13 @@ if AIRP_ROOT="$TMP/root" sh "$ROOT/system/bin/airp" install "$TMP/unsafe.airpkg"
   exit 1
 fi
 
-mkdir -p "$TMP/traversal/rootfs"
-printf 'name=traversal\nversion=1.0\n' > "$TMP/traversal/manifest"
-printf 'bad\n' > "$TMP/traversal/../escape"
-tar -czf "$TMP/traversal.airpkg" -C "$TMP/traversal" manifest rootfs
-# The archive contains no traversal member; this checks the normal rejection path above.
+mkdir -p "$TMP/link/rootfs/usr/share"
+printf 'name=link-test\nversion=1.0\n' > "$TMP/link/manifest"
+ln -s /etc/passwd "$TMP/link/rootfs/usr/share/outside"
+tar -czf "$TMP/link.airpkg" -C "$TMP/link" manifest rootfs
+if AIRP_ROOT="$TMP/root" sh "$ROOT/system/bin/airp" install "$TMP/link.airpkg"; then
+  echo "AirP accepted a system package containing a symbolic link" >&2
+  exit 1
+fi
 
 echo "AirP package manager tests passed."
