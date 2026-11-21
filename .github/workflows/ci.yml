@@ -117,6 +117,141 @@ jobs:
         run: ccache --show-stats
 
 
+  build-aarch64:
+    name: Build and boot-test AArch64 debug and release images
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 90
+    steps:
+      - name: Check out FlairOS
+        uses: actions/checkout@v4
+
+      - name: Verify native ARM64 runner
+        run: test "$(uname -m)" = "aarch64"
+
+      - name: Install ARM64 build and QEMU dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+            build-essential bc bison flex libssl-dev libelf-dev libncurses-dev \
+            liblzma-dev autoconf automake autopoint gettext libtool texinfo \
+            pkg-config mtools dosfstools parted e2fsprogs cpio \
+            qemu-system-arm qemu-efi-aarch64 python3 git ccache > /dev/null
+
+      - name: Restore ARM64 compiler and incremental build caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/ccache
+            build-out-aarch64/work-shared/src
+            build-out-aarch64/work-shared/tools
+            build-out-aarch64/work-debug/src
+            build-out-aarch64/work-release/src
+          key: Linux-arm64-flairos-${{ hashFiles('build/build-aarch64-image.sh') }}-${{ github.sha }}
+          restore-keys: |
+            Linux-arm64-flairos-${{ hashFiles('build/build-aarch64-image.sh') }}-
+            Linux-arm64-flairos-
+
+      - name: Show compiler cache status
+        run: ccache --show-stats
+
+      - name: Validate AirP package manager
+        run: sh tests/airp-package-test.sh
+
+      - name: Build AArch64 debug and release images
+        run: |
+          bash build/build-aarch64-image.sh debug
+          bash build/build-aarch64-image.sh release
+
+      - name: Verify ARM64 UEFI boot firmware
+        run: |
+          test -s /usr/share/AAVMF/AAVMF_CODE.fd
+          test -s /usr/share/AAVMF/AAVMF_VARS.fd
+          test -s build-out-aarch64/boot-components/BOOTAA64.EFI
+          test -s build-out-aarch64/boot-components/Image
+
+      - name: Boot AArch64 debug image in QEMU
+        shell: bash
+        run: |
+          cp /usr/share/AAVMF/AAVMF_VARS.fd build-out-aarch64/vars-debug.fd
+          set +e
+          timeout 60s qemu-system-aarch64 \
+            -machine virt -cpu max -m 1024 -smp 2 \
+            -drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/AAVMF/AAVMF_CODE.fd \
+            -drive if=pflash,format=raw,unit=1,file=build-out-aarch64/vars-debug.fd \
+            -drive if=none,file=build-out-aarch64/flairos-aarch64-debug.img,format=raw,id=hd0 \
+            -device virtio-blk-device,drive=hd0 \
+            -display none -serial stdio -monitor none -no-reboot \
+            > qemu-aarch64-debug.log 2>&1
+          result=$?
+          set -e
+          cat qemu-aarch64-debug.log
+          grep -q "FlairOS userspace ready" qemu-aarch64-debug.log
+          if [ "$result" -ne 0 ] && [ "$result" -ne 124 ]; then
+            echo "QEMU exited unexpectedly with status $result" >&2
+            exit "$result"
+          fi
+          echo "AArch64 debug image reached the FlairOS userspace marker."
+
+      - name: Boot AArch64 release image in QEMU
+        shell: bash
+        run: |
+          cp /usr/share/AAVMF/AAVMF_VARS.fd build-out-aarch64/vars-release.fd
+          set +e
+          timeout 60s qemu-system-aarch64 \
+            -machine virt -cpu max -m 1024 -smp 2 \
+            -drive if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/AAVMF/AAVMF_CODE.fd \
+            -drive if=pflash,format=raw,unit=1,file=build-out-aarch64/vars-release.fd \
+            -drive if=none,file=build-out-aarch64/flairos-aarch64-release.img,format=raw,id=hd0 \
+            -device virtio-blk-device,drive=hd0 \
+            -display none -serial stdio -monitor none -no-reboot \
+            > qemu-aarch64-release.log 2>&1
+          result=$?
+          set -e
+          cat qemu-aarch64-release.log
+          grep -q "FlairOS userspace ready" qemu-aarch64-release.log
+          if [ "$result" -ne 0 ] && [ "$result" -ne 124 ]; then
+            echo "QEMU exited unexpectedly with status $result" >&2
+            exit "$result"
+          fi
+          echo "AArch64 release image reached the FlairOS userspace marker."
+
+      - name: Upload AArch64 debug bootable image
+        uses: actions/upload-artifact@v4
+        with:
+          name: flairos-aarch64-debug
+          path: build-out-aarch64/flairos-aarch64-debug.img
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload AArch64 release bootable image
+        uses: actions/upload-artifact@v4
+        with:
+          name: flairos-aarch64-release
+          path: build-out-aarch64/flairos-aarch64-release.img
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload standalone AArch64 kernel and GRUB EFI components
+        uses: actions/upload-artifact@v4
+        with:
+          name: flairos-aarch64-boot-components
+          path: build-out-aarch64/boot-components/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload AArch64 boot diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flairos-aarch64-boot-diagnostics
+          path: qemu-aarch64-*.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Show final compiler cache statistics
+        if: always()
+        run: ccache --show-stats
+
   pages:
     name: Deploy FlairOS V2 browser emulator
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'

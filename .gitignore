@@ -6,3 +6,6 @@ build-*/
 CMakeCache.txt
 CMakeFiles/
 build-out/
+
+# Native ARM64 Linux image build output
+build-out-aarch64/
