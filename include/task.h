@@ -25,6 +25,8 @@ struct task {
     uintptr_t kstack_base;
     uint32_t cr3;
     uint32_t wake_tick;
+    uintptr_t futex_addr;
+    uint32_t tls_base;
     uint32_t slices;
     int exit_code;
     char name[TASK_NAME_MAX];
@@ -32,6 +34,7 @@ struct task {
 
 void task_init(void);
 int task_spawn_kernel(const char *name, void (*entry)(void));
+int task_spawn_user_thread(const char *name, uint32_t cr3, uint32_t user_eip, uint32_t user_esp, uint32_t tls_base);
 void task_yield(void);
 void task_sleep_ticks(uint32_t now_ticks, uint32_t n);
 void task_exit(int code);
@@ -41,6 +44,8 @@ void task_tick(uint32_t now_ticks);
 int task_current_pid(void);
 int task_active_count(void);
 const struct task *task_get(int pid);
+int task_futex_wait(uintptr_t addr, uint32_t expected);
+int task_futex_wake(uintptr_t addr, int max_wake);
 int task_selftest(void);
 
 #endif

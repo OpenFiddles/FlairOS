@@ -1,0 +1,11 @@
+{
+  "name": "tv",
+  "display_name": "FlairOS TV (10-Foot Lean-Back Shell)",
+  "default_arch": "aarch64",
+  "supported_arches": ["x86_64", "aarch64"],
+  "width": 1280,
+  "height": 720,
+  "shell_source": "ui/shells/shell_tv.c",
+  "airp_role": "AIRP_ROLE_RECEIVER",
+  "defines": ["FLAIROS_DEVICE_TV", "FLAIROS_DISPLAY_LANDSCAPE"]
+}

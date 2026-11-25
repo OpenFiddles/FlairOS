@@ -49,4 +49,5 @@ int vfs_chdir(const char *path);
 int vfs_getcwd(char *buf, uint32_t size);
 int vfs_dup2(int oldfd, int newfd);
 
+int vfs_has_persistent_storage(void);
 #endif

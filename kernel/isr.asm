@@ -80,3 +80,19 @@ isr_mouse:
     out 0x20, al
     popad
     iretd
+
+global task_switch_asm
+task_switch_asm:
+    mov eax, [esp + 4]
+    mov edx, [esp + 8]
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov [eax], esp
+    mov esp, edx
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret

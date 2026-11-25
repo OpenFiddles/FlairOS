@@ -41,6 +41,19 @@ int main(void) {
     CHECK(code == -1);
     CHECK(task_get(3) == 0);
 
+    /* Futex wait/wake test */
+    uint32_t fut = 1;
+    CHECK(task_futex_wait((uintptr_t)&fut, 2) == -1); /* mismatch */
+    CHECK(task_futex_wake((uintptr_t)&fut, 1) == 0);
+    /* Put task 2 into BLOCKED state on futex and wake it */
+    tasks[1].state = TASK_BLOCKED;
+    tasks[1].futex_addr = 0x1234u;
+    CHECK(task_futex_wake(0x1234u, 1) == 1);
+    CHECK(tasks[1].state == TASK_READY);
+
+    int ut = task_spawn_user_thread("ui_thread", 0x200000u, 0x40010u, 0x7E000u, 0x10001000u);
+    CHECK(ut > 0 && task_get(ut)->cr3 == 0x200000u && task_get(ut)->tls_base == 0x10001000u);
+
     puts("Task scheduler host test: all checks passed");
     return 0;
 }

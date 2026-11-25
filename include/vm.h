@@ -24,5 +24,7 @@ int vm_selftest(void);
 int vm_run_app(unsigned int entry, unsigned int user_esp);
 unsigned int vm_brk(unsigned int want);
 int vm_is_ready(void);
+unsigned int vm_mmap(unsigned int length);
+int vm_munmap(unsigned int addr, unsigned int length);
 
 #endif

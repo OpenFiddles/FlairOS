@@ -1,27 +1,20 @@
-/* arch/aarch64/hello.c - PL011 serial "hello" for the QEMU virt board */
-#define UART_DR ((volatile unsigned int *)0x09000000UL)
-#define UART_FR ((volatile unsigned int *)0x09000018UL)
-#define UART_TXFF (1u << 5)
+/* arch/aarch64/hello.c - AArch64 HAL + DEX VM bring-up entry */
+#include "../../include/hal.h"
+#include "../../include/dex.h"
 
-static void putc(char c)
-{
-    while (*UART_FR & UART_TXFF)
-        ;
-    *UART_DR = (unsigned char)c;
-}
-
-static void puts(const char *s)
-{
-    while (*s) {
-        if (*s == '\n')
-            putc('\r');
-        putc(*s++);
-    }
-}
-
-void kmain(void)
-{
-    puts("AirOS ARM: hello from aarch64 serial\n");
-    for (;;)
-        __asm__ volatile("wfe");
+void kmain(void) {
+    static const uint16_t sample_insns[] = {
+        0x2012u, /* const/4 v0, #2 */
+        0x3112u, /* const/4 v1, #3 */
+        0x0290u, 0x0100u, /* add-int v2, v0, v1 */
+        0x020Fu  /* return v2 */
+    };
+    int32_t res = 0;
+    hal_early_init();
+    hal_serial_puts("FlairOS AArch64 HAL ready (");
+    hal_serial_puts(hal_arch_name());
+    hal_serial_puts(")\n");
+    if (dex_exec_bytecode(sample_insns, 5u, &res) == 0 && res == 5)
+        hal_serial_puts("FlairOS AArch64 DEX VM verified\n");
+    for (;;) hal_cpu_halt();
 }

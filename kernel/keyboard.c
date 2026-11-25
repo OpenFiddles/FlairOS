@@ -86,6 +86,8 @@ void keyboard_irq(void) {
     }
     if (sc == 0x20 && ctrl_down && alt_down) {
         toggle_pending = 1;
+        ctrl_down = 0;
+        alt_down = 0;
         return;
     }
 

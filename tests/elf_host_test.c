@@ -57,6 +57,14 @@ int main(void) {
     fake_elf[0] = 0;
     CHECK(elf32_validate(fake_elf, sizeof(fake_elf), 0) != 0);
 
+    /* ET_DYN relative relocation test */
+    uint8_t dyn_img[16];
+    memset(dyn_img, 0, sizeof(dyn_img));
+    *(uint32_t *)(dyn_img + 4) = 0x100u;
+    struct elf32_rel rel = { 4u, R_386_RELATIVE };
+    CHECK(elf32_apply_relocs(&rel, 1, 0x00400000u, dyn_img, sizeof(dyn_img)) == 0);
+    CHECK(*(uint32_t *)(dyn_img + 4) == 0x00400100u);
+
     puts("ELF32 loader host test: all checks passed");
     return 0;
 }

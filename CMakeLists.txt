@@ -1,122 +1,426 @@
 cmake_minimum_required(VERSION 3.20)
-project(airos C)
+project(FlairOS C ASM)
 
-if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "i686")
-  message(FATAL_ERROR "AirOS builds only i686 for now; x86-64 and ARM need their own boot layer")
+enable_testing()
+
+set(FLAIROS_ARCH "i386" CACHE STRING "Target architecture (only i386 supported)")
+set(FLAIROS_DEVICE "desktop" CACHE STRING "Device profile: desktop|phone|tablet|laptop|tv")
+set(FLAIROS_DISPLAY "landscape" CACHE STRING "Display profile: landscape|portrait|wide|4k")
+set(FLAIROS_SHELL "desktop" CACHE STRING "Shell: desktop|mobile")
+option(FLAIROS_DEBUG "Enable debug logging and Ctrl+Alt+D SYS.LOG dump" ON)
+
+if(FLAIROS_ARCH STREQUAL "aarch64")
+    set(B "${CMAKE_CURRENT_BINARY_DIR}")
+    set(S "${CMAKE_CURRENT_SOURCE_DIR}")
+    if(NOT FLAIROS_LD)
+        find_program(FLAIROS_LD NAMES ld.lld ld REQUIRED)
+    endif()
+    if(NOT FLAIROS_OBJCOPY)
+        find_program(FLAIROS_OBJCOPY NAMES llvm-objcopy objcopy REQUIRED)
+    endif()
+    add_library(arm64_objs OBJECT
+        "${S}/arch/aarch64/boot.S"
+        "${S}/arch/aarch64/hal.c"
+        "${S}/arch/aarch64/hello.c"
+        "${S}/kernel/dex.c"
+        "${S}/kernel/apk.c"
+    )
+    target_include_directories(arm64_objs PRIVATE "${S}/include")
+    target_compile_definitions(arm64_objs PRIVATE FLAIROS_DEVICE_PHONE FLAIROS_DISPLAY_PORTRAIT)
+    target_compile_options(arm64_objs PRIVATE $<$<COMPILE_LANGUAGE:C>:-std=gnu99 -ffreestanding -fno-pic -fno-stack-protector -Os -Wall -Wextra>)
+    add_custom_command(
+        OUTPUT "${B}/flairos-arm64.elf"
+        COMMAND "${FLAIROS_LD}" -m aarch64elf -nostdlib -T "${S}/arch/aarch64/linker.ld"
+                -o "${B}/flairos-arm64.elf" $<TARGET_OBJECTS:arm64_objs>
+        DEPENDS arm64_objs "${S}/arch/aarch64/linker.ld"
+        COMMENT "Linking flairos-arm64.elf"
+        COMMAND_EXPAND_LISTS
+    )
+    add_custom_command(
+        OUTPUT "${B}/flairos-arm64.bin"
+        COMMAND "${FLAIROS_OBJCOPY}" -O binary "${B}/flairos-arm64.elf" "${B}/flairos-arm64.bin"
+        DEPENDS "${B}/flairos-arm64.elf"
+        COMMENT "Creating flairos-arm64.bin"
+    )
+    add_custom_target(flairos-arm64 ALL DEPENDS "${B}/flairos-arm64.bin")
+    return()
+elseif(NOT FLAIROS_ARCH STREQUAL "i386")
+    message(FATAL_ERROR "Unsupported FLAIROS_ARCH=${FLAIROS_ARCH} (use i386 or aarch64).")
 endif()
 
-find_program(AIROS_NASM nasm REQUIRED)
-find_program(AIROS_OBJCOPY NAMES llvm-objcopy objcopy REQUIRED)
-find_program(AIROS_PYTHON NAMES python3 python REQUIRED)
-find_program(AIROS_QEMU qemu-system-i386)
+find_program(NASM_BIN nasm REQUIRED)
+find_program(PYTHON3_BIN python3 REQUIRED)
+find_program(HOST_CC NAMES cc clang gcc REQUIRED)
+find_program(QEMU_BIN qemu-system-i386)
+find_program(XORRISO_BIN xorriso)
 
-set(B ${CMAKE_BINARY_DIR})
-set(AIROS_INCLUDES ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/kernel)
-set(AIROS_CFLAGS -std=gnu99 -ffreestanding -mno-sse -mno-sse2 -mno-mmx -fno-pic -fno-stack-protector -fno-builtin
-    -fno-common -fcf-protection=none -fno-asynchronous-unwind-tables -Os -ffunction-sections -fdata-sections -Wall -Wextra)
+if(NOT FLAIROS_LD)
+    find_program(FLAIROS_LD NAMES ld.lld ld REQUIRED)
+endif()
+if(NOT FLAIROS_OBJCOPY)
+    find_program(FLAIROS_OBJCOPY NAMES llvm-objcopy objcopy REQUIRED)
+endif()
 
-add_custom_command(OUTPUT ${B}/stage1.bin
-  COMMAND ${AIROS_NASM} -f bin ${CMAKE_SOURCE_DIR}/bootloader/stage1.asm -o ${B}/stage1.bin
-  DEPENDS ${CMAKE_SOURCE_DIR}/bootloader/stage1.asm VERBATIM)
-add_custom_command(OUTPUT ${B}/stage2.bin
-  COMMAND ${AIROS_NASM} -f bin ${CMAKE_SOURCE_DIR}/bootloader/stage2.asm -o ${B}/stage2.bin
-  COMMAND truncate -s 2048 ${B}/stage2.bin
-  DEPENDS ${CMAKE_SOURCE_DIR}/bootloader/stage2.asm VERBATIM)
+set(B "${CMAKE_CURRENT_BINARY_DIR}")
+set(S "${CMAKE_CURRENT_SOURCE_DIR}")
 
-set(AIROS_ASM_OBJS)
-foreach(src IN ITEMS kernel/entry.asm kernel/isr.asm kernel/usermode.asm)
-  get_filename_component(stem ${src} NAME_WE)
-  set(obj ${B}/${stem}.o)
-  add_custom_command(OUTPUT ${obj}
-    COMMAND ${AIROS_NASM} -f elf32 ${CMAKE_SOURCE_DIR}/${src} -o ${obj}
-    DEPENDS ${CMAKE_SOURCE_DIR}/${src} VERBATIM)
-  list(APPEND AIROS_ASM_OBJS ${obj})
+# Device & display compile definitions
+set(FLAIROS_DEFS "")
+if(FLAIROS_DEVICE STREQUAL "phone")
+    list(APPEND FLAIROS_DEFS FLAIROS_DEVICE_PHONE)
+elseif(FLAIROS_DEVICE STREQUAL "tablet")
+    list(APPEND FLAIROS_DEFS FLAIROS_DEVICE_TABLET)
+elseif(FLAIROS_DEVICE STREQUAL "laptop")
+    list(APPEND FLAIROS_DEFS FLAIROS_DEVICE_LAPTOP)
+elseif(FLAIROS_DEVICE STREQUAL "tv")
+    list(APPEND FLAIROS_DEFS FLAIROS_DEVICE_TV)
+endif()
+
+if(FLAIROS_DEBUG)
+    list(APPEND FLAIROS_DEFS FLAIROS_DEBUG)
+endif()
+
+if(FLAIROS_SHELL STREQUAL "mobile")
+    if(NOT FLAIROS_DEVICE STREQUAL "phone" OR NOT FLAIROS_DISPLAY STREQUAL "portrait")
+        message(FATAL_ERROR "The mobile shell currently requires FLAIROS_DEVICE=phone and FLAIROS_DISPLAY=portrait.")
+    endif()
+    list(APPEND FLAIROS_DEFS FLAIROS_SHELL_MOBILE)
+elseif(NOT FLAIROS_SHELL STREQUAL "desktop")
+    message(FATAL_ERROR "Unsupported FLAIROS_SHELL=${FLAIROS_SHELL} (use desktop or mobile).")
+endif()
+
+if(FLAIROS_DISPLAY STREQUAL "portrait")
+    list(APPEND FLAIROS_DEFS FLAIROS_DISPLAY_PORTRAIT)
+elseif(FLAIROS_DISPLAY STREQUAL "wide")
+    list(APPEND FLAIROS_DEFS FLAIROS_DISPLAY_WIDE)
+elseif(FLAIROS_DISPLAY STREQUAL "4k")
+    list(APPEND FLAIROS_DEFS FLAIROS_DISPLAY_4K)
+endif()
+
+set(FLAIROS_CFLAGS
+    -m32
+    -std=gnu99
+    -ffreestanding
+    -mno-sse
+    -mno-sse2
+    -mno-mmx
+    -fno-pic
+    -fno-stack-protector
+    -fno-builtin
+    -fno-common
+    -fcf-protection=none
+    -fno-asynchronous-unwind-tables
+    -Os
+    -ffunction-sections
+    -fdata-sections
+    -Wall
+    -Wextra
+)
+if(FLAIROS_TOOLCHAIN_CFLAGS)
+    list(APPEND FLAIROS_CFLAGS ${FLAIROS_TOOLCHAIN_CFLAGS})
+endif()
+
+# --- Bootloader Stages ---
+add_custom_command(
+    OUTPUT "${B}/stage1.bin"
+    COMMAND "${NASM_BIN}" -f bin "${S}/bootloader/stage1.asm" -o "${B}/stage1.bin"
+    DEPENDS "${S}/bootloader/stage1.asm"
+    COMMENT "Assembling stage1.bin"
+)
+
+macro(add_stage2_variant TARGET_FILE MODE)
+    add_custom_command(
+        OUTPUT "${B}/${TARGET_FILE}"
+        COMMAND "${NASM_BIN}" -f bin -D "FORCE_BOOT_MODE=${MODE}" "${S}/bootloader/stage2.asm" -o "${B}/${TARGET_FILE}"
+        COMMAND "${PYTHON3_BIN}" "${S}/tools/check_size.py" "${B}/${TARGET_FILE}" 2048 2048
+        DEPENDS "${S}/bootloader/stage2.asm"
+        COMMENT "Assembling ${TARGET_FILE}"
+    )
+endmacro()
+
+add_stage2_variant("stage2.bin" 0)
+add_stage2_variant("stage2-live.bin" 1)
+add_stage2_variant("stage2-setup.bin" 2)
+
+# --- Kernel Assembly Objects ---
+set(KERNEL_ASM_OBJS "")
+foreach(asm_name entry isr usermode)
+    add_custom_command(
+        OUTPUT "${B}/${asm_name}.o"
+        COMMAND "${NASM_BIN}" -f elf32 "${S}/kernel/${asm_name}.asm" -o "${B}/${asm_name}.o"
+        DEPENDS "${S}/kernel/${asm_name}.asm"
+        COMMENT "Assembling kernel/${asm_name}.asm"
+    )
+    list(APPEND KERNEL_ASM_OBJS "${B}/${asm_name}.o")
 endforeach()
-set_source_files_properties(${AIROS_ASM_OBJS} PROPERTIES EXTERNAL_OBJECT TRUE GENERATED TRUE)
 
-file(GLOB_RECURSE AIROS_DRIVER_SRCS CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/drivers/*.c)
-set(AIROS_KERNEL_SRCS
-  arch/i386/hal.c
-  kernel/desktop.c kernel/desktop_gfx.c kernel/desktop_render.c kernel/desktop_chrome.c kernel/font5x7.c
-  kernel/kernel.c kernel/drivers.c kernel/keyboard.c kernel/panic.c
-  kernel/mouse_cursor.c kernel/mouse_init.c kernel/pit_timer.c
-  kernel/axi.c kernel/fs.c kernel/sysdispatch.c kernel/boot.c
-  kernel/hwinfo.c kernel/setup.c kernel/airp.c kernel/fb.c kernel/vbe.c
-  kernel/airgraph.c kernel/sprunkui.c kernel/bmp.c)
-list(TRANSFORM AIROS_KERNEL_SRCS PREPEND ${CMAKE_SOURCE_DIR}/)
+# --- Kernel & Driver C Objects ---
+file(GLOB_RECURSE DRV_SRCS CONFIGURE_DEPENDS "${S}/drivers/*.c")
 
-add_library(airos_kernel_c OBJECT ${AIROS_KERNEL_SRCS} ${AIROS_DRIVER_SRCS})
-target_compile_options(airos_kernel_c PRIVATE ${AIROS_CFLAGS})
-target_include_directories(airos_kernel_c PRIVATE ${AIROS_INCLUDES})
+set(KERNEL_C_SRCS
+    "${S}/arch/i386/hal.c"
+    "${S}/kernel/desktop.c"
+    "${S}/kernel/mobile.c"
+    "${S}/kernel/desktop_gfx.c"
+    "${S}/kernel/desktop_render.c"
+    "${S}/kernel/desktop_chrome.c"
+    "${S}/kernel/windown.c"
+    "${S}/kernel/task.c"
+    "${S}/kernel/elf.c"
+    "${S}/kernel/vfs.c"
+    "${S}/kernel/fat32.c"
+    "${S}/kernel/ashmem.c"
+    "${S}/kernel/binder.c"
+    "${S}/kernel/apk.c"
+    "${S}/kernel/dex.c"
+    "${S}/kernel/font5x7.c"
+    "${S}/kernel/kernel.c"
+    "${S}/kernel/drivers.c"
+    "${S}/kernel/keyboard.c"
+    "${S}/kernel/panic.c"
+    "${S}/kernel/mouse_cursor.c"
+    "${S}/kernel/mouse_init.c"
+    "${S}/kernel/pit_timer.c"
+    ${DRV_SRCS}
+    "${S}/kernel/axi.c"
+    "${S}/kernel/fs.c"
+    "${S}/kernel/sysdispatch.c"
+    "${S}/kernel/boot.c"
+    "${S}/kernel/hwinfo.c"
+    "${S}/kernel/setup.c"
+    "${S}/kernel/airp.c"
+    "${S}/kernel/fb.c"
+    "${S}/kernel/vbe.c"
+    "${S}/kernel/airgraph.c"
+    "${S}/kernel/bmp.c"
+    "${S}/kernel/image.c"
+    "${S}/kernel/cursor.c"
+    "${S}/kernel/sprunkui.c"
+    "${S}/kernel/airnim.c"
+    "${S}/kernel/status.c"
+    "${S}/kernel/sprunkui_anim.c"
+)
 
-add_executable(kernel ${AIROS_ASM_OBJS} $<TARGET_OBJECTS:airos_kernel_c>)
-set_target_properties(kernel PROPERTIES OUTPUT_NAME kernel SUFFIX .elf
-  LINK_DEPENDS ${CMAKE_SOURCE_DIR}/kernel/link.ld)
-target_link_options(kernel PRIVATE --gc-sections -T ${CMAKE_SOURCE_DIR}/kernel/link.ld)
+add_library(kernel_objs OBJECT ${KERNEL_C_SRCS})
+target_include_directories(kernel_objs PRIVATE "${S}/include" "${S}/kernel")
+target_compile_definitions(kernel_objs PRIVATE ${FLAIROS_DEFS})
+target_compile_options(kernel_objs PRIVATE ${FLAIROS_CFLAGS})
 
-add_custom_command(OUTPUT ${B}/kernel.bin
-  COMMAND ${AIROS_OBJCOPY} -O binary $<TARGET_FILE:kernel> ${B}/kernel.bin
-  COMMAND sh -c "test $(stat -c %s ${B}/kernel.bin) -le 131072"
-  COMMAND truncate -s 131072 ${B}/kernel.bin
-  DEPENDS kernel VERBATIM)
+add_custom_command(
+    OUTPUT "${B}/kernel.elf"
+    COMMAND "${FLAIROS_LD}" -m elf_i386 -nostdlib --gc-sections -T "${S}/kernel/link.ld"
+            -o "${B}/kernel.elf" ${KERNEL_ASM_OBJS} $<TARGET_OBJECTS:kernel_objs>
+    DEPENDS ${KERNEL_ASM_OBJS} kernel_objs "${S}/kernel/link.ld"
+    COMMENT "Linking kernel.elf"
+    COMMAND_EXPAND_LISTS
+)
 
-add_library(airos_rt OBJECT ${CMAKE_SOURCE_DIR}/userland/rt.c)
-target_compile_options(airos_rt PRIVATE ${AIROS_CFLAGS})
-target_include_directories(airos_rt PRIVATE ${AIROS_INCLUDES})
+add_custom_command(
+    OUTPUT "${B}/kernel.bin"
+    COMMAND "${FLAIROS_OBJCOPY}" -O binary "${B}/kernel.elf" "${B}/kernel.bin"
+    COMMAND "${PYTHON3_BIN}" "${S}/tools/check_size.py" "${B}/kernel.bin" 131072 131072
+    DEPENDS "${B}/kernel.elf"
+    COMMENT "Creating kernel.bin (max 128 KiB)"
+)
 
-function(airos_app name src max_bytes pad)
-  add_executable(${name} ${src} $<TARGET_OBJECTS:airos_rt>)
-  target_compile_options(${name} PRIVATE ${AIROS_CFLAGS})
-  target_include_directories(${name} PRIVATE ${AIROS_INCLUDES})
-  set_target_properties(${name} PROPERTIES SUFFIX .elf LINK_DEPENDS ${CMAKE_SOURCE_DIR}/userland/app.ld)
-  target_link_options(${name} PRIVATE -T ${CMAKE_SOURCE_DIR}/userland/app.ld)
-  if(pad)
-    add_custom_command(OUTPUT ${B}/${name}.bin
-      COMMAND ${AIROS_OBJCOPY} -O binary $<TARGET_FILE:${name}> ${B}/${name}.bin
-      COMMAND sh -c "test $(stat -c %s ${B}/${name}.bin) -le ${max_bytes}"
-      COMMAND truncate -s ${max_bytes} ${B}/${name}.bin
-      DEPENDS ${name} VERBATIM)
-  else()
-    add_custom_command(OUTPUT ${B}/${name}.bin
-      COMMAND ${AIROS_OBJCOPY} -O binary $<TARGET_FILE:${name}> ${B}/${name}.bin
-      COMMAND sh -c "test $(stat -c %s ${B}/${name}.bin) -le ${max_bytes}"
-      DEPENDS ${name} VERBATIM)
-  endif()
+# --- Userland Runtime & Apps ---
+add_library(user_rt OBJECT "${S}/userland/rt.c")
+target_include_directories(user_rt PRIVATE "${S}/include" "${S}/kernel")
+target_compile_definitions(user_rt PRIVATE ${FLAIROS_DEFS})
+target_compile_options(user_rt PRIVATE ${FLAIROS_CFLAGS})
+
+function(add_user_bin NAME SRC MAX_BYTES PAD_TO)
+    add_library(${NAME}_obj OBJECT "${SRC}")
+    target_include_directories(${NAME}_obj PRIVATE "${S}/include" "${S}/kernel" "${S}/sdk")
+    target_compile_definitions(${NAME}_obj PRIVATE ${FLAIROS_DEFS})
+    target_compile_options(${NAME}_obj PRIVATE ${FLAIROS_CFLAGS})
+
+    add_custom_command(
+        OUTPUT "${B}/${NAME}.elf"
+        COMMAND "${FLAIROS_LD}" -m elf_i386 -nostdlib -T "${S}/userland/app.ld"
+                -o "${B}/${NAME}.elf" $<TARGET_OBJECTS:${NAME}_obj> $<TARGET_OBJECTS:user_rt>
+        DEPENDS ${NAME}_obj user_rt "${S}/userland/app.ld"
+        COMMENT "Linking ${NAME}.elf"
+        COMMAND_EXPAND_LISTS
+    )
+    if(PAD_TO GREATER 0)
+        add_custom_command(
+            OUTPUT "${B}/${NAME}.bin"
+            COMMAND "${FLAIROS_OBJCOPY}" -O binary "${B}/${NAME}.elf" "${B}/${NAME}.bin"
+            COMMAND "${PYTHON3_BIN}" "${S}/tools/check_size.py" "${B}/${NAME}.bin" "${MAX_BYTES}" "${PAD_TO}"
+            DEPENDS "${B}/${NAME}.elf"
+            COMMENT "Building ${NAME}.bin"
+        )
+    else()
+        add_custom_command(
+            OUTPUT "${B}/${NAME}.bin"
+            COMMAND "${FLAIROS_OBJCOPY}" -O binary "${B}/${NAME}.elf" "${B}/${NAME}.bin"
+            COMMAND "${PYTHON3_BIN}" "${S}/tools/check_size.py" "${B}/${NAME}.bin" "${MAX_BYTES}"
+            DEPENDS "${B}/${NAME}.elf"
+            COMMENT "Building ${NAME}.bin"
+        )
+    endif()
 endfunction()
 
-airos_app(app ${CMAKE_SOURCE_DIR}/userland/app.c 65536 TRUE)
-airos_app(explorer ${CMAKE_SOURCE_DIR}/userland/explorer.c 16348 FALSE)
-airos_app(terminal ${CMAKE_SOURCE_DIR}/userland/terminal/terminal.c 32732 FALSE)
-airos_app(win_app ${CMAKE_SOURCE_DIR}/userland/win_app.c 65536 TRUE)
+function(add_airp_app NAME SRC MAX_BIN_BYTES MAX_AIRP_BYTES)
+    add_user_bin(${NAME} "${SRC}" ${MAX_BIN_BYTES} 0)
+    add_custom_command(
+        OUTPUT "${B}/${NAME}.airp"
+        COMMAND "${PYTHON3_BIN}" "${S}/tools/airpack.py" "${B}/${NAME}.bin" "${B}/${NAME}.airp" "${NAME}"
+        COMMAND "${PYTHON3_BIN}" "${S}/tools/check_size.py" "${B}/${NAME}.airp" "${MAX_AIRP_BYTES}"
+        DEPENDS "${B}/${NAME}.bin" "${S}/tools/airpack.py"
+        COMMENT "Packing ${NAME}.airp"
+    )
+endfunction()
 
-add_custom_command(OUTPUT ${B}/explorer.airp
-  COMMAND ${AIROS_PYTHON} ${CMAKE_SOURCE_DIR}/tools/airpack.py ${B}/explorer.bin ${B}/explorer.airp explorer
-  COMMAND sh -c "test $(stat -c %s ${B}/explorer.airp) -le 16384"
-  DEPENDS ${B}/explorer.bin ${CMAKE_SOURCE_DIR}/tools/airpack.py VERBATIM)
+add_user_bin(app "${S}/userland/app.c" 65536 65536)
+add_user_bin(win_app "${S}/userland/win_app.c" 4096 0)
+add_airp_app(explorer "${S}/userland/explorer.c" 16348 16384)
+add_airp_app(terminal "${S}/userland/terminal/terminal.c" 32732 32768)
+add_airp_app(settings "${S}/userland/settings.c" 16348 16384)
+add_airp_app(notes "${S}/userland/notes.c" 8156 8192)
 
-add_custom_command(OUTPUT ${B}/terminal.airp
-  COMMAND ${AIROS_PYTHON} ${CMAKE_SOURCE_DIR}/tools/airpack.py ${B}/terminal.bin ${B}/terminal.airp terminal
-  COMMAND sh -c "test $(stat -c %s ${B}/terminal.airp) -le 32768"
-  DEPENDS ${B}/terminal.bin ${CMAKE_SOURCE_DIR}/tools/airpack.py VERBATIM)
+# Optional SDK examples
+add_user_bin(hello "${S}/examples/hello/hello.c" 65536 0)
+add_user_bin(libc_demo "${S}/examples/libc_demo/libc_demo.c" 65536 0)
+add_custom_target(sdk-example DEPENDS "${B}/hello.bin" "${B}/libc_demo.bin")
 
-add_custom_command(OUTPUT ${B}/textile.img
-  COMMAND dd if=/dev/zero of=${B}/textile.img bs=512 count=2880 status=none
-  COMMAND dd if=${B}/stage1.bin of=${B}/textile.img bs=512 count=1 conv=notrunc status=none
-  COMMAND dd if=${B}/stage2.bin of=${B}/textile.img bs=512 seek=1 count=4 conv=notrunc status=none
-  COMMAND dd if=${B}/kernel.bin of=${B}/textile.img bs=512 seek=5 count=256 conv=notrunc status=none
-  COMMAND dd if=${B}/app.bin of=${B}/textile.img bs=512 seek=261 count=128 conv=notrunc status=none
-  COMMAND dd if=${B}/explorer.airp of=${B}/textile.img bs=512 seek=2447 count=32 conv=notrunc status=none
-  COMMAND dd if=${B}/terminal.airp of=${B}/textile.img bs=512 seek=2479 count=64 conv=notrunc status=none
-  DEPENDS ${B}/stage1.bin ${B}/stage2.bin ${B}/kernel.bin ${B}/app.bin ${B}/explorer.airp ${B}/terminal.airp VERBATIM)
+# --- Disk Images ---
+macro(add_disk_image IMG_NAME STAGE2_BIN)
+    add_custom_command(
+        OUTPUT "${B}/${IMG_NAME}"
+        COMMAND dd if=/dev/zero of="${B}/${IMG_NAME}" bs=512 count=2880 status=none
+        COMMAND dd if="${B}/stage1.bin" of="${B}/${IMG_NAME}" bs=512 count=1 conv=notrunc status=none
+        COMMAND dd if="${B}/${STAGE2_BIN}" of="${B}/${IMG_NAME}" bs=512 seek=1 count=4 conv=notrunc status=none
+        COMMAND dd if="${B}/kernel.bin" of="${B}/${IMG_NAME}" bs=512 seek=5 count=256 conv=notrunc status=none
+        COMMAND dd if="${B}/app.bin" of="${B}/${IMG_NAME}" bs=512 seek=261 count=128 conv=notrunc status=none
+        COMMAND dd if="${B}/explorer.airp" of="${B}/${IMG_NAME}" bs=512 seek=2447 count=32 conv=notrunc status=none
+        COMMAND dd if="${B}/terminal.airp" of="${B}/${IMG_NAME}" bs=512 seek=2479 count=64 conv=notrunc status=none
+        COMMAND dd if="${B}/settings.airp" of="${B}/${IMG_NAME}" bs=512 seek=2543 count=32 conv=notrunc status=none
+        COMMAND dd if="${B}/notes.airp" of="${B}/${IMG_NAME}" bs=512 seek=2575 count=16 conv=notrunc status=none
+        DEPENDS "${B}/stage1.bin" "${B}/${STAGE2_BIN}" "${B}/kernel.bin" "${B}/app.bin"
+                "${B}/explorer.airp" "${B}/terminal.airp" "${B}/settings.airp" "${B}/notes.airp"
+        COMMENT "Assembling ${IMG_NAME}"
+    )
+endmacro()
 
-add_custom_target(image ALL DEPENDS ${B}/textile.img)
+add_disk_image("textile.img" "stage2.bin")
+add_disk_image("livecd.img" "stage2-live.bin")
+add_disk_image("bootcd.img" "stage2-setup.bin")
 
-add_custom_target(smoke
-  COMMAND ${AIROS_PYTHON} ${CMAKE_SOURCE_DIR}/tests/smoke.py ${B}/textile.img
-  DEPENDS image USES_TERMINAL)
+add_custom_target(flairos-image ALL DEPENDS "${B}/textile.img")
 
-if(AIROS_QEMU)
-  add_custom_target(run
-    COMMAND ${AIROS_QEMU} -fda ${B}/textile.img -serial stdio -no-reboot
-    DEPENDS image USES_TERMINAL)
+add_custom_command(
+    OUTPUT "${B}/storage.img"
+    COMMAND truncate -s 31457280 "${B}/storage.img"
+    COMMENT "Creating 30 MiB storage.img"
+)
+add_custom_target(storage-image DEPENDS "${B}/storage.img")
+
+if(XORRISO_BIN)
+    add_custom_command(
+        OUTPUT "${B}/livecd.iso"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${B}/livecd-root"
+        COMMAND "${CMAKE_COMMAND}" -E copy "${B}/livecd.img" "${B}/livecd-root/flair-livecd.img"
+        COMMAND "${XORRISO_BIN}" -as mkisofs -quiet -V FLAIROS_LIVE -b flair-livecd.img -c boot.catalog -o "${B}/livecd.iso" "${B}/livecd-root"
+        DEPENDS "${B}/livecd.img"
+        COMMENT "Creating livecd.iso"
+    )
+    add_custom_command(
+        OUTPUT "${B}/bootcd.iso"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${B}/bootcd-root"
+        COMMAND "${CMAKE_COMMAND}" -E copy "${B}/bootcd.img" "${B}/bootcd-root/flair-bootcd.img"
+        COMMAND "${XORRISO_BIN}" -as mkisofs -quiet -V FLAIROS_SETUP -b flair-bootcd.img -c boot.catalog -o "${B}/bootcd.iso" "${B}/bootcd-root"
+        DEPENDS "${B}/bootcd.img"
+        COMMENT "Creating bootcd.iso"
+    )
+    add_custom_target(boot-media DEPENDS "${B}/textile.img" "${B}/livecd.iso" "${B}/bootcd.iso")
 endif()
+
+if(QEMU_BIN)
+    add_custom_target(run
+        COMMAND "${QEMU_BIN}" -fda "${B}/textile.img" -hda "${B}/storage.img"
+                -vga std -global VGA.vgamem_mb=64 -nic user,model=rtl8139 -serial stdio -no-reboot -m 256M
+        DEPENDS "${B}/textile.img" "${B}/storage.img"
+        USES_TERMINAL
+    )
+    add_custom_target(run-vnc
+        COMMAND "${QEMU_BIN}" -fda "${B}/textile.img" -hda "${B}/storage.img"
+                -vga std -global VGA.vgamem_mb=64 -vnc 0.0.0.0:0 -k en-us
+                -nic user,model=rtl8139 -serial stdio -no-reboot -m 256M
+        DEPENDS "${B}/textile.img" "${B}/storage.img"
+        USES_TERMINAL
+    )
+endif()
+
+# --- Host Tests (compiled with native HOST_CC, run via ctest) ---
+set(HOST_TEST_BINS "")
+function(add_flairos_host_test TEST_NAME)
+    set(SRCS ${ARGN})
+    set(ABS_SRCS "")
+    foreach(src ${SRCS})
+        list(APPEND ABS_SRCS "${S}/${src}")
+    endforeach()
+    set(EXTRA_FLAGS "")
+    set(EXTRA_LIBS "")
+    if(TEST_NAME STREQUAL "status_host_test" OR TEST_NAME STREQUAL "cursor_host_test" OR TEST_NAME STREQUAL "airnim_host_test" OR TEST_NAME STREQUAL "sprunkui_anim_host_test" OR TEST_NAME STREQUAL "telemetry_bridge_test")
+        list(APPEND EXTRA_FLAGS "-DFLAIROS_HOST_TEST")
+    elseif(TEST_NAME STREQUAL "runtime64_airp_test")
+        list(APPEND EXTRA_FLAGS "-DFLAIROS_HOST_TEST" "-DFLAIROS_64BIT"
+             "-I${S}/ported/python/cpython/Include"
+             "-I${S}/ported/python/build-cpython")
+        if(EXISTS "${S}/ported/python/build-cpython/libpython3.16.a")
+            list(APPEND EXTRA_FLAGS "-DFLAIROS_HAS_CPYTHON")
+            list(APPEND EXTRA_LIBS "${S}/ported/python/build-cpython/libpython3.16.a" -liconv -ldl -llog -lm -lpthread)
+        endif()
+    endif()
+    if(TEST_NAME STREQUAL "pmm_host_test" OR TEST_NAME STREQUAL "vm_region_host_test")
+        list(APPEND EXTRA_FLAGS "-Werror")
+    endif()
+    add_custom_command(
+        OUTPUT "${B}/${TEST_NAME}"
+        COMMAND "${HOST_CC}" -std=gnu99 -Wall -Wextra ${EXTRA_FLAGS} "-I${S}/include" "-I${S}/kernel"
+                -o "${B}/${TEST_NAME}" ${ABS_SRCS} ${EXTRA_LIBS}
+        DEPENDS ${ABS_SRCS}
+        COMMENT "Building host test ${TEST_NAME}"
+    )
+    set_property(GLOBAL APPEND PROPERTY FLAIROS_HOST_TEST_BINS "${B}/${TEST_NAME}")
+    add_test(NAME "${TEST_NAME}" COMMAND "${B}/${TEST_NAME}")
+endfunction()
+
+add_flairos_host_test(airgraph_host_test tests/airgraph_host_test.c kernel/airgraph.c kernel/sprunkui.c kernel/fb.c)
+add_flairos_host_test(status_host_test tests/status_host_test.c kernel/status.c)
+add_flairos_host_test(sprunkui_anim_host_test tests/sprunkui_anim_host_test.c kernel/sprunkui_anim.c kernel/sprunkui.c kernel/airnim.c kernel/airgraph.c kernel/fb.c)
+add_flairos_host_test(airnim_host_test tests/airnim_host_test.c kernel/airnim.c kernel/airgraph.c kernel/fb.c)
+add_flairos_host_test(vfs_host_test tests/vfs_host_test.c)
+add_flairos_host_test(elf_host_test tests/elf_host_test.c kernel/elf.c)
+add_flairos_host_test(task_host_test tests/task_host_test.c)
+add_flairos_host_test(windown_host_test tests/windown_host_test.c kernel/windown.c kernel/desktop_chrome.c kernel/font5x7.c kernel/airgraph.c kernel/fb.c)
+add_flairos_host_test(desktop_chrome_host_test tests/desktop_chrome_host_test.c kernel/desktop_chrome.c kernel/font5x7.c kernel/airgraph.c kernel/fb.c)
+add_flairos_host_test(desktop_render_host_test tests/desktop_render_host_test.c kernel/desktop_render.c kernel/font5x7.c kernel/airgraph.c kernel/fb.c kernel/bmp.c)
+add_flairos_host_test(bmp_host_test tests/bmp_host_test.c kernel/bmp.c)
+add_flairos_host_test(image_host_test tests/image_host_test.c kernel/image.c kernel/bmp.c)
+add_flairos_host_test(driver_host_test tests/driver_host_test.c drivers/drv_core.c)
+add_flairos_host_test(fb_host_test tests/fb_host_test.c kernel/fb.c)
+add_flairos_host_test(ata_identify_host_test tests/ata_identify_host_test.c drivers/ata_identify.c)
+add_flairos_host_test(pmm_host_test tests/pmm_host_test.c drivers/mm_core.c)
+add_flairos_host_test(vm_region_host_test tests/vm_region_host_test.c drivers/vm_region.c)
+add_flairos_host_test(cursor_host_test tests/cursor_host_test.c kernel/cursor.c kernel/bmp.c kernel/airgraph.c kernel/fb.c)
+add_flairos_host_test(fat32_host_test tests/fat32_host_test.c kernel/fat32.c)
+add_flairos_host_test(ashmem_host_test tests/ashmem_host_test.c)
+add_flairos_host_test(binder_host_test tests/binder_host_test.c)
+add_flairos_host_test(apk_host_test tests/apk_host_test.c kernel/apk.c)
+add_flairos_host_test(dex_host_test tests/dex_host_test.c kernel/dex.c kernel/apk.c)
+add_flairos_host_test(telemetry_bridge_test tests/telemetry_bridge_test.c net/bridge/host_bridge.c net/service/net_service.c)
+add_flairos_host_test(bt_host_test tests/bt_host_test.c tests/bt_mock_hci.c drivers/bt/bt_hci.c net/bt/bt_core.c)
+add_flairos_host_test(runtime64_airp_test tests/runtime64_airp_test.c tests/bt_mock_hci.c kernel/bmp.c kernel/vfs.c kernel/kmem64.c kernel/font5x7.c kernel/apk.c kernel/dex.c kernel/binder.c kernel/ashmem.c graphics/compositor/glass_fx.c runtime/art/art_bridge.c runtime/art/sandbox.c net/airp/airp_net.c drivers/bt/bt_hci.c net/bt/bt_core.c ported/developer/libs/flair_posix/flair_posix.c ported/developer/libs/flair_zlib/flair_zlib.c ported/developer/openjdk/src/jvm_class.c ported/developer/toybox/toybox_mini.c ported/developer/kilo/kilo_core.c ported/python/flair_py.c net/bridge/host_bridge.c kernel/elf64.c kernel/syscall64.c runtime/art/surface_flinger.c ui/shells/flair_browser.c runtime/art/dex_interp.c runtime/art/android_libs.c net/service/net_service.c ui/systemui/airstin_ui.c ui/shells/shell_desktop.c)
+
+get_property(HOST_TEST_BINS GLOBAL PROPERTY FLAIROS_HOST_TEST_BINS)
+add_custom_target(host-tests DEPENDS ${HOST_TEST_BINS})
+
+add_test(
+    NAME airp_apps_test
+    COMMAND "${PYTHON3_BIN}" "${S}/tests/airp_apps_test.py"
+            "${B}/explorer.airp" "${B}/settings.airp" "${B}/notes.airp"
+)
+

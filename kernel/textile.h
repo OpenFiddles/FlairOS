@@ -25,7 +25,35 @@ enum tx_syscall {
        Keep this input-state query outside those public syscall ranges. */
     SYS_TOGGLE_PENDING = 37,
     SYS_TIME = 39,
-    SYS_GETRANDOM = 41
+    SYS_GETRANDOM = 41,
+    SYS_YIELD = 42,
+    SYS_GETPID = 43,
+    SYS_TASK_COUNT = 44,
+    SYS_MMAP = 45,
+    SYS_MUNMAP = 46,
+    SYS_VFS_OPEN = 47,
+    SYS_VFS_READ = 48,
+    SYS_VFS_WRITE = 49,
+    SYS_VFS_CLOSE = 50,
+    SYS_VFS_MKDIR = 51,
+    SYS_VFS_READDIR = 52,
+    SYS_VFS_STAT = 53,
+    SYS_VFS_CHDIR = 54,
+    SYS_VFS_GETCWD = 55,
+    SYS_VFS_UNLINK = 56,
+    SYS_NET_PING = 57,
+    SYS_NET_INFO = 58,
+    SYS_SET_TLS = 62,
+    SYS_NANOSLEEP = 63,
+    SYS_DUP2 = 64,
+    SYS_LSEEK = 65,
+    SYS_FUTEX_WAIT = 66,
+    SYS_FUTEX_WAKE = 67,
+    SYS_ASHMEM_CREATE = 68,
+    SYS_ASHMEM_MAP = 69,
+    SYS_BINDER_REG = 70,
+    SYS_BINDER_LOOKUP = 71,
+    SYS_BINDER_TX = 72
 };
 
 /* Arrow codes returned by SYS_GETARROW (-1 when none is waiting). */

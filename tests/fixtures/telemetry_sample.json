@@ -1,0 +1,20 @@
+{
+  "battery_pct": 84,
+  "ac_power": 0,
+  "battery_temp_c10": 315,
+  "wifi_up": 1,
+  "wifi_rssi": -54,
+  "wifi_bars": 4,
+  "wifi_ssid": "FlairLab-5G",
+  "wifi_ip": "192.168.1.42",
+  "cell_up": 1,
+  "cell_bars": 3,
+  "cell_roaming": 0,
+  "cell_carrier": "T-Mobile",
+  "cell_rat": "5G",
+  "bt_available": 1,
+  "bt_powered": 1,
+  "bt_connected": 1,
+  "bt_name": "FlairPods Pro",
+  "source": "fixture"
+}

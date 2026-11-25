@@ -14,6 +14,9 @@ struct net_device_ops {
     int (*link_up)(struct net_device *dev);
     int (*send)(struct net_device *dev, const void *frame, u16 length);
     int (*receive)(struct net_device *dev, void *frame, u16 capacity);
+    /* Optional. Wireless drivers return signal strength 0-100 (or -1 when
+       unknown); wired drivers leave it NULL. */
+    int (*signal)(struct net_device *dev);
 };
 
 struct net_device {

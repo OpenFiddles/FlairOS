@@ -34,19 +34,46 @@ BUILD = build
 DRV_SRCS = $(shell find drivers -type f -name '*.c' -print)
 DRV_OBJS = $(patsubst drivers/%.c,$(BUILD)/d_%.o,$(DRV_SRCS))
 
+DEVICE ?= desktop
+FLAIROS_SHELL ?= desktop
+ifeq ($(FLAIROS_SHELL),mobile)
+CFLAGS_SHELL = -DFLAIROS_SHELL_MOBILE
+else ifneq ($(FLAIROS_SHELL),desktop)
+$(error FLAIROS_SHELL=$(FLAIROS_SHELL) is unsupported; use desktop or mobile)
+else
+CFLAGS_SHELL =
+endif
+ifeq ($(DEVICE),phone)
+CFLAGS_DEVICE = -DFLAIROS_DEVICE_PHONE
+else ifeq ($(DEVICE),tablet)
+CFLAGS_DEVICE = -DFLAIROS_DEVICE_TABLET
+else ifeq ($(DEVICE),laptop)
+CFLAGS_DEVICE = -DFLAIROS_DEVICE_LAPTOP
+else ifeq ($(DEVICE),tv)
+CFLAGS_DEVICE = -DFLAIROS_DEVICE_TV
+else
+CFLAGS_DEVICE =
+endif
+
 DISPLAY ?= landscape
 ifeq ($(DISPLAY),portrait)
-CFLAGS_DISPLAY = -DFLAIROS_DISPLAY_PORTRAIT
+CFLAGS_DISPLAY = -DFLAIROS_DISPLAY_PORTRAIT $(CFLAGS_DEVICE)
 else ifeq ($(DISPLAY),wide)
-CFLAGS_DISPLAY = -DFLAIROS_DISPLAY_WIDE
+CFLAGS_DISPLAY = -DFLAIROS_DISPLAY_WIDE $(CFLAGS_DEVICE)
 else ifeq ($(DISPLAY),4k)
-CFLAGS_DISPLAY = -DFLAIROS_DISPLAY_4K
+CFLAGS_DISPLAY = -DFLAIROS_DISPLAY_4K $(CFLAGS_DEVICE)
 else
-CFLAGS_DISPLAY =
+CFLAGS_DISPLAY = $(CFLAGS_DEVICE)
 endif
 
 # Keep project headers discoverable for every kernel/driver translation unit.
-CFLAGS = -Iinclude -Ikernel $(CFLAGS_DISPLAY) $(ARCH_CFLAGS) -std=gnu99 -ffreestanding -mno-sse -mno-sse2 -mno-mmx -fno-pic -fno-stack-protector -fno-builtin -fno-common $(TOOLCHAIN_CFLAGS) -fcf-protection=none -fno-asynchronous-unwind-tables -Os -ffunction-sections -fdata-sections -Wall -Wextra
+DEBUG ?= 1
+ifeq ($(DEBUG),1)
+CFLAGS_DEBUG = -DFLAIROS_DEBUG
+else
+CFLAGS_DEBUG =
+endif
+CFLAGS = -Iinclude -Ikernel $(CFLAGS_DEBUG) $(CFLAGS_DISPLAY) $(CFLAGS_SHELL) $(ARCH_CFLAGS) -std=gnu99 -ffreestanding -mno-sse -mno-sse2 -mno-mmx -fno-pic -fno-stack-protector -fno-builtin -fno-common $(TOOLCHAIN_CFLAGS) -fcf-protection=none -fno-asynchronous-unwind-tables -Os -ffunction-sections -fdata-sections -Wall -Wextra
 
 # Expanded to compile all the core kernel files visible in your tree
 OBJS = $(BUILD)/hal.o \
@@ -54,9 +81,19 @@ OBJS = $(BUILD)/hal.o \
        $(BUILD)/isr.o \
        $(BUILD)/usermode.o \
        $(BUILD)/desktop.o \
+       $(BUILD)/mobile.o \
        $(BUILD)/desktop_gfx.o \
        $(BUILD)/desktop_render.o \
        $(BUILD)/desktop_chrome.o \
+       $(BUILD)/windown.o \
+       $(BUILD)/task.o \
+       $(BUILD)/elf.o \
+       $(BUILD)/vfs.o \
+       $(BUILD)/fat32.o \
+       $(BUILD)/ashmem.o \
+       $(BUILD)/binder.o \
+       $(BUILD)/apk.o \
+       $(BUILD)/dex.o \
        $(BUILD)/font5x7.o \
        $(BUILD)/kernel.o \
        $(BUILD)/drivers.o \
@@ -78,9 +115,19 @@ OBJS = $(BUILD)/hal.o \
        $(BUILD)/airgraph.o \
        $(BUILD)/bmp.o \
        $(BUILD)/image.o \
-       $(BUILD)/sprunkui.o
+       $(BUILD)/cursor.o \
+       $(BUILD)/sprunkui.o \
+       $(BUILD)/airnim.o \
+       $(BUILD)/status.o \
+       $(BUILD)/sprunkui_anim.o
 
 all: $(BUILD)/textile.img
+
+mobile:
+	$(MAKE) BUILD=build-mobile-make DEVICE=phone DISPLAY=portrait FLAIROS_SHELL=mobile all
+
+desktop:
+	$(MAKE) BUILD=build-desktop-make DEVICE=desktop DISPLAY=landscape FLAIROS_SHELL=desktop all
 
 $(BUILD):
 	mkdir -p $(BUILD)
@@ -121,10 +168,41 @@ $(BUILD)/usermode.o: kernel/usermode.asm | $(BUILD)
 $(BUILD)/desktop.o: kernel/desktop.c kernel/kernel.h kernel/textile.h include/desktop_gfx.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/desktop_gfx.o: kernel/desktop_gfx.c kernel/kernel.h kernel/textile.h include/fs.h include/desktop_gfx.h include/desktop_render.h include/desktop_chrome.h include/vbe.h include/airgraph.h include/sprunkui.h include/font5x7.h | $(BUILD)
+$(BUILD)/mobile.o: kernel/mobile.c kernel/kernel.h include/desktop_gfx.h include/airgraph.h include/sprunkui.h include/windown.h include/drv_touch.h include/vfs.h | $(BUILD)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD)/desktop_gfx.o: kernel/desktop_gfx.c include/airnim.h include/status.h include/sprunkui.h kernel/kernel.h kernel/textile.h include/fs.h include/desktop_gfx.h include/desktop_render.h include/desktop_chrome.h include/vbe.h include/airgraph.h include/sprunkui.h include/font5x7.h | $(BUILD)
 	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
 
+
 $(BUILD)/desktop_chrome.o: kernel/desktop_chrome.c include/desktop_chrome.h include/font5x7.h include/airgraph.h | $(BUILD)
+	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
+
+$(BUILD)/windown.o: kernel/windown.c include/windown.h include/desktop_chrome.h include/airgraph.h | $(BUILD)
+	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
+
+$(BUILD)/task.o: kernel/task.c include/task.h include/kheap.h include/hal.h | $(BUILD)
+	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
+
+$(BUILD)/elf.o: kernel/elf.c include/elf.h | $(BUILD)
+	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
+
+$(BUILD)/vfs.o: kernel/vfs.c include/vfs.h include/kheap.h include/fat32.h include/drv_ata.h | $(BUILD)
+	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
+
+$(BUILD)/fat32.o: kernel/fat32.c include/fat32.h | $(BUILD)
+	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
+
+$(BUILD)/ashmem.o: kernel/ashmem.c include/ashmem.h include/kheap.h | $(BUILD)
+	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
+
+$(BUILD)/binder.o: kernel/binder.c include/binder.h include/kheap.h | $(BUILD)
+	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
+
+$(BUILD)/apk.o: kernel/apk.c include/apk.h | $(BUILD)
+	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
+
+$(BUILD)/dex.o: kernel/dex.c include/dex.h | $(BUILD)
 	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
 
 $(BUILD)/desktop_render.o: kernel/desktop_render.c include/desktop_render.h include/font5x7.h include/airgraph.h | $(BUILD)
@@ -184,7 +262,19 @@ $(BUILD)/bmp.o: kernel/bmp.c include/bmp.h | $(BUILD)
 $(BUILD)/image.o: kernel/image.c include/image.h include/bmp.h | $(BUILD)
 	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
 
+$(BUILD)/cursor.o: kernel/cursor.c include/cursor.h include/bmp.h | $(BUILD)
+	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
+
 $(BUILD)/sprunkui.o: kernel/sprunkui.c include/sprunkui.h include/airgraph.h | $(BUILD)
+	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
+
+$(BUILD)/airnim.o: kernel/airnim.c include/airnim.h include/airgraph.h | $(BUILD)
+	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
+
+$(BUILD)/status.o: kernel/status.c include/status.h include/drv_net.h include/hw.h | $(BUILD)
+	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
+
+$(BUILD)/sprunkui_anim.o: kernel/sprunkui_anim.c include/sprunkui.h include/airnim.h include/airgraph.h | $(BUILD)
 	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
 
 # --- Modular Subsystem Drivers ---
@@ -229,7 +319,7 @@ $(BUILD)/app.bin: $(BUILD)/app.elf
 	truncate -s 65536 $@
 
 # --- Explorer and Terminal AIRP staging area (outside filesystem sectors) ---
-$(BUILD)/explorer.o: userland/explorer.c include/axi.h include/fs.h kernel/textile.h | $(BUILD)
+$(BUILD)/explorer.o: userland/explorer.c include/axi.h include/vfs.h kernel/textile.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(BUILD)/explorer.elf: $(BUILD)/explorer.o $(BUILD)/rt.o userland/app.ld
@@ -337,22 +427,43 @@ $(BUILD)/win-demo.img: $(BUILD)/stage1.bin $(BUILD)/stage2.bin $(BUILD)/kernel.b
 	dd if=$(BUILD)/win_app.bin of=$@ bs=512 seek=261 count=128 conv=notrunc status=none
 
 $(BUILD)/storage.img: | $(BUILD)
-	truncate -s 31457280 $@
+	python3 tools/make_storage.py $@
 
 storage-image: $(BUILD)/storage.img
 
 run: $(BUILD)/textile.img $(BUILD)/storage.img
-	$(QEMU) -fda $(BUILD)/textile.img -hda $(BUILD)/storage.img -serial stdio -no-reboot
+	$(QEMU) -fda $(BUILD)/textile.img -hda $(BUILD)/storage.img -nic user,model=rtl8139 -serial stdio -no-reboot
 
 VNC ?= 0.0.0.0:0
 run-vnc: $(BUILD)/textile.img $(BUILD)/storage.img
-	$(QEMU) -fda $(BUILD)/textile.img -hda $(BUILD)/storage.img -vnc $(VNC) -k en-us -serial stdio -no-reboot -m 256M
+	$(QEMU) -fda $(BUILD)/textile.img -hda $(BUILD)/storage.img -vnc $(VNC) -k en-us -nic user,model=rtl8139 -serial stdio -no-reboot -m 256M
 
 win-demo: $(BUILD)/win-demo.img
-	$(QEMU) -fda $(BUILD)/win-demo.img -serial stdio -no-reboot
+	$(QEMU) -fda $(BUILD)/win-demo.img -nic user,model=rtl8139 -serial stdio -no-reboot
 
 $(BUILD)/airgraph_host_test: tests/airgraph_host_test.c kernel/airgraph.c kernel/sprunkui.c kernel/fb.c include/airgraph.h include/sprunkui.h include/fb.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/airgraph_host_test.c kernel/airgraph.c kernel/sprunkui.c kernel/fb.c
+
+$(BUILD)/status_host_test: tests/status_host_test.c kernel/status.c include/status.h include/drv_net.h | $(BUILD)
+	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -DFLAIROS_HOST_TEST -o $@ tests/status_host_test.c kernel/status.c
+
+$(BUILD)/sprunkui_anim_host_test: -DFLAIROS_HOST_TEST tests/sprunkui_anim_host_test.c kernel/sprunkui_anim.c kernel/sprunkui.c kernel/airnim.c kernel/airgraph.c kernel/fb.c include/sprunkui.h include/airnim.h include/fb.h | $(BUILD)
+	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ -DFLAIROS_HOST_TEST tests/sprunkui_anim_host_test.c kernel/sprunkui_anim.c kernel/sprunkui.c kernel/airnim.c kernel/airgraph.c kernel/fb.c
+
+$(BUILD)/airnim_host_test: -DFLAIROS_HOST_TEST tests/airnim_host_test.c kernel/airnim.c kernel/airgraph.c kernel/fb.c include/airnim.h include/airgraph.h include/fb.h | $(BUILD)
+	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ -DFLAIROS_HOST_TEST tests/airnim_host_test.c kernel/airnim.c kernel/airgraph.c kernel/fb.c
+
+$(BUILD)/vfs_host_test: tests/vfs_host_test.c kernel/vfs.c include/vfs.h | $(BUILD)
+	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/vfs_host_test.c
+
+$(BUILD)/elf_host_test: tests/elf_host_test.c kernel/elf.c include/elf.h | $(BUILD)
+	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/elf_host_test.c kernel/elf.c
+
+$(BUILD)/task_host_test: tests/task_host_test.c kernel/task.c include/task.h | $(BUILD)
+	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/task_host_test.c
+
+$(BUILD)/windown_host_test: tests/windown_host_test.c kernel/windown.c kernel/desktop_chrome.c kernel/font5x7.c kernel/airgraph.c kernel/fb.c include/windown.h include/desktop_chrome.h include/font5x7.h | $(BUILD)
+	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/windown_host_test.c kernel/windown.c kernel/desktop_chrome.c kernel/font5x7.c kernel/airgraph.c kernel/fb.c
 
 $(BUILD)/desktop_chrome_host_test: tests/desktop_chrome_host_test.c kernel/desktop_chrome.c kernel/font5x7.c kernel/airgraph.c kernel/fb.c include/desktop_chrome.h include/font5x7.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/desktop_chrome_host_test.c kernel/desktop_chrome.c kernel/font5x7.c kernel/airgraph.c kernel/fb.c
@@ -384,7 +495,10 @@ $(BUILD)/pmm_host_test: tests/pmm_host_test.c drivers/mm_core.c include/mm_core.
 $(BUILD)/vm_region_host_test: tests/vm_region_host_test.c drivers/vm_region.c include/vm_region.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -Werror -Iinclude -o $@ tests/vm_region_host_test.c drivers/vm_region.c
 
-test: $(BUILD)/textile.img $(BUILD)/livecd.iso $(BUILD)/bootcd.iso $(BUILD)/airgraph_host_test $(BUILD)/driver_host_test $(BUILD)/io_host_test $(BUILD)/fb_host_test $(BUILD)/ata_identify_host_test $(BUILD)/pmm_host_test $(BUILD)/vm_region_host_test $(BUILD)/desktop_render_host_test $(BUILD)/desktop_chrome_host_test $(BUILD)/bmp_host_test $(BUILD)/image_host_test
+$(BUILD)/cursor_host_test: tests/cursor_host_test.c kernel/cursor.c kernel/bmp.c kernel/airgraph.c kernel/fb.c include/cursor.h | $(BUILD)
+	$(HOSTCC) -std=gnu99 -Wall -Wextra -DFLAIROS_HOST_TEST -Iinclude -o $@ tests/cursor_host_test.c kernel/cursor.c kernel/bmp.c kernel/airgraph.c kernel/fb.c
+
+test: $(BUILD)/textile.img $(BUILD)/livecd.iso $(BUILD)/bootcd.iso $(BUILD)/airgraph_host_test $(BUILD)/driver_host_test $(BUILD)/io_host_test $(BUILD)/fb_host_test $(BUILD)/ata_identify_host_test $(BUILD)/pmm_host_test $(BUILD)/vm_region_host_test $(BUILD)/desktop_render_host_test $(BUILD)/desktop_chrome_host_test $(BUILD)/windown_host_test $(BUILD)/task_host_test $(BUILD)/elf_host_test $(BUILD)/vfs_host_test $(BUILD)/bmp_host_test $(BUILD)/image_host_test $(BUILD)/cursor_host_test $(BUILD)/fat32_host_test $(BUILD)/airnim_host_test $(BUILD)/status_host_test $(BUILD)/sprunkui_anim_host_test
 	$(BUILD)/airgraph_host_test
 	$(BUILD)/fb_host_test
 	$(BUILD)/driver_host_test
@@ -394,16 +508,28 @@ test: $(BUILD)/textile.img $(BUILD)/livecd.iso $(BUILD)/bootcd.iso $(BUILD)/airg
 	$(BUILD)/vm_region_host_test
 	$(BUILD)/desktop_render_host_test
 	$(BUILD)/desktop_chrome_host_test
+	$(BUILD)/windown_host_test
+	$(BUILD)/airnim_host_test
+	$(BUILD)/status_host_test
+	$(BUILD)/sprunkui_anim_host_test
+	$(BUILD)/task_host_test
+	$(BUILD)/elf_host_test
+	$(BUILD)/vfs_host_test
 	$(BUILD)/bmp_host_test
 	$(BUILD)/image_host_test
-	python3 tests/airp_apps_test.py $(BUILD)/settings.airp $(BUILD)/notes.airp
+	$(BUILD)/cursor_host_test
+	$(BUILD)/fat32_host_test
+	python3 tests/airp_apps_test.py $(BUILD)/explorer.airp $(BUILD)/settings.airp $(BUILD)/notes.airp
 	python3 tests/smoke.py $(BUILD)/textile.img
 	python3 tests/boot_media_test.py $(BUILD)/livecd.iso $(BUILD)/bootcd.iso
+
+acceptance: all
+	sh tests/acceptance.sh
 
 clean:
 	rm -rf $(BUILD)
 
-.PHONY: all run run-vnc win-demo test clean livecd bootcd boot-media storage-image
+.PHONY: all run run-vnc win-demo test acceptance clean livecd bootcd boot-media storage-image
 
 # --- SDK example app (built on request, not on the disk image) ---
 $(BUILD)/hello.o: examples/hello/hello.c sdk/flareos.h | $(BUILD)
@@ -498,3 +624,20 @@ $(BUILD)/textile-python.img: $(BUILD)/textile.img micropython-package
 python-image: $(BUILD)/textile-python.img
 
 .PHONY: python-image
+
+phone:
+	$(MAKE) DEVICE=phone BUILD=$(BUILD)-phone all
+
+tablet:
+	$(MAKE) DEVICE=tablet BUILD=$(BUILD)-tablet all
+
+laptop:
+	$(MAKE) DEVICE=laptop BUILD=$(BUILD)-laptop all
+
+tv:
+	$(MAKE) DEVICE=tv BUILD=$(BUILD)-tv all
+
+.PHONY: phone tablet laptop tv
+
+$(BUILD)/fat32_host_test: tests/fat32_host_test.c kernel/fat32.c include/fat32.h | $(BUILD)
+	$(HOSTCC) -std=gnu99 -Wall -Wextra -Werror -Iinclude -o $@ tests/fat32_host_test.c kernel/fat32.c

@@ -178,12 +178,14 @@ static int ata_setup_device(int index, u32 lba, u8 command) {
     if (lba >= device->identify.sectors_lba28 || lba > 0x0FFFFFFFu)
         return -1;
     base = ata_io_base[device->channel];
-    if (ata_wait_not_busy(base) != 0)
-        return -1;
-
+    /* Select the requested device before polling STATUS. Discovery probes all
+       four IDE positions, so the last selected drive may be absent even when
+       the primary master is valid. */
     ata_outb((u16)(base + ATA_REG_DRIVE),
              (u8)(0xE0 | (device->drive << 4) | ((lba >> 24) & 0x0F)));
     ata_delay(ata_ctrl_base[device->channel]);
+    if (ata_wait_not_busy(base) != 0)
+        return -1;
     ata_outb((u16)(base + ATA_REG_SECCOUNT), 1);
     ata_outb((u16)(base + ATA_REG_LBA_LO), (u8)lba);
     ata_outb((u16)(base + ATA_REG_LBA_MID), (u8)(lba >> 8));

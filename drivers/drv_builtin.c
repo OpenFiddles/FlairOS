@@ -10,6 +10,7 @@ PURPOSE: Built-in drivers in initialization order.
 #include "../include/drv_rtc.h"
 #include "../include/drv_speaker.h"
 #include "../include/drv_ata.h"
+#include "../include/drv_touch.h"
 
 extern struct drv drv_ne2000;
 extern struct drv drv_rtl8139;
@@ -21,7 +22,7 @@ int drv_register_builtin(void) {
     struct drv *list[] = {
         &drv_pic_device, &drv_timer_device, &drv_serial_device,
         &drv_kbd_device, &drv_rtc_device, &drv_speaker_device,
-        &drv_ne2000, &drv_rtl8139, &drv_ata_device
+        &drv_touch_device, &drv_ne2000, &drv_rtl8139, &drv_ata_device
     };
     int ok = 0;
     for (unsigned int i = 0; i < sizeof(list) / sizeof(list[0]); ++i)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate built-in Settings and Notes AIRP containers."""
+"""Validate built-in Explorer, Settings, and Notes AIRP containers."""
 import pathlib
 import struct
 import sys
@@ -8,11 +8,12 @@ MAGIC = 0x50524941
 TX_MAGIC = 0x54505041
 HEADER = struct.Struct("<IHHIIII12s")
 EXPECTED = {
+    "explorer": 32 * 512,
     "settings": 32 * 512,
     "notes": 16 * 512,
 }
-if len(sys.argv) != 3:
-    raise SystemExit("usage: airp_apps_test.py SETTINGS.airp NOTES.airp")
+if len(sys.argv) != 4:
+    raise SystemExit("usage: airp_apps_test.py EXPLORER.airp SETTINGS.airp NOTES.airp")
 for path in map(pathlib.Path, sys.argv[1:]):
     raw = path.read_bytes()
     magic, version, header_size, api, base, entry, image_size, name = HEADER.unpack_from(raw)

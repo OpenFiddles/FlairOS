@@ -21,9 +21,11 @@ case "$CMD" in
     nohup qemu-system-i386 \
       -fda build/textile.img \
       -hda build/storage.img \
+      -vga std -global VGA.vgamem_mb=64 \
       -vnc "$DISPLAY_SPEC" \
       -k en-us \
       -serial "file:$LOG_FILE" \
+      -nic user,model=rtl8139 \
       -no-reboot \
       -m 256M \
       >"$TMP_DIR/qemu-vnc.out" 2>&1 &

@@ -27,7 +27,9 @@ def wait_for(log, marker, timeout=20):
 def boot(tag, cmds):
     sock = os.path.join(work, tag + '.sock')
     log = os.path.join(work, tag + '.log')
-    proc = subprocess.Popen([qemu, '-fda', img, '-hda', disk, '-display', 'none', '-no-reboot',
+    proc = subprocess.Popen([qemu, '-drive', 'file=' + img + ',format=raw,if=floppy,index=0',
+                             '-drive', 'file=' + disk + ',format=raw,if=ide,index=0',
+                             '-display', 'none', '-no-reboot',
                              '-netdev', 'user,id=n0',
                              '-device', 'rtl8139,netdev=n0',
                              '-serial', 'file:' + log,

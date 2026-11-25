@@ -1,6 +1,7 @@
 #include "../include/drv_net.h"
 #include "../include/drv.h"
 #include "../include/hw.h"
+#include "../include/kheap.h"
 
 /* RTL8139 hardware backend. Protocols never depend on these registers. */
 #define PCI_ADDR 0xCF8
@@ -36,7 +37,7 @@ struct rtl8139_state {
     u8 tx_buffers[TX_SLOTS][TX_BUFFER_SIZE] __attribute__((aligned(16)));
 };
 
-static struct rtl8139_state rtl;
+static struct rtl8139_state *rtl;
 static struct net_device rtl_device;
 
 static u32 pci_read(u8 bus, u8 slot, u8 function, u8 offset) {
@@ -79,7 +80,7 @@ static int rtl_find(u8 *found_bus, u8 *found_slot, u8 *found_fn) {
 
 static int rtl_reset(void) {
     for (u32 i = 0; i < 1000000u; ++i) {
-        if (!(hw_inb(rtl.io + RTL_CR) & 0x10u))
+        if (!(hw_inb(rtl->io + RTL_CR) & 0x10u))
             return 0;
         hw_io_wait();
     }
@@ -153,50 +154,55 @@ static int rtl_init(void) {
     u16 mac_high;
     if (rtl_find(&bus, &slot, &fn) != 0)
         return -1;
-    rtl.io = 0;
     bar = pci_read(bus, slot, fn, 0x10);
     if (!(bar & 1u)) return -1;
-    rtl.io = (u16)(bar & 0xFFFCu);
-    if (!rtl.io || rtl.io > 0xFFF0u) return -1;
+    /* Ring and transmit buffers (about 16 KiB) live on the heap so they cost
+       no static kernel memory on machines without this NIC. */
+    if (!rtl) {
+        rtl = (struct rtl8139_state *)kmalloc(sizeof(*rtl));
+        if (!rtl) return -1;
+    }
+    rtl->io = (u16)(bar & 0xFFFCu);
+    if (!rtl->io || rtl->io > 0xFFF0u) { rtl->io = 0; return -1; }
     command = pci_read(bus, slot, fn, 0x04);
     hw_outl(PCI_ADDR, 0x80000000u | ((u32)bus << 16) |
             ((u32)slot << 11) | ((u32)fn << 8) | 0x04u);
     hw_outl(PCI_DATA, (command & 0xFFFFu) | 0x0005u);
-    hw_outb(rtl.io + RTL_CONFIG1, 0);
-    hw_outb(rtl.io + RTL_CR, 0x10);
-    if (rtl_reset() != 0) { rtl.io = 0; return -1; }
-    mac_low = hw_inl(rtl.io + RTL_MAC0);
-    mac_high = hw_inw(rtl.io + RTL_MAC0 + 4);
+    hw_outb(rtl->io + RTL_CONFIG1, 0);
+    hw_outb(rtl->io + RTL_CR, 0x10);
+    if (rtl_reset() != 0) { rtl->io = 0; return -1; }
+    mac_low = hw_inl(rtl->io + RTL_MAC0);
+    mac_high = hw_inw(rtl->io + RTL_MAC0 + 4);
     rtl_device.mac[0] = (u8)mac_low;
     rtl_device.mac[1] = (u8)(mac_low >> 8);
     rtl_device.mac[2] = (u8)(mac_low >> 16);
     rtl_device.mac[3] = (u8)(mac_low >> 24);
     rtl_device.mac[4] = (u8)mac_high;
     rtl_device.mac[5] = (u8)(mac_high >> 8);
-    for (u32 i = 0; i < sizeof(rtl.rx_ring); ++i) rtl.rx_ring[i] = 0;
-    for (u32 i = 0; i < sizeof(rtl.tx_buffers); ++i)
-        ((u8 *)rtl.tx_buffers)[i] = 0;
-    rtl.rx_offset = rtl.tx_slot = 0;
-    hw_outl(rtl.io + RTL_RBSTART, (u32)(unsigned long)rtl.rx_ring);
-    hw_outw(rtl.io + RTL_CAPR, 0xFFF0u);
-    hw_outw(rtl.io + RTL_ISR, 0xFFFFu);
-    hw_outw(rtl.io + RTL_IMR, 0);
-    hw_outl(rtl.io + RTL_TCR, 0x03000700u);
-    hw_outl(rtl.io + RTL_RCR, 0x0000008Fu);
-    hw_outb(rtl.io + RTL_CR, 0x0Cu);
+    for (u32 i = 0; i < sizeof(rtl->rx_ring); ++i) rtl->rx_ring[i] = 0;
+    for (u32 i = 0; i < sizeof(rtl->tx_buffers); ++i)
+        ((u8 *)rtl->tx_buffers)[i] = 0;
+    rtl->rx_offset = rtl->tx_slot = 0;
+    hw_outl(rtl->io + RTL_RBSTART, (u32)(unsigned long)rtl->rx_ring);
+    hw_outw(rtl->io + RTL_CAPR, 0xFFF0u);
+    hw_outw(rtl->io + RTL_ISR, 0xFFFFu);
+    hw_outw(rtl->io + RTL_IMR, 0);
+    hw_outl(rtl->io + RTL_TCR, 0x03000700u);
+    hw_outl(rtl->io + RTL_RCR, 0x0000008Fu);
+    hw_outb(rtl->io + RTL_CR, 0x0Cu);
     rtl_device.name = "rtl8139";
     rtl_device.mtu = NET_MTU;
-    rtl_device.private_data = &rtl;
+    rtl_device.private_data = rtl;
     rtl_device.ops = &rtl_ops;
     return net_register(&rtl_device);
 }
 
 static void rtl_shutdown(void) {
-    if (rtl.io) {
-        hw_outw(rtl.io + RTL_IMR, 0);
-        hw_outb(rtl.io + RTL_CR, 0);
+    if (rtl && rtl->io) {
+        hw_outw(rtl->io + RTL_IMR, 0);
+        hw_outb(rtl->io + RTL_CR, 0);
     }
-    rtl.io = 0;
+    if (rtl) rtl->io = 0;
     net_unregister(&rtl_device);
 }
 

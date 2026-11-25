@@ -65,6 +65,8 @@ void ag_round_rect(struct ag_device *, struct ag_surface *, int32_t, int32_t, in
 void ag_round_frame(struct ag_device *, struct ag_surface *, int32_t, int32_t, int32_t, int32_t, int32_t, uint32_t);
 void ag_blend_rect(struct ag_device *, struct ag_surface *, int32_t, int32_t, int32_t, int32_t, uint32_t);
 void ag_blit(struct ag_device *, struct ag_surface *, int32_t, int32_t, int32_t, int32_t, const uint32_t *, uint32_t);
+void ag_alpha_blit(struct ag_surface *dst, int32_t x, int32_t y, int32_t w, int32_t h,
+                   const uint32_t *argb_pixels, uint32_t source_pitch);
 /* Draw a decoded image at native size; clipping is handled by AirGraph. */
 int ag_draw_image(struct ag_device *, struct ag_surface *, int32_t, int32_t,
                   const struct image_buffer *);
@@ -84,5 +86,10 @@ int ag_viewport_map_rect(const struct ag_viewport *, int32_t, int32_t,
                          int32_t, int32_t, int32_t *, int32_t *,
                          int32_t *, int32_t *);
 int ag_get_resource_info(const struct ag_device *, struct ag_resource_info *);
+
+struct ag_damage { int valid; int32_t x0, y0, x1, y1; };
+void ag_damage_reset(struct ag_damage *d);
+void ag_damage_add(struct ag_damage *d, int32_t x, int32_t y, int32_t w, int32_t h, int32_t max_w, int32_t max_h);
+void ag_damage_full(struct ag_damage *d, int32_t max_w, int32_t max_h);
 
 #endif

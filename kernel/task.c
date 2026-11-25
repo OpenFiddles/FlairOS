@@ -70,6 +70,8 @@ void task_init(void) {
         tasks[i].kstack_base = 0;
         tasks[i].cr3 = 0;
         tasks[i].wake_tick = 0;
+        tasks[i].futex_addr = 0;
+        tasks[i].tls_base = 0;
         tasks[i].slices = 0;
         tasks[i].exit_code = 0;
         tasks[i].name[0] = 0;
@@ -133,6 +135,8 @@ int task_spawn_kernel(const char *name, void (*entry)(void)) {
     tasks[slot].kstack_base = (uintptr_t)stack;
     tasks[slot].cr3 = 0;
     tasks[slot].wake_tick = 0;
+    tasks[slot].futex_addr = 0;
+    tasks[slot].tls_base = 0;
     tasks[slot].slices = 0;
     tasks[slot].exit_code = 0;
     copy_name(tasks[slot].name, name);
@@ -258,6 +262,66 @@ void task_tick(uint32_t now_ticks) {
     if (quantum_left > 0) quantum_left--;
     if (quantum_left == 0)
         schedule_locked();
+}
+
+
+
+int task_spawn_user_thread(const char *name, uint32_t cr3, uint32_t user_eip,
+                           uint32_t user_esp, uint32_t tls_base) {
+    if (!sched_ready || !user_eip || !user_esp) return -1;
+    task_irq_off();
+    int slot = -1;
+    for (int i = 0; i < TASK_MAX; i++) {
+        if (tasks[i].state == TASK_UNUSED) { slot = i; break; }
+    }
+    if (slot < 0) { task_irq_on(); return -1; }
+    uint8_t *stack = (uint8_t *)task_alloc(TASK_KSTACK_SZ);
+    if (!stack) { task_irq_on(); return -1; }
+    tasks[slot].pid = next_pid++;
+    tasks[slot].ppid = (current_idx >= 0) ? tasks[current_idx].pid : 0;
+    tasks[slot].state = TASK_READY;
+    tasks[slot].kstack_base = (uintptr_t)stack;
+    tasks[slot].cr3 = cr3;
+    tasks[slot].tls_base = tls_base;
+    tasks[slot].wake_tick = 0;
+    tasks[slot].futex_addr = 0;
+    tasks[slot].slices = 0;
+    tasks[slot].exit_code = 0;
+    copy_name(tasks[slot].name, name ? name : "uthread");
+    (void)user_eip; (void)user_esp;
+    int pid = tasks[slot].pid;
+    task_irq_on();
+    return pid;
+}
+
+int task_futex_wait(uintptr_t addr, uint32_t expected) {
+    if (!sched_ready || current_idx < 0 || !addr) return -1;
+    task_irq_off();
+    uint32_t cur = *(volatile uint32_t *)addr;
+    if (cur != expected) {
+        task_irq_on();
+        return -1; /* EAGAIN */
+    }
+    tasks[current_idx].futex_addr = addr;
+    tasks[current_idx].state = TASK_BLOCKED;
+    schedule_locked();
+    task_irq_on();
+    return 0;
+}
+
+int task_futex_wake(uintptr_t addr, int max_wake) {
+    if (!sched_ready || !addr || max_wake <= 0) return 0;
+    int woken = 0;
+    task_irq_off();
+    for (int i = 0; i < TASK_MAX && woken < max_wake; i++) {
+        if (tasks[i].state == TASK_BLOCKED && tasks[i].futex_addr == addr) {
+            tasks[i].futex_addr = 0;
+            tasks[i].state = TASK_READY;
+            woken++;
+        }
+    }
+    task_irq_on();
+    return woken;
 }
 
 int task_current_pid(void) {

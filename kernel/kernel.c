@@ -11,6 +11,12 @@
 #include "../include/hwinfo.h"
 #include "../include/io.h"
 #include "../include/hal.h"
+#include "../include/task.h"
+#include "../include/vfs.h"
+#include "../include/kheap.h"
+#include "../include/fs.h"
+#include "../include/ashmem.h"
+#include "../include/binder.h"
 
 typedef unsigned char u8;
 typedef unsigned short u16;
@@ -74,12 +80,12 @@ static int cur_row, cur_col;
 static u8 cur_attr = ATTR_TEXT;
 
 #define TERM_COLS 64
-#define TERM_KEEP 32
+#define TERM_KEEP 16
 #define TERM_INPUT_MAX 50
 
 int kbd_toggle_take(void);
 
-static char term_buf[TERM_KEEP][TERM_COLS];
+static char (*term_buf)[TERM_COLS];
 static int term_len[TERM_KEEP];
 static int term_total = 1;
 int term_capture;
@@ -101,6 +107,8 @@ static void term_put(char c) {
         cur = (term_total - 1) % TERM_KEEP;
         term_len[cur] = 0;
     }
+    if (!term_buf) term_buf = (char (*)[TERM_COLS])kmalloc(TERM_KEEP * TERM_COLS);
+    if (!term_buf) return;
     term_buf[cur][term_len[cur]++] = c;
 }
 
@@ -115,7 +123,7 @@ int term_count(void) {
 
 const char *term_text(int idx, int *len) {
     *len = term_len[idx % TERM_KEEP];
-    return term_buf[idx % TERM_KEEP];
+    return term_buf ? term_buf[idx % TERM_KEEP] : "";
 }
 
 
@@ -239,6 +247,7 @@ void isr_keyboard(void);
 void isr_mouse(void);
 int mouse_init(void);
 int desktop_run(void);
+int mobile_run(void);
 void isr_fault(void);
 void isr_syscall(void);
 
@@ -286,7 +295,7 @@ struct tss {
 #define GDT_KDATA 0x10
 #define USER_STACK_TOP 0x7F000u
 
-static struct gdt_entry gdt[6];
+static struct gdt_entry gdt[7];
 static struct gdt_ptr gdt_desc;
 static struct tss tss_entry;
 static u8 ring0_stack[4096] __attribute__((aligned(16)));
@@ -296,6 +305,8 @@ void tss_flush(void);
 void enter_user(u32 entry, u32 user_esp);
 int vm_run_app(u32 entry, u32 user_esp);
 unsigned int vm_brk(u32 want);
+unsigned int vm_mmap(unsigned int length);
+int vm_munmap(unsigned int addr, unsigned int length);
 int vm_is_ready(void);
 int kbd_arrow_read(void);
 void user_leave(void);
@@ -319,10 +330,17 @@ static void gdt_init(void) {
     tss_entry.esp0 = (u32)ring0_stack + sizeof(ring0_stack);
     tss_entry.iomap = sizeof(tss_entry);
     gdt_set(5, (u32)&tss_entry, sizeof(tss_entry) - 1, 0x89, 0x00);
+    gdt_set(6, 0, 0xFFFFF, 0xF2, 0xC0); /* user TLS (%gs = 0x33) */
     gdt_desc.limit = sizeof(gdt) - 1;
     gdt_desc.base = (u32)gdt;
     gdt_flush((u32)&gdt_desc);
     tss_flush();
+}
+
+
+static void gdt_set_tls(u32 base) {
+    gdt_set(6, base, 0xFFFFFu, 0xF2, 0xC0);
+    __asm__ volatile ("movw $0x33, %%ax; movw %%ax, %%gs" ::: "eax");
 }
 
 static void pic_init(void) {
@@ -345,11 +363,20 @@ static void pit_init(void) {
     outb(0x40, (u8)(divisor >> 8));
 }
 
-static volatile u32 ticks;
+volatile u32 ticks = 0;
+
+void tss_set_esp0(unsigned int esp0) {
+    tss_entry.esp0 = esp0;
+}
+
+unsigned int kernel_ticks(void) {
+    return ticks;
+}
 
 void timer_irq(void) {
     ticks++;
     outb(0x20, 0x20);
+    task_tick(ticks);
 }
 
 void wait_ticks(u32 n) {
@@ -387,7 +414,7 @@ struct tween {
     i32 to;
 };
 
-static struct tween tweens[ANIM_SLOTS];
+static struct tween *tweens;
 
 #define EASE_LINEAR 0
 #define EASE_OUT_CUBIC 1
@@ -405,7 +432,10 @@ static u32 ease_apply(u8 kind, u32 x) {
 }
 
 static void anim_start(u32 slot, u8 ease, u32 dur, i32 from, i32 to) {
-    struct tween *t = &tweens[slot % ANIM_SLOTS];
+    struct tween *t;
+    if (!tweens) tweens = (struct tween *)kmalloc(sizeof(struct tween) * ANIM_SLOTS);
+    if (!tweens) return;
+    t = &tweens[slot % ANIM_SLOTS];
     t->used = 1;
     t->ease = ease;
     t->dur = dur ? dur : 1;
@@ -415,9 +445,13 @@ static void anim_start(u32 slot, u8 ease, u32 dur, i32 from, i32 to) {
 }
 
 static i32 anim_value(u32 slot) {
-    struct tween *t = &tweens[slot % ANIM_SLOTS];
+    struct tween *t;
+    if (!tweens) return 0;
+    t = &tweens[slot % ANIM_SLOTS];
     if (!t->used)
         return 0;
+    if (!desktop_gfx_get_anim())
+        return t->to;
     u32 elapsed = ticks - t->start;
     if (elapsed >= t->dur)
         return t->to;
@@ -468,9 +502,46 @@ static void show_time(void) {
     put2(sec);
 }
 
+#define DBG_LOG_CAP 16384u
+static char *dbg_log_buf;
+static u32 dbg_log_len;
+static u8 dbg_log_ready;
+
+static void dbg_log_append(char c) {
+    if (!dbg_log_ready || !dbg_log_buf) return;
+    if (dbg_log_len >= DBG_LOG_CAP) {
+        u32 keep = DBG_LOG_CAP / 2u;
+        for (u32 i = 0; i < keep; ++i)
+            dbg_log_buf[i] = dbg_log_buf[dbg_log_len - keep + i];
+        dbg_log_len = keep;
+    }
+    dbg_log_buf[dbg_log_len++] = c;
+}
+
 void serial_str(const char *s) {
-    while (*s)
+    while (*s) {
+        dbg_log_append(*s);
         serial_putc(*s++);
+    }
+}
+
+void debug_log_dump_sys_log(void) {
+    int fd;
+    if (!dbg_log_buf || !dbg_log_len) return;
+    fd = vfs_open("/SYS.LOG", VFS_O_CREAT | VFS_O_WRONLY | VFS_O_TRUNC);
+    if (fd >= 0) {
+        int n = vfs_write(fd, dbg_log_buf, dbg_log_len);
+        vfs_close(fd);
+        serial_putc('>'); serial_putc(' ');
+        puts("sys.log: saved /SYS.LOG (");
+        put_dec((u32)(n > 0 ? n : 0));
+        puts(" bytes)\n");
+    }
+    fd = vfs_open("/storage/SYS.LOG", VFS_O_CREAT | VFS_O_WRONLY | VFS_O_TRUNC);
+    if (fd >= 0) {
+        vfs_write(fd, dbg_log_buf, dbg_log_len);
+        vfs_close(fd);
+    }
 }
 
 void rtc_now(u8 *out) {
@@ -807,6 +878,97 @@ u32 syscall_dispatch(struct saved_regs *r) {
     case SYS_GETRANDOM:
         r->eax = kernel_getrandom((u8 *)(unsigned long)r->ebx, r->ecx);
         break;
+    case SYS_YIELD:
+        task_yield();
+        r->eax = 0;
+        break;
+    case SYS_GETPID:
+        r->eax = (u32)task_current_pid();
+        break;
+    case SYS_TASK_COUNT:
+        r->eax = (u32)task_active_count();
+        break;
+    case SYS_MMAP:
+        r->eax = vm_mmap(r->ebx);
+        break;
+    case SYS_MUNMAP:
+        r->eax = (u32)vm_munmap(r->ebx, r->ecx);
+        break;
+    case SYS_VFS_OPEN:
+        r->eax = (u32)vfs_open((const char *)(unsigned long)r->ebx, r->ecx);
+        break;
+    case SYS_VFS_READ:
+        r->eax = (u32)vfs_read((int)r->ebx, (void *)(unsigned long)r->ecx, r->edx);
+        break;
+    case SYS_VFS_WRITE:
+        r->eax = (u32)vfs_write((int)r->ebx, (const void *)(unsigned long)r->ecx, r->edx);
+        break;
+    case SYS_VFS_CLOSE:
+        r->eax = (u32)vfs_close((int)r->ebx);
+        break;
+    case SYS_VFS_MKDIR:
+        r->eax = (u32)vfs_mkdir((const char *)(unsigned long)r->ebx);
+        break;
+    case SYS_VFS_READDIR:
+        r->eax = (u32)vfs_readdir((const char *)(unsigned long)r->ebx, r->ecx, (struct vfs_dirent *)(unsigned long)r->edx);
+        break;
+    case SYS_VFS_STAT:
+        r->eax = (u32)vfs_stat((const char *)(unsigned long)r->ebx, (struct vfs_stat *)(unsigned long)r->ecx);
+        break;
+    case SYS_VFS_CHDIR:
+        r->eax = (u32)vfs_chdir((const char *)(unsigned long)r->ebx);
+        break;
+    case SYS_VFS_GETCWD:
+        r->eax = (u32)vfs_getcwd((char *)(unsigned long)r->ebx, r->ecx);
+        break;
+    case SYS_VFS_UNLINK:
+        r->eax = (u32)vfs_unlink((const char *)(unsigned long)r->ebx);
+        break;
+    case SYS_NET_PING: {
+        const u8 *ip = (const u8 *)(unsigned long)r->ebx;
+        r->eax = ip ? (u32)net_ping_ipv4(ip) : (u32)-1;
+        break;
+    }
+    case SYS_SET_TLS:
+        gdt_set_tls(r->ebx);
+        r->eax = 0;
+        break;
+    case SYS_NANOSLEEP:
+        wait_ticks((r->ebx + 9u) / 10u);
+        r->eax = 0;
+        break;
+    case SYS_DUP2:
+        r->eax = (u32)vfs_dup2((int)r->ebx, (int)r->ecx);
+        break;
+    case SYS_LSEEK:
+        r->eax = (u32)vfs_seek((int)r->ebx, (i32)r->ecx, (int)r->edx);
+        break;
+    case SYS_FUTEX_WAIT:
+        r->eax = (u32)task_futex_wait(r->ebx, r->ecx);
+        break;
+    case SYS_FUTEX_WAKE:
+        r->eax = (u32)task_futex_wake(r->ebx, (int)r->ecx);
+        break;
+    case SYS_ASHMEM_CREATE:
+        r->eax = (u32)ashmem_create((const char *)(unsigned long)r->ebx, r->ecx);
+        break;
+    case SYS_ASHMEM_MAP:
+        r->eax = (u32)(unsigned long)ashmem_map((int)r->ebx, (uint32_t *)(unsigned long)r->ecx);
+        break;
+    case SYS_BINDER_REG:
+        r->eax = (u32)binder_register((const char *)(unsigned long)r->ebx, task_current_pid(), (uint32_t *)(unsigned long)r->ecx);
+        break;
+    case SYS_BINDER_LOOKUP:
+        r->eax = (u32)binder_lookup((const char *)(unsigned long)r->ebx, (uint32_t *)(unsigned long)r->ecx, 0);
+        break;
+    case SYS_BINDER_TX:
+        r->eax = (u32)binder_transact(task_current_pid(), r->ebx, r->ecx, (const void *)(unsigned long)r->edx, 0);
+        break;
+    case SYS_NET_INFO: {
+        struct net_device *nd = net_default();
+        r->eax = nd ? (u32)(net_link_up(nd) ? 1 : 0) : (u32)-1;
+        break;
+    }
     default:
         r->eax = (u32)-1;
         break;
@@ -853,6 +1015,10 @@ static void micropython_stage_init(void) {
         ((u8 *)MICROPYTHON_STAGE_ADDR)[i] = 0;
 }
 
+int micropython_available(void) {
+    return micropython_package_addr != 0;
+}
+
 int run_micropython(void) {
     u32 entry = 0;
     if (desktop_gfx_active()) {
@@ -863,11 +1029,23 @@ int run_micropython(void) {
         serial_str("python: paging unavailable\n");
         return -1;
     }
+    if (!micropython_package_addr) {
+        u8 *disk_buf = (u8 *)kmalloc(MICROPYTHON_AIRP_BYTES);
+        if (disk_buf) {
+            int got = fs_kernel_read_file("PYTHON.AIRP", disk_buf, MICROPYTHON_AIRP_BYTES);
+            if (got > 0 && airp_load(disk_buf, (u32)got, &entry) == 0) {
+                kfree(disk_buf);
+                goto launch_mp;
+            }
+            kfree(disk_buf);
+        }
+    }
     if (!micropython_package_addr ||
         airp_load((const u8 *)micropython_package_addr, MICROPYTHON_AIRP_BYTES, &entry) != 0) {
         serial_str("python: no valid MicroPython image in boot slot\n");
         return -1;
     }
+launch_mp:
     serial_str("python: launching MicroPython\n");
     clear_screen();
     if (vm_run_app(entry, USER_STACK_TOP) != 0) {
@@ -1041,6 +1219,40 @@ static void run_command(char *input) {
         put_dec(hz);
         puts(" Hz\n");
         sound_tone(hz, ms);
+    } else if (str_eq(argv[0], "fat32write-test")) {
+        static const char payload[] = "FlairOS FAT32 reboot persistence test";
+        int fd = vfs_open("/storage/QEMU.TXT", VFS_O_CREAT | VFS_O_WRONLY | VFS_O_TRUNC);
+        if (fd < 0) {
+            say_error("fat32write-test: open failed\n");
+            return;
+        }
+        if (vfs_write(fd, payload, sizeof(payload) - 1) != (int)(sizeof(payload) - 1)) {
+            vfs_close(fd);
+            say_error("fat32write-test: write failed\n");
+            return;
+        }
+        vfs_close(fd);
+        puts("fat32: persistence test file written\n");
+    } else if (str_eq(argv[0], "fat32verify-test")) {
+        char data[64];
+        static const char expected[] = "FlairOS FAT32 reboot persistence test";
+        int fd = vfs_open("/storage/QEMU.TXT", VFS_O_RDONLY);
+        int n;
+        if (fd < 0) {
+            say_error("fat32verify-test: file missing\n");
+            return;
+        }
+        n = vfs_read(fd, data, sizeof(data));
+        vfs_close(fd);
+        if (n == (int)(sizeof(expected) - 1)) {
+            int same = 1;
+            for (u32 i = 0; i < sizeof(expected) - 1; ++i)
+                if (data[i] != expected[i]) same = 0;
+            if (same) puts("fat32: reboot persistence verified\n");
+            else say_error("fat32verify-test: contents mismatch\n");
+        } else {
+            say_error("fat32verify-test: contents mismatch\n");
+        }
     } else if (str_eq(argv[0], "format")) {
         if (fs_format() == 0)
             puts("fs: disk formatted\n");
@@ -1166,7 +1378,14 @@ void kmain(void) {
         serial_str("mouse: no ps/2 mouse\n");
     pit_init();
     io_manager_init();
+    io_selftest();
     splash_progress(40, "Timer and I/O initialized");
+    /* The heap must exist before drivers run so they can size buffers
+       dynamically instead of reserving static kernel memory. */
+    pmm_init();
+    dbg_log_buf = (char *)kmalloc(DBG_LOG_CAP);
+    if (dbg_log_buf) dbg_log_ready = 1;
+    splash_progress(48, "Memory manager initialized");
     drv_register_builtin();
     drv_init_all();
     splash_progress(56, "System drivers initialized");
@@ -1179,11 +1398,22 @@ void kmain(void) {
                    boot_mode() == FLAIR_BOOT_RECOVERY ? "boot: Recovery mode\n" :
                    boot_mode() == FLAIR_BOOT_DIAGNOSTICS ? "boot: Diagnostics mode\n" :
                    "boot: normal mode\n");
-    pmm_init();
-    splash_progress(80, "Memory manager initialized");
+    splash_progress(80, "Boot services ready");
     micropython_stage_init();
     splash_progress(90, "Runtime components staged");
     irq_on();
+    task_init();
+    if (task_selftest() != 0) kernel_panic("task selftest failed");
+    if (vfs_init() == 0) serial_str("vfs: hierarchical root ready\n");
+    if (vfs_has_persistent_storage()) {
+        serial_str("storage: persistent FAT32 /storage active\n");
+    } else {
+        u32 free_bytes = pmm_free_frames() * PMM_FRAME_SIZE;
+        serial_str("storage: no persistent disk; running in RAM mode\n");
+        if (free_bytes < 16u * 1024u * 1024u)
+            kernel_panic("no persistent storage and insufficient RAM (<16 MB free)");
+    }
+    if (ashmem_init() == 0 && binder_init() == 0) serial_str("ipc: ashmem + binder ready\n");
     if (boot_mode() == FLAIR_BOOT_SETUP)
         setup_run();
     if (!desktop_gfx_init())
@@ -1191,7 +1421,11 @@ void kmain(void) {
     splash_progress(100, "Starting your FlairOS session");
 
     for (;;) {
+#ifdef FLAIROS_SHELL_MOBILE
+        mobile_run();
+#else
         desktop_run();
+#endif
         text_shell_run();
     }
 }

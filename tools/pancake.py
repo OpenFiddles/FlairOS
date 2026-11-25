@@ -52,7 +52,7 @@ def read_bundle(path):
         at = HEADER.size + i * ENTRY.size
         raw_name, offset, size, checksum = ENTRY.unpack_from(data, at)
         try:
-            name = raw_name.split(b"\\0", 1)[0].decode("utf-8")
+            name = raw_name.split(b"\0", 1)[0].decode("utf-8")
             safe_name(name)
         except (UnicodeDecodeError, ValueError) as exc:
             raise ValueError(f"invalid entry {i}: {exc}") from exc
@@ -90,7 +90,7 @@ def pack(output, sources):
     index = bytearray()
     body = bytearray()
     for name, payload, checksum in items:
-        raw_name = name.encode("utf-8").ljust(32, b"\\0")
+        raw_name = name.encode("utf-8").ljust(32, b"\0")
         index += ENTRY.pack(raw_name, cursor, len(payload), checksum)
         body += payload
         cursor += len(payload)

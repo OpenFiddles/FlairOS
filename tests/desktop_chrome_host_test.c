@@ -19,7 +19,7 @@ int main(void) {
     CHECK(desktop_chrome_draw(&device, &surface, 80, 25,
                               10, 4, 40, 15, "Terminal", 1) == 0);
     /* Window at x=10, y=4, w=40, h=15 -> px=20, py=16, pw=80, ph=60, cw=2, ch=4 */
-    CHECK(pixels[18 * 160 + 40] == 0x00303544); /* active title bar interior */
+    CHECK(pixels[18 * 160 + 40] == 0x002B2930); /* active title bar interior */
     CHECK(pixels[17 * 160 + 22] == 0x00F0605A); /* left close traffic-light control */
     CHECK(pixels[50 * 160 + 60] == 0x00111111); /* body stays untouched */
     CHECK(pixels[78 * 160 + 60] != 0x00111111); /* bottom shadow */

@@ -74,16 +74,16 @@ int desktop_chrome_draw(struct ag_device *device, struct ag_surface *surface,
     if (pw < 48 || ph < 32 || cw < 2 || ch < 4) return -1;
 
     title_height = ((y + 1) * surface->height) / grid_rows - py;
-    bar = active ? 0x00303544 : 0x00262A36;
-    border = active ? 0x00505A70 : 0x0036404F;
+    bar = active ? 0x002B2930 : 0x00211F26;    /* M3 surfaceContainerHigh / surfaceContainer */
+    border = active ? 0x00524E5A : 0x003B383E; /* M3 outline / outlineVariant */
 
     draw_shadow(device, surface, px, py, pw, ph);
 
-    /* Title bar: rounded top, squared where it meets the content. */
-    ag_round_rect(device, surface, px, py, pw, title_height + 6, 7, bar);
+    /* Material 3 rounded window header & tonal outline. */
+    ag_round_rect(device, surface, px, py, pw, title_height + 6, 10, bar);
     ag_fill_rect(device, surface, px, py + title_height - 1, pw, 1,
-                 active ? 0x00222733 : 0x001E222C);
-    ag_round_frame(device, surface, px, py, pw, ph, 7, border);
+                 active ? 0x003B383E : 0x002B2930);
+    ag_round_frame(device, surface, px, py, pw, ph, 10, border);
 
     /* Traffic-light controls: close, minimize, zoom. */
     {
@@ -104,6 +104,6 @@ int desktop_chrome_draw(struct ag_device *device, struct ag_surface *surface,
     tx = px + (pw - tw) / 2;
     if (tx < px + cw * 7) tx = px + cw * 7;
     draw_title_text(device, surface, tx, py + (title_height - 7 * scale) / 2,
-                    title, scale, active ? 0x00E8ECF4 : 0x008A93A6);
+                    title, scale, active ? 0x00E6E0E9 : 0x00938F99);
     return 0;
 }

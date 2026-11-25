@@ -74,5 +74,7 @@ int io_open(const char *name, struct io_device **out_device);
 int io_close(struct io_device *device);
 unsigned int io_driver_count(void);
 unsigned int io_device_count(void);
+/* Boot-time check of the manager using a private loopback device; leaves no state behind. */
+int io_selftest(void);
 
 #endif

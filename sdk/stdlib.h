@@ -14,6 +14,9 @@ void *malloc(size_t size);
 void free(void *ptr);
 void *calloc(size_t count, size_t size);
 void *realloc(void *ptr, size_t size);
+void abort(void);
+void _exit(int code);
+static inline void exit(int code) { _exit(code); }
 
 static inline long labs(long n) { return flare_labs(n); }
 static inline long strtol(const char *s, char **end, int base) {

@@ -1,0 +1,7 @@
+{
+  "name": "settings",
+  "arch": "i386",
+  "sources": ["main.c"],
+  "include_dirs": ["."],
+  "cflags": []
+}

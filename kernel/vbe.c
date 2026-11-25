@@ -40,6 +40,7 @@
 #define DISPI_ISA_LFB 0xE0000000u
 
 static const char *last_error = "not initialized";
+static uint32_t last_vram_mb = 0;
 
 static void dispi_write(uint16_t index, uint16_t value) {
     hw_outw(DISPI_INDEX_PORT, index);
@@ -155,6 +156,7 @@ int vbe_init(struct fb *f, int32_t width, int32_t height) {
     }
 
     video_memory = dispi_read(DISPI_VIDEO_MEMORY_64K);
+    last_vram_mb = (uint32_t)video_memory / 16u;
     if (!video_memory) {
         last_error = "display reports no video memory";
         return 0;
@@ -210,3 +212,5 @@ const char *vbe_last_error(void) {
 void vbe_text_mode(void) {
     dispi_write(DISPI_ENABLE, 0);
 }
+
+uint32_t vbe_vram_mb(void) { return last_vram_mb; }

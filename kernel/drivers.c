@@ -6,7 +6,6 @@
 #include "kernel.h"
 
 /* Allocation of Global Kernel States */
-volatile u32 ticks = 0;
 int cur_row = 0;
 int cur_col = 0;
 u8 cur_attr = ATTR_TEXT;

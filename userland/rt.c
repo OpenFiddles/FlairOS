@@ -86,7 +86,8 @@ static u32 sys_brk(u32 want) {
 static int heap_grow(u32 need) {
     u32 old_break, wanted, actual, amount;
     heap_block_t *block;
-    amount = need < HEAP_GROWTH ? HEAP_GROWTH : ALIGN8(need);
+    amount = ALIGN8(need + HEAP_HEADER);
+    if (amount < HEAP_GROWTH) amount = HEAP_GROWTH;
     if (!heap_break) heap_break = sys_brk(0);
     old_break = heap_break;
     if (amount > HEAP_MAX_REQUEST || old_break > 0x10400000u - amount)

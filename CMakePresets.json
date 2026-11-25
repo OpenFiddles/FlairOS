@@ -1,0 +1,87 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "default",
+      "displayName": "FlairOS Desktop (Ninja + Clang i386)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-cmake",
+      "toolchainFile": "${sourceDir}/cmake/i386-toolchain.cmake",
+      "cacheVariables": {
+        "FLAIROS_DEVICE": "desktop",
+        "FLAIROS_DISPLAY": "landscape"
+      }
+    },
+    {
+      "name": "phone",
+      "displayName": "FlairOS Phone (Portrait)",
+      "inherits": "default",
+      "binaryDir": "${sourceDir}/build-phone",
+      "cacheVariables": {
+        "FLAIROS_DEVICE": "phone",
+        "FLAIROS_DISPLAY": "portrait"
+      }
+    },
+    {
+      "name": "mobile",
+      "displayName": "FlairOS Mobile Shell (Portrait)",
+      "inherits": "default",
+      "binaryDir": "${sourceDir}/build-mobile",
+      "cacheVariables": {
+        "FLAIROS_DEVICE": "phone",
+        "FLAIROS_DISPLAY": "portrait",
+        "FLAIROS_SHELL": "mobile"
+      }
+    },
+    {
+      "name": "tv",
+      "displayName": "FlairOS TV (720p/4K)",
+      "inherits": "default",
+      "binaryDir": "${sourceDir}/build-tv",
+      "cacheVariables": {
+        "FLAIROS_DEVICE": "tv",
+        "FLAIROS_DISPLAY": "landscape"
+      }
+    },
+    {
+      "name": "debug",
+      "displayName": "FlairOS Debug (SYS.LOG + Verbose Trace)",
+      "inherits": "default",
+      "binaryDir": "${sourceDir}/build-debug",
+      "cacheVariables": {
+        "FLAIROS_DEBUG": "ON"
+      }
+    },
+    {
+      "name": "arm64-phone",
+      "displayName": "FlairOS ARM64 Phone HAL (AArch64)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-arm64",
+      "toolchainFile": "${sourceDir}/cmake/aarch64-toolchain.cmake",
+      "cacheVariables": {
+        "FLAIROS_ARCH": "aarch64",
+        "FLAIROS_DEVICE": "phone",
+        "FLAIROS_DISPLAY": "portrait"
+      }
+    },
+    {
+      "name": "4k",
+      "displayName": "FlairOS Desktop 4K",
+      "inherits": "default",
+      "binaryDir": "${sourceDir}/build-4k",
+      "cacheVariables": {
+        "FLAIROS_DEVICE": "desktop",
+        "FLAIROS_DISPLAY": "4k"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "default", "configurePreset": "default" },
+    { "name": "phone", "configurePreset": "phone" },
+    { "name": "mobile", "configurePreset": "mobile" },
+    { "name": "tv", "configurePreset": "tv" },
+    { "name": "debug", "configurePreset": "debug" },
+    { "name": "arm64-phone", "configurePreset": "arm64-phone" },
+    { "name": "4k", "configurePreset": "4k" }
+  ]
+}

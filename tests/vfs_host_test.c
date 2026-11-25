@@ -42,6 +42,21 @@ int main(void) {
     CHECK(vfs_unlink("/lib/python/sys.py") == 0);
     CHECK(vfs_stat("/lib/python/sys.py", &st) != 0);
 
+    /* Node and descriptor tables grow instead of stopping at their old fixed limits. */
+    for (int i = 0; i < 90; ++i) {
+        char path[32];
+        snprintf(path, sizeof(path), "/home/d%02d", i);
+        CHECK(vfs_mkdir(path) == 0);
+    }
+    int many[24];
+    for (int i = 0; i < 24; ++i) {
+        char path[32];
+        snprintf(path, sizeof(path), "/home/f%02d", i);
+        many[i] = vfs_open(path, VFS_O_CREAT | VFS_O_RDWR);
+        CHECK(many[i] >= 3);
+    }
+    for (int i = 0; i < 24; ++i) CHECK(vfs_close(many[i]) == 0);
+
     puts("VFS hierarchical filesystem host test: all checks passed");
     return 0;
 }

@@ -1,7 +1,8 @@
 #ifndef FLAIROS_HWINFO_H
 #define FLAIROS_HWINFO_H
 #include <stdint.h>
-#define HWINFO_MAX_PCI 128
+/* Keep the pre-PMM static inventory bounded; 80 devices covers typical PCs. */
+#define HWINFO_MAX_PCI 16
 #define HWINFO_MAX_MEMORY_RANGES 32
 #define HWINFO_MAX_ACPI_TABLES 16
 enum hwinfo_pci_kind { HWINFO_PCI_OTHER=0, HWINFO_PCI_STORAGE, HWINFO_PCI_NETWORK, HWINFO_PCI_DISPLAY, HWINFO_PCI_AUDIO, HWINFO_PCI_BRIDGE, HWINFO_PCI_USB, HWINFO_PCI_INPUT };

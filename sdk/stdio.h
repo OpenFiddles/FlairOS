@@ -53,4 +53,19 @@ static inline int getchar(void) {
     return ch < 0 ? EOF : ch;
 }
 
+typedef struct { int fd; } FILE;
+static FILE _flair_stdout = { 1 }, _flair_stderr = { 2 };
+#define stdout (&_flair_stdout)
+#define stderr (&_flair_stderr)
+static inline int sprintf(char *out, const char *fmt, ...) {
+    va_list ap; va_start(ap, fmt);
+    int n = flare_vsnprintf(out, 4096u, fmt, ap);
+    va_end(ap); return n;
+}
+static inline int fprintf(FILE *f, const char *fmt, ...) {
+    (void)f; char buf[BUFSIZ]; va_list ap; va_start(ap, fmt);
+    int n = flare_vsnprintf(buf, sizeof(buf), fmt, ap);
+    va_end(ap); flare_print(buf); return n;
+}
+
 #endif

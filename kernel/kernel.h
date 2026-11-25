@@ -132,6 +132,7 @@ void mouse_irq_handler(void);
 int mouse_init(void);
 extern volatile u8 mouse_buttons;
 void serial_str(const char *s);
+void debug_log_dump_sys_log(void);
 void rtc_now(u8 *out);
 int desktop_run(void);
 void kernel_panic(const char *reason) __attribute__((noreturn));
@@ -144,6 +145,7 @@ int term_count(void);
 const char *term_text(int idx, int *len);
 void terminal_exec(const char *cmd);
 int run_micropython(void);
+int micropython_available(void);
 extern int term_capture;
 
 /* Arrow keys and pointer nudging, used by the desktop */

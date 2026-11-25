@@ -24,19 +24,20 @@ static void label_at(struct sp_context *ui, int32_t x, int32_t y,
 }
 void sp_theme_default(struct sp_theme *t) {
     if (!t) return;
-    t->color.background = 0x00131A2A;
-    t->color.surface = 0x001E293B;
-    t->color.elevated = 0x002B3A52;
-    t->color.border = 0x003B4B65;
-    t->color.text = 0x00F1F5F9;
-    t->color.muted = 0x0094A3B8;
-    t->color.accent = 0x007C83FF;
-    t->color.accent_text = 0x00FFFFFF;
-    t->color.success = 0x0034D399;
-    t->color.warning = 0x00FBBF24;
-    t->color.danger = 0x00FB7185;
-    t->radius = 10;
-    t->spacing = 8;
+    /* Material 3 dark tonal surface palette */
+    t->color.background = 0x00141218;   /* surface */
+    t->color.surface = 0x00211F26;      /* surfaceContainer */
+    t->color.elevated = 0x002B2930;     /* surfaceContainerHigh */
+    t->color.border = 0x0049454F;       /* outlineVariant */
+    t->color.text = 0x00E6E0E9;         /* onSurface */
+    t->color.muted = 0x00CAC4D0;        /* onSurfaceVariant */
+    t->color.accent = 0x006750A4;       /* primary */
+    t->color.accent_text = 0x00FFFFFF;  /* onPrimary */
+    t->color.success = 0x002E9E6B;
+    t->color.warning = 0x00E6A23C;
+    t->color.danger = 0x00E5534B;
+    t->radius = 12;                     /* M3 medium/large corner radius */
+    t->spacing = 10;
     t->border_width = 1;
 }
 void sp_panel(struct sp_context *ui, int32_t x, int32_t y, int32_t w, int32_t h) {
@@ -62,9 +63,10 @@ void sp_button(struct sp_context *ui, int32_t x, int32_t y, int32_t w, int32_t h
     if (!ui || !ui->theme || !ui->surface || w <= 0 || h <= 0) return;
     bg = primary ? ui->theme->color.accent : ui->theme->color.elevated;
     fg = primary ? ui->theme->color.accent_text : ui->theme->color.text;
-    rounded(ui, x, y, w, h, ui->theme->radius, bg);
+    int32_t btn_r = primary ? (h / 2) : ui->theme->radius;
+    rounded(ui, x, y, w, h, btn_r, bg);
     if (!primary && ui->theme->border_width > 0)
-        frame(ui, x, y, w, h, ui->theme->radius, ui->theme->color.border);
+        frame(ui, x, y, w, h, btn_r, ui->theme->color.border);
     if (h > 8)
         label_at(ui, x + ui->theme->spacing, y + (h - 8) / 2, label, fg);
     else

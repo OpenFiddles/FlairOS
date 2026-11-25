@@ -56,6 +56,15 @@ typedef int flare_i32;
 #define FLARE_SYS_TIME 39u
 #define FLARE_SYS_FS_STAT 40u
 #define FLARE_SYS_GETRANDOM 41u
+#define FLARE_SYS_YIELD 42u
+#define FLARE_SYS_GETPID 43u
+#define FLARE_SYS_TASK_COUNT 44u
+#define FLARE_SYS_MMAP 45u
+#define FLARE_SYS_MUNMAP 46u
+#define FLARE_SYS_SET_TLS 62u
+#define FLARE_SYS_NANOSLEEP 63u
+#define FLARE_SYS_DUP2 64u
+#define FLARE_SYS_LSEEK 65u
 
 #define FLARE_FS_READ 0u
 #define FLARE_FS_WRITE 1u
@@ -67,9 +76,25 @@ typedef int flare_i32;
 #define FLARE_FS_HANDLES 8u
 
 static inline flare_u32 flare_call(flare_u32 n, flare_u32 b, flare_u32 c, flare_u32 d) {
+#if defined(__i386__)
     flare_u32 ret;
     __asm__ volatile ("int $0x80" : "=a"(ret) : "a"(n), "b"(b), "c"(c), "d"(d) : "memory");
     return ret;
+#elif defined(__x86_64__)
+    unsigned long ret;
+    __asm__ volatile ("syscall" : "=a"(ret) : "a"(n), "D"(b), "S"(c), "d"(d) : "rcx", "r11", "memory");
+    return (flare_u32)ret;
+#elif defined(__aarch64__)
+    register unsigned long x8 __asm__("x8") = n;
+    register unsigned long x0 __asm__("x0") = b;
+    register unsigned long x1 __asm__("x1") = c;
+    register unsigned long x2 __asm__("x2") = d;
+    __asm__ volatile ("svc #0" : "+r"(x0) : "r"(x8), "r"(x1), "r"(x2) : "memory");
+    return (flare_u32)x0;
+#else
+    (void)n; (void)b; (void)c; (void)d;
+    return 0;
+#endif
 }
 
 static inline void flare_putc(char ch) {
@@ -220,6 +245,22 @@ static inline flare_u32 flare_fs_stat(const char *name, flare_fs_stat_t *out) {
 
 static inline flare_u32 flare_getrandom(void *buf, flare_u32 len) {
     return flare_call(FLARE_SYS_GETRANDOM, (flare_u32)(unsigned long)buf, len, 0);
+}
+
+static inline void flare_yield(void) {
+    flare_call(FLARE_SYS_YIELD, 0, 0, 0);
+}
+
+static inline int flare_getpid(void) {
+    return (int)flare_call(FLARE_SYS_GETPID, 0, 0, 0);
+}
+
+static inline void *flare_mmap(flare_u32 length) {
+    return (void *)(unsigned long)flare_call(FLARE_SYS_MMAP, length, 0, 0);
+}
+
+static inline int flare_munmap(void *addr, flare_u32 length) {
+    return (int)flare_call(FLARE_SYS_MUNMAP, (flare_u32)(unsigned long)addr, length, 0);
 }
 
 #define FLARE_APP() \

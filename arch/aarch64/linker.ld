@@ -6,8 +6,11 @@ SECTIONS
     .text : { KEEP(*(.text.boot)) *(.text*) }
     .rodata : { *(.rodata*) }
     .data : { *(.data*) }
+    . = ALIGN(16);
+    __bss_start = .;
     .bss : { *(.bss*) *(COMMON) }
     . = ALIGN(16);
+    __bss_end = .;
     . += 0x4000;
     _stack_top = .;
 }

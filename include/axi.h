@@ -13,6 +13,12 @@
 #define SYS_WIN_CLICK   19  /* ebx = handle; returns row | col << 16 of the last body click, or AX_FAIL */
 #define SYS_WIN_ALIVE   20  /* ebx = handle; 1 while the user has not closed it */
 #define SYS_UI_ACCENT   38  /* ebx = 0 violet, 1 teal */
+#define SYS_UI_DISPLAY  59  /* ebx = 0..3 profile (0xFF queries) */
+#define SYS_UI_TOUCH    60  /* ebx = 0..1 touch mode (0xFF queries) */
+#define SYS_UI_ANIM     61  /* ebx = 0..1 animation enable (0xFF queries) */
+#define SYS_UI_STATUS   73  /* returns packed net/power/gpu/vram flags */
+#define SYS_APK_LAUNCH  74  /* ebx = VFS path to .apk or .dex */
+#define SYS_APK_INSTALL 75  /* ebx = src VFS path, ecx = app name */
 
 #define AX_FAIL 0xFFFFFFFFu
 #define AX_MAX_BODY_W 64
@@ -59,6 +65,31 @@ static inline int ax_alive(unsigned int win) {
 }
 static inline unsigned int ax_set_accent(unsigned int accent) {
     return ax_call(SYS_UI_ACCENT, accent, 0, 0);
+}
+
+static inline int ax_set_display(unsigned int profile) {
+    return (int)ax_call(SYS_UI_DISPLAY, profile, 0, 0);
+}
+
+static inline int ax_set_touch(unsigned int enabled) {
+    return (int)ax_call(SYS_UI_TOUCH, enabled, 0, 0);
+}
+
+static inline int ax_set_anim(unsigned int enabled) {
+    return (int)ax_call(SYS_UI_ANIM, enabled, 0, 0);
+}
+
+static inline unsigned int ax_ui_status(void) {
+    return ax_call(SYS_UI_STATUS, 0, 0, 0);
+}
+
+static inline int ax_apk_launch(const char *path) {
+    return (int)ax_call(SYS_APK_LAUNCH, (unsigned int)(unsigned long)path, 0, 0);
+}
+
+static inline int ax_apk_install(const char *src, const char *name) {
+    return (int)ax_call(SYS_APK_INSTALL, (unsigned int)(unsigned long)src,
+                        (unsigned int)(unsigned long)name, 0);
 }
 
 #endif

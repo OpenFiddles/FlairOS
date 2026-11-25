@@ -1,0 +1,35 @@
+# FlairOS Root & Termux Startup Script (sourced from ~/.bashrc)
+export FLAIROS_HOME="/data/data/com.termux/files/home/FlairOS"
+export TMP_DIR="${PREFIX:-/data/data/com.termux/files/usr}/tmp/tmp"
+export XDG_RUNTIME_DIR="$TMP_DIR"
+export DISPLAY=:0
+export FULLSCREEN=on
+
+mkdir -p "$TMP_DIR"
+
+flairos_desktop_boot() {
+  if ! pgrep -f "termux-x11" >/dev/null 2>&1; then
+    nohup termux-x11 :0 >"$TMP_DIR/termux-x11.log" 2>&1 &
+    sleep 2
+  fi
+
+  if ! pgrep -x "xfce4-session" >/dev/null 2>&1; then
+    nohup startxfce4 >"$TMP_DIR/xfce4.log" 2>&1 &
+    sleep 3
+  fi
+
+  am start --user 0 -n com.termux.x11/com.termux.x11.MainActivity >/dev/null 2>&1 || true
+
+  if ! pgrep -f "qemu-system-i386.*storage\.img" >/dev/null 2>&1; then
+    setsid bash "$FLAIROS_HOME/tools/run-x11.sh" >"$TMP_DIR/flairos-x11-launch.log" 2>&1 < /dev/null &
+  fi
+}
+
+alias flairos-up="flairos_desktop_boot"
+alias flairos-vnc="bash $FLAIROS_HOME/tools/run-vnc-multi.sh"
+alias flairos-screen="python3 $FLAIROS_HOME/tools/vnc_ctl.py"
+
+if [ -z "${FLAIROS_NO_AUTOSTART:-}" ] && [ -z "${FLAIROS_BOOTED:-}" ]; then
+  export FLAIROS_BOOTED=1
+  flairos_desktop_boot
+fi

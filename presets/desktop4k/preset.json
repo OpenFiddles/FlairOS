@@ -1,0 +1,17 @@
+{
+  "name": "desktop4k",
+  "width": 3840,
+  "height": 2160,
+  "supported_arches": [
+    "x86_64",
+    "aarch64"
+  ],
+  "shell_source": "ui/shells/shell_desktop.c",
+  "airp_role": "AIRP_ROLE_DUPLEX",
+  "defines": [
+    "FLAIROS_DEVICE_DESKTOP",
+    "FLAIROS_DISPLAY_LANDSCAPE",
+    "FLAIROS_4K_UHD",
+    "PRESET_TARGET_HZ=90"
+  ]
+}

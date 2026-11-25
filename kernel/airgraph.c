@@ -234,38 +234,44 @@ int ag_draw_image(struct ag_device *device, struct ag_surface *surface,
 int ag_draw_image_scaled(struct ag_device *device, struct ag_surface *surface,
                          int32_t x, int32_t y, int32_t width, int32_t height,
                          const struct image_buffer *image) {
-    int64_t left, top, right, bottom;
-    int32_t clip_left, clip_top, clip_right, clip_bottom;
+    int32_t right, bottom, clip_left, clip_top, clip_right, clip_bottom;
 
     if (!image || !image->pixels || !image->width || !image->height ||
         image->width > 0x3FFFFFFFu || image->height > 0x3FFFFFFFu ||
         image->pitch < image->width * 4u || (image->pitch & 3u) != 0 ||
         image->pitch > image->capacity ||
         image->height > image->capacity / image->pitch ||
-        width <= 0 || height <= 0 || !surface_valid(surface))
+        width <= 0 || height <= 0 || !surface_valid(surface) ||
+        x > 0x7FFFFFFF - width || y > 0x7FFFFFFF - height)
         return -1;
 
-    /* Use 64-bit edges so off-screen placement cannot overflow x + width. */
-    left = x;
-    top = y;
-    right = left + width;
-    bottom = top + height;
-    clip_left = left < 0 ? 0 : (left >= surface->width ? surface->width : (int32_t)left);
-    clip_top = top < 0 ? 0 : (top >= surface->height ? surface->height : (int32_t)top);
+    /* Keep the pixel mapping in 32-bit arithmetic for freestanding i386.
+       Reject dimensions whose scale products could overflow instead of pulling
+       in compiler-runtime 64-bit division helpers. */
+    if (image->width > 0xFFFFFFFFu / (uint32_t)width ||
+        image->height > 0xFFFFFFFFu / (uint32_t)height)
+        return -1;
+
+    right = x + width;
+    bottom = y + height;
+    clip_left = x < 0 ? 0 : (x >= surface->width ? surface->width : x);
+    clip_top = y < 0 ? 0 : (y >= surface->height ? surface->height : y);
     clip_right = right > surface->width ? surface->width :
-                 (right <= 0 ? 0 : (int32_t)right);
+                 (right <= 0 ? 0 : right);
     clip_bottom = bottom > surface->height ? surface->height :
-                  (bottom <= 0 ? 0 : (int32_t)bottom);
+                  (bottom <= 0 ? 0 : bottom);
     if (clip_left >= clip_right || clip_top >= clip_bottom)
         return 0;
 
     for (int32_t dy = clip_top; dy < clip_bottom; ++dy) {
-        uint32_t source_y = (uint32_t)(((int64_t)dy - top) * image->height / height);
+        uint32_t offset_y = (uint32_t)dy - (uint32_t)y;
+        uint32_t source_y = offset_y * image->height / (uint32_t)height;
         const uint32_t *source_row = (const uint32_t *)
             ((const uint8_t *)image->pixels + source_y * image->pitch);
         uint32_t *destination_row = surface_row(surface, dy);
         for (int32_t dx = clip_left; dx < clip_right; ++dx) {
-            uint32_t source_x = (uint32_t)(((int64_t)dx - left) * image->width / width);
+            uint32_t offset_x = (uint32_t)dx - (uint32_t)x;
+            uint32_t source_x = offset_x * image->width / (uint32_t)width;
             destination_row[dx] = opaque_color(surface, source_row[source_x]);
         }
     }
@@ -454,4 +460,50 @@ int ag_get_resource_info(const struct ag_device *device, struct ag_resource_info
         }
     }
     return 0;
+}
+
+void ag_alpha_blit(struct ag_surface *surface, int32_t x, int32_t y, int32_t w, int32_t h,
+                   const uint32_t *pixels, uint32_t source_pitch) {
+    int32_t ox = x, oy = y;
+    if (!pixels || w <= 0 || h <= 0 || source_pitch < (uint32_t)w * 4u || !clip_rect(surface, &x, &y, &w, &h))
+        return;
+    const uint8_t *src_base = (const uint8_t *)pixels +
+                              (uint32_t)(y - oy) * source_pitch +
+                              (uint32_t)(x - ox) * 4u;
+    for (int32_t dy = 0; dy < h; dy++) {
+        const uint32_t *src = (const uint32_t *)(src_base + (uint32_t)dy * source_pitch);
+        uint32_t *dst = surface_row(surface, y + dy) + x;
+        for (int32_t dx = 0; dx < w; dx++) {
+            uint32_t px = src[dx];
+            uint32_t a = px >> 24;
+            if (a == 255u) dst[dx] = opaque_color(surface, px);
+            else if (a > 0u) dst[dx] = opaque_color(surface, blend_pixel(dst[dx], px));
+        }
+    }
+}
+
+void ag_damage_reset(struct ag_damage *d) {
+    if (!d) return;
+    d->valid = 0; d->x0 = 0; d->y0 = 0; d->x1 = 0; d->y1 = 0;
+}
+
+void ag_damage_add(struct ag_damage *d, int32_t x, int32_t y, int32_t w, int32_t h, int32_t max_w, int32_t max_h) {
+    if (!d || w <= 0 || h <= 0 || max_w <= 0 || max_h <= 0) return;
+    int32_t nx0 = x < 0 ? 0 : x, ny0 = y < 0 ? 0 : y;
+    int32_t nx1 = x + w > max_w ? max_w : x + w;
+    int32_t ny1 = y + h > max_h ? max_h : y + h;
+    if (nx0 >= nx1 || ny0 >= ny1) return;
+    if (!d->valid) {
+        d->valid = 1; d->x0 = nx0; d->y0 = ny0; d->x1 = nx1; d->y1 = ny1;
+    } else {
+        if (nx0 < d->x0) d->x0 = nx0;
+        if (ny0 < d->y0) d->y0 = ny0;
+        if (nx1 > d->x1) d->x1 = nx1;
+        if (ny1 > d->y1) d->y1 = ny1;
+    }
+}
+
+void ag_damage_full(struct ag_damage *d, int32_t max_w, int32_t max_h) {
+    if (!d) return;
+    d->valid = 1; d->x0 = 0; d->y0 = 0; d->x1 = max_w; d->y1 = max_h;
 }

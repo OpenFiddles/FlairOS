@@ -31,16 +31,21 @@
 #define HEAP_BASE  0x10000000u
 #define HEAP_LIMIT 0x10400000u
 #define HEAP_PDI   (HEAP_BASE >> 22)
+#define MMAP_BASE  0x10400000u
+#define MMAP_LIMIT 0x10800000u
+#define MMAP_PDI   (MMAP_BASE >> 22)
 
 void enter_user(unsigned int entry, unsigned int user_esp);
 
-static unsigned int pd[1024] __attribute__((aligned(4096)));
+static unsigned int *pd;
 static int paging_on;
 
 static unsigned int app_pd;
 static unsigned int app_pt;
 static unsigned int app_hpt;
+static unsigned int app_mpt;
 static unsigned int heap_top;
+static unsigned int mmap_top;
 static unsigned int app_frames[APP_PAGES];
 
 /* Kernel-only virtual allocation arena; allocations replace identity PTEs. */
@@ -196,6 +201,15 @@ static void release_app_space(void) {
             pmm_free_frame(app_frames[k]);
         app_frames[k] = 0;
     }
+    if (app_mpt) {
+        unsigned int *mpt = (unsigned int *)(unsigned long)app_mpt;
+        for (unsigned int k = 0; k < 1024u; k++) {
+            if (mpt[k] & FLAG_P) pmm_free_frame(mpt[k] & ADDR_MASK);
+        }
+        pmm_free_frame(app_mpt);
+        app_mpt = 0;
+    }
+    mmap_top = MMAP_BASE;
     if (app_hpt) {
         hpt = (unsigned int *)(unsigned long)app_hpt;
         for (j = 0; j < 1024u; j++) {
@@ -284,6 +298,8 @@ static int build_app_space(void) {
     }
     serial_str("vm: app permissions isolated\n");
     heap_top = HEAP_BASE;
+    mmap_top = MMAP_BASE;
+    app_mpt = 0;
     return 0;
 }
 
@@ -335,6 +351,72 @@ unsigned int vm_brk(unsigned int want) {
     return heap_top;
 }
 
+
+unsigned int vm_mmap(unsigned int length) {
+    unsigned int pages, base, i;
+    unsigned int *npd, *mpt;
+    if (!paging_on || !app_pd || length == 0)
+        return 0;
+    pages = (length + 4095u) >> 12;
+    if (mmap_top + (pages << 12) > MMAP_LIMIT || mmap_top + (pages << 12) < mmap_top)
+        return 0;
+    load_cr3((unsigned int)(unsigned long)pd);
+    npd = (unsigned int *)(unsigned long)app_pd;
+    if (!app_mpt) {
+        unsigned int mpt_frame = pmm_alloc_frame();
+        if (!mpt_frame) {
+            load_cr3(app_pd);
+            return 0;
+        }
+        zero_frame(mpt_frame);
+        app_mpt = mpt_frame;
+        npd[MMAP_PDI] = mpt_frame | FLAG_US | FLAG_RW | FLAG_P;
+    }
+    mpt = (unsigned int *)(unsigned long)app_mpt;
+    base = mmap_top;
+    for (i = 0; i < pages; i++) {
+        unsigned int v = base + (i << 12);
+        unsigned int frame = pmm_alloc_frame();
+        if (!frame) {
+            for (unsigned int j = 0; j < i; j++) {
+                unsigned int vj = base + (j << 12);
+                unsigned int idx = (vj - MMAP_BASE) >> 12;
+                if (mpt[idx] & FLAG_P) {
+                    pmm_free_frame(mpt[idx] & ADDR_MASK);
+                    mpt[idx] = 0;
+                }
+            }
+            load_cr3(app_pd);
+            return 0;
+        }
+        zero_frame(frame);
+        mpt[(v - MMAP_BASE) >> 12] = frame | FLAG_US | FLAG_RW | FLAG_P;
+    }
+    mmap_top = base + (pages << 12);
+    load_cr3(app_pd);
+    return base;
+}
+
+int vm_munmap(unsigned int addr, unsigned int length) {
+    unsigned int pages, i, *mpt;
+    if (!paging_on || !app_mpt || (addr & 4095u) || length == 0)
+        return -1;
+    pages = (length + 4095u) >> 12;
+    if (addr < MMAP_BASE || addr + (pages << 12) > MMAP_LIMIT)
+        return -1;
+    load_cr3((unsigned int)(unsigned long)pd);
+    mpt = (unsigned int *)(unsigned long)app_mpt;
+    for (i = 0; i < pages; i++) {
+        unsigned int idx = ((addr - MMAP_BASE) >> 12) + i;
+        if (mpt[idx] & FLAG_P) {
+            pmm_free_frame(mpt[idx] & ADDR_MASK);
+            mpt[idx] = 0;
+        }
+    }
+    load_cr3(app_pd);
+    return 0;
+}
+
 int vm_init(void) {
     unsigned int a, b, c, d, cr4, cr0, i;
 
@@ -342,6 +424,8 @@ int vm_init(void) {
         serial_str("vm: no PSE, paging off\n");
         return 0;
     }
+    if (!pd) pd = (unsigned int *)pmm_alloc_frame();
+    if (!pd) return -1;
     for (i = 0; i < 1024u; i++)
         pd[i] = (i << 22) | FLAG_PS | FLAG_RW | FLAG_P;
     __asm__ volatile ("mov %%cr4, %0" : "=r"(cr4));
