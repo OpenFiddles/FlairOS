@@ -56,7 +56,7 @@ double buffering, and a pixel-native app interface remain later work.
 
 ## Build and tests
 
-make builds kernel/airgraph.c. make test runs dedicated host tests for
+make builds kernel/gfx/airgraph.c. make test runs dedicated host tests for
 surface validation, clipping, pitch padding, blending, blitting, presentation,
 and generic GPU/display driver discovery before the QEMU smoke tests.
 
@@ -101,7 +101,7 @@ The desktop prefers an optional RAM-backed render surface. AirGraph draws a comp
 
 ## Image subsystem and BMP registration
 
-The shared image interface lives in `include/image.h` and `kernel/image.c`.
+The shared image interface lives in `include/image.h` and `kernel/gfx/image.c`.
 Formats are detected with `image_probe()`; BMP is the first registered
 decoder. `image_decode()` writes packed `0x00RRGGBB` pixels into caller-owned
 storage, so the kernel does not need a hidden allocator or a format-specific

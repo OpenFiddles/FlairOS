@@ -2,8 +2,8 @@
 
 The desktop is a session shell: it owns the screen, the input loop and the
 application launcher. On i386 it is implemented in the kernel
-(`kernel/desktop.c`, `kernel/desktop_gfx.c`, `kernel/desktop_render.c`,
-`kernel/desktop_chrome.c`).
+(`kernel/ui/desktop.c`, `kernel/ui/desktop_gfx.c`, `kernel/ui/desktop_render.c`,
+`kernel/ui/desktop_chrome.c`).
 
 ## Design language
 
@@ -71,7 +71,7 @@ tools/airpkg.py list /tmp/staged.airp   # 3 resources, checksums valid
 ```
 
 **Honest status:** on i386 the theme still comes from the built-in
-`sp_theme_default` palette. `kernel/desktop_theme.c` implements loading the
+`sp_theme_default` palette. `kernel/ui/desktop_theme.c` implements loading the
 package theme, with validation, bounds checking, contrast measurement and
 fallback, and it is covered by 24 host checks — but it is not linked into the
 i386 image yet because the kernel is at its static-memory ceiling. The package is

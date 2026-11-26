@@ -18,7 +18,7 @@
  * the declarative session definition (manifest, theme, launcher, strings).
  *
  * All integers are little-endian. All offsets are relative to the start of the
- * file. tools/airpkg.py writes and inspects this format; kernel/airp.c reads
+ * file. tools/airpkg.py writes and inspects this format; kernel/pkg/airp.c reads
  * and validates it.
  */
 

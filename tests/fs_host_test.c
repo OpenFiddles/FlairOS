@@ -1,7 +1,7 @@
 /*
 FILE PATH: tests/fs_host_test.c
 CONTRIBUTOR (Optional): Textile
-PURPOSE: Host-side checks for the FlareOS filesystem. Compiles kernel/fs.c directly and drives it through fs_dispatch. An in-memory fake ATA disk stands in for drivers/drv_ata.c, so the checks cover RAM behaviour, write-through to disk, reload after reboot, the no-disk fallback and rollback when a disk write fails.
+PURPOSE: Host-side checks for the FlareOS filesystem. Compiles kernel/fs/fs.c directly and drives it through fs_dispatch. An in-memory fake ATA disk stands in for drivers/drv_ata.c, so the checks cover RAM behaviour, write-through to disk, reload after reboot, the no-disk fallback and rollback when a disk write fails.
 */
 
 #include <stdio.h>
@@ -9,7 +9,7 @@ PURPOSE: Host-side checks for the FlareOS filesystem. Compiles kernel/fs.c direc
 #include <string.h>
 #define putc fsk_test_putc
 #define puts fsk_test_puts
-#include "../kernel/fs.c"
+#include "../kernel/fs/fs.c"
 
 /* The host harness tests the persistent-disk path, not LiveCD mode. */
 int boot_is_live_session(void) { return 0; }

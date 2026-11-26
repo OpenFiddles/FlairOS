@@ -7,10 +7,10 @@ ATA disk is present, and a RAM-backed volume when it is not.
 
 | Layer | File | Responsibility |
 | --- | --- | --- |
-| VFS | `kernel/vfs.c` | Path resolution, handles, directory listing |
-| FAT32 | `kernel/fat32.c` | On-disk FAT32 read/write |
+| VFS | `kernel/fs/vfs.c` | Path resolution, handles, directory listing |
+| FAT32 | `kernel/fs/fat32.c` | On-disk FAT32 read/write |
 | Block device | `drivers/drv_ata.c` | ATA PIO sector access |
-| RAM seed | `kernel/vfs.c` | Built-in files when no disk exists |
+| RAM seed | `kernel/fs/vfs.c` | Built-in files when no disk exists |
 
 ## Path model
 

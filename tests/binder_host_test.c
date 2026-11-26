@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #define FLAIROS_HOST_TEST 1
-#include "../kernel/binder.c"
+#include "../kernel/mm/binder.c"
 
 #define CHECK(x) do { if (!(x)) { printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #x); return 1; } } while (0)
 

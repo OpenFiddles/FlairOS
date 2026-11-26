@@ -12,7 +12,7 @@ Place custom BMP assets here for the desktop and boot artwork.
 
 Supported BMP input is uncompressed BI_RGB, 24-bit or 32-bit, with either
 bottom-up or top-down row order. The shared decoder is in
-`include/image.h` / `kernel/image.c`; AirGraph's `ag_draw_image()` draws a
+`include/image.h` / `kernel/gfx/image.c`; AirGraph's `ag_draw_image()` draws a
 decoded image using its normal clipping and blit path.
 
 Decoded output is packed `0x00RRGGBB`. Callers provide the destination buffer;

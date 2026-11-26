@@ -56,7 +56,7 @@ matter to a runtime:
 
 ## ELF
 
-`kernel/elf.c` and `include/elf.h` parse and load 32-bit ELF executables into a
+`kernel/pkg/elf.c` and `include/elf.h` parse and load 32-bit ELF executables into a
 process address space: header validation, program headers, segment mapping. This
 is used for tooling and tests, not for the desktop applications, which use AIRP.
 
@@ -72,10 +72,10 @@ is deliberate, and each stage is a separate claim:
 | 1. File recognition | **Done** | ZIP magic and structure identified, PKG-1 sample format |
 | 2. Metadata | **Done** | Manifest fields, package name, version, permissions parsed |
 | 3. Analysis | **Done** | `classes.dex` located, header validated, structure inspected |
-| 4. Runtime integration | **Partial** | DEX bytecode interpreter (`kernel/dex.c`) verified on a 5-instruction program |
+| 4. Runtime integration | **Partial** | DEX bytecode interpreter (`kernel/pkg/dex.c`) verified on a 5-instruction program |
 | 5. Execution | **Not claimed** | No Android application has been executed |
 
-`kernel/dex.c` executes a small, defined subset of Dalvik bytecode. It is a
+`kernel/pkg/dex.c` executes a small, defined subset of Dalvik bytecode. It is a
 verified interpreter, not an Android runtime: no `android.*` framework, no
 resources, no native libraries.
 
@@ -84,7 +84,7 @@ analyses APK files and can interpret a subset of DEX instructions.
 
 ## 64-bit runtime and desktop
 
-`runtime/art/`, `ui/shells/`, `kernel/kmain64.c` and `kernel/elf64.c` contain a
+`runtime/art/`, `ui/shells/`, `kernel/boot/kmain64.c` and `kernel/pkg/elf64.c` contain a
 64-bit application runtime with surface flinger, sandbox and a desktop shell.
 This code compiles and is exercised by the `runtime64_airp_test` host test. It
 has **no bootable target**: `CMakeLists.txt` rejects `FLAIROS_ARCH=x86_64`.

@@ -35,17 +35,17 @@ is going*. The gap between those two things is the whole of the roadmap.
 | Layer | Responsibility | Location |
 | --- | --- | --- |
 | Firmware interface | BIOS calls, disk reads, memory map, video mode | `bootloader/` |
-| Boot management | Boot modes, staging, handoff, recovery | `bootloader/`, `kernel/boot.c` |
+| Boot management | Boot modes, staging, handoff, recovery | `bootloader/`, `kernel/boot/boot.c` |
 | Kernel | Interrupts, syscalls, scheduler, panics | `kernel/` |
 | Memory | Physical frames, paging, heap | `drivers/pmm.c`, `drivers/vm.c`, `drivers/kheap.c` |
 | Hardware abstraction | Port I/O and per-architecture primitives | `arch/*/hal.c`, `include/hal.h` |
 | Drivers | ATA, PS/2, PIT, RTC, serial, speaker, RTL8139 | `drivers/` |
-| Graphics | AirGraph pixel rendering, framebuffer | `graphics/`, `kernel/airgraph.c` |
-| Compositing | WinDown window model, SprunkUI widgets | `kernel/windown.c`, `kernel/sprunkui.c` |
+| Graphics | AirGraph pixel rendering, framebuffer | `graphics/`, `kernel/gfx/airgraph.c` |
+| Compositing | WinDown window model, SprunkUI widgets | `kernel/ui/windown.c`, `kernel/gfx/sprunkui.c` |
 | Desktop | Session shell, dock, panels, taskbar | `kernel/desktop*.c` |
-| Filesystem | VFS, FAT32, RAM mode | `kernel/vfs.c`, `kernel/fat32.c` |
-| Applications | AIRP packages, ELF loader, syscall ABI | `kernel/airp.c`, `kernel/elf.c` |
-| Runtime research | APK/DEX analysis, ART-style sandbox | `kernel/apk.c`, `kernel/dex.c`, `runtime/art/` |
+| Filesystem | VFS, FAT32, RAM mode | `kernel/fs/vfs.c`, `kernel/fs/fat32.c` |
+| Applications | AIRP packages, ELF loader, syscall ABI | `kernel/pkg/airp.c`, `kernel/pkg/elf.c` |
+| Runtime research | APK/DEX analysis, ART-style sandbox | `kernel/pkg/apk.c`, `kernel/pkg/dex.c`, `runtime/art/` |
 
 ## Architectural rules
 
@@ -61,7 +61,7 @@ that is hard to find later.
    container may hold zero executables. See [../airp/FORMAT.md](../airp/FORMAT.md).
 4. **Validate before you trust, and trust before you execute.** Package
    checksums are verified before any payload is copied into the app slot.
-5. **Static memory has a ceiling on i386.** `kernel/link.ld` asserts the image
+5. **Static memory has a ceiling on i386.** `kernel/boot/link.ld` asserts the image
    ends before `0x30000`. New static data must fit or the design must change.
 6. **Do not claim a capability the build does not reach.** Unsupported means
    reported as unsupported, not silently degraded.

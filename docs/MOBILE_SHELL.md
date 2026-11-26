@@ -25,8 +25,8 @@ cmake --build --preset default -j2
 
 ## Shell split
 
-- `kernel/desktop.c` remains the desktop session and Start Menu controller.
-- `kernel/mobile.c` owns the mobile home screen, app drawer, install page, app details, and mobile input loop.
+- `kernel/ui/desktop.c` remains the desktop session and Start Menu controller.
+- `kernel/ui/mobile.c` owns the mobile home screen, app drawer, install page, app details, and mobile input loop.
 - Both shells use the same VFS `/apps` directory as their installed-APK source of truth.
 - WinDown is lazily initialized through `desktop_windown_get()`, allowing AXI application windows to render when the mobile shell is active.
 - The kernel selects the shell at compile time with `FLAIROS_SHELL_MOBILE`; it does not run the desktop shell as the default mobile UI.

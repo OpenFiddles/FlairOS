@@ -5,15 +5,15 @@ import argparse, json, os, subprocess, sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 COMMON_SRCS = [
-    "kernel/kmem64.c",
-    "kernel/kmain64.c",
-    "kernel/font5x7.c",
-    "kernel/bmp.c",
-    "kernel/vfs.c",
-    "kernel/apk.c",
-    "kernel/dex.c",
-    "kernel/binder.c",
-    "kernel/ashmem.c",
+    "kernel/mm/kmem64.c",
+    "kernel/boot/kmain64.c",
+    "kernel/gfx/font5x7.c",
+    "kernel/gfx/bmp.c",
+    "kernel/fs/vfs.c",
+    "kernel/pkg/apk.c",
+    "kernel/pkg/dex.c",
+    "kernel/mm/binder.c",
+    "kernel/mm/ashmem.c",
     "graphics/compositor/glass_fx.c",
     "runtime/art/art_bridge.c",
     "runtime/art/sandbox.c",
@@ -32,8 +32,8 @@ COMMON_SRCS = [
     "runtime/art/android_libs.c",
     "runtime/art/dex_interp.c",
     "runtime/art/surface_flinger.c",
-    "kernel/syscall64.c",
-    "kernel/elf64.c",
+    "kernel/core/syscall64.c",
+    "kernel/pkg/elf64.c",
     "net/bridge/host_bridge.c",
 ]
 

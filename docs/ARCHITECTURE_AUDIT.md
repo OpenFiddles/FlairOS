@@ -58,7 +58,7 @@ It is not a claim that the listed subsystems are production-ready.
 - AirGraph exposes backend capability flags and reports whether GPU acceleration
   is available, but the inspected tree does not establish a working GPU driver
   or hardware-accelerated backend. The truthful baseline is software rendering.
-- The current desktop is implemented in `kernel/desktop.c`, with rendering
+- The current desktop is implemented in `kernel/ui/desktop.c`, with rendering
   split into desktop graphics/rendering files. The checked tree does not yet
   establish a complete independent WinDown compositor with general surfaces,
   z-order policy, damage tracking, or multi-window client protocol.

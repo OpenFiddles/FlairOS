@@ -4,8 +4,7 @@
 #include "../include/mm_core.h"
 #include "../include/vm.h"
 #include "../include/kheap.h"
-#define E820_COUNT_ADDR 0x5000u
-#define E820_ENTRIES_ADDR 0x5010u
+#include "../include/boot.h"
 #define E820_TYPE_USABLE 1u
 #define E820_MAX_REGIONS 32u
 #define FRAME_MIN 0x00100000u
@@ -18,14 +17,15 @@
 static struct mm_frame_allocator frames;
 static void serial_dec(unsigned int v){char b[12];int n=11;b[n]=0;do{b[--n]=(char)('0'+v%10u);v/=10u;}while(v);serial_str(b+n);}
 void pmm_init(void){
- const volatile unsigned int *count=(const volatile unsigned int *)E820_COUNT_ADDR;
- const volatile unsigned int *entry=(const volatile unsigned int *)E820_ENTRIES_ADDR;
- unsigned int regions=*count;if(regions>E820_MAX_REGIONS){serial_str("pmm: E820 count exceeds buffer; clamping to 32\n");regions=E820_MAX_REGIONS;}
+ /* The loader publishes the firmware map through the boot protocol. */
+ const struct flair_e820_entry *entry=boot_e820_entries();
+ unsigned int regions=entry?boot_e820_count():0;
+ if(regions>E820_MAX_REGIONS){serial_str("pmm: E820 count exceeds buffer; clamping to 32\n");regions=E820_MAX_REGIONS;}
  mm_frames_init(&frames,AVAIL_BITS,MANAGED_BITS,RESERVED_BITS,FRAME_MIN,FRAME_COUNT);
- for(unsigned int k=0;k<regions;k++,entry+=6){
-  if(entry[4]!=E820_TYPE_USABLE||entry[1]!=0)continue;
-  unsigned int length=entry[3]?0xFFFFFFFFu:entry[2];
-  mm_frames_add_range(&frames,entry[0],length);
+ for(unsigned int k=0;k<regions;k++,entry++){
+  if(entry->type!=E820_TYPE_USABLE||entry->base_hi!=0)continue;
+  unsigned int length=entry->len_hi?0xFFFFFFFFu:entry->len_lo;
+  mm_frames_add_range(&frames,entry->base_lo,length);
  }
  serial_str("pmm: E820 regions ");serial_dec(regions);serial_str("\n");
  serial_str("pmm: ");serial_dec(frames.free_count>>8);serial_str(" MB free of ");

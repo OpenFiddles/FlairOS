@@ -1,6 +1,6 @@
 #include <stdio.h>
 #define FLAIROS_HOST_TEST 1
-#include "../kernel/task.c"
+#include "../kernel/core/task.c"
 
 #define CHECK(x) do { if (!(x)) { printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #x); return 1; } } while (0)
 

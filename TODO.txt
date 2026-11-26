@@ -3,7 +3,7 @@
 Source: LLM/TODO.txt (Ronreacus Adams, 2026-11-03)
 
 ## Done on branch todo-bmp-boot-logo (MR open, not merged)
-- [x] BMP parser: include/bmp.h, kernel/bmp.c (24/32 bpp, uncompressed)
+- [x] BMP parser: include/bmp.h, kernel/gfx/bmp.c (24/32 bpp, uncompressed)
 - [x] resources/images/README.md with the file names requested
 
 ## Next

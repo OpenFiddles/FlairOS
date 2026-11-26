@@ -68,11 +68,11 @@ without: the framebuffer and the display, which fail loudly.
 | BIOS `int 0x13` | Disk sector read with CHS | `stage1.asm` |
 | BIOS `int 0x15` (E820) | Memory map | `stage2.asm` |
 | BIOS `int 0x15` (A20) | A20 gate | `stage2.asm` |
-| Bochs DISPI | Linear framebuffer | `kernel/vbe.c` |
-| PCI config ports | Device discovery | `kernel/hwinfo.c` |
+| Bochs DISPI | Linear framebuffer | `kernel/gfx/vbe.c` |
+| PCI config ports | Device discovery | `kernel/boot/hwinfo.c` |
 | QEMU `fw_cfg` | ramfb setup (AArch64, not built) | `arch/aarch64/ramfb.c` |
 
-Hardware inventory (`kernel/hwinfo.c`) walks the PCI bus and records up to 16
+Hardware inventory (`kernel/boot/hwinfo.c`) walks the PCI bus and records up to 16
 devices (`HWINFO_MAX_PCI`). The limit is static because inventory runs before the
 heap exists.
 

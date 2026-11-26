@@ -5,7 +5,7 @@ It runs privileged code and user applications in ring 3.
 
 ## Entry and initialisation
 
-`kernel/kernel.c` `kmain` runs a fixed sequence. Early steps cannot be reordered
+`kernel/core/kernel.c` `kmain` runs a fixed sequence. Early steps cannot be reordered
 because later ones depend on memory the earlier ones establish:
 
 | Step | What it does | Why here |
@@ -34,9 +34,9 @@ be there last.
 
 ## Interrupts and syscalls
 
-Interrupts are handled in `kernel/isr.asm` with C dispatch. Applications call
+Interrupts are handled in `kernel/boot/isr.asm` with C dispatch. Applications call
 `int 0x80` with the syscall number in `EAX` and arguments in `EBX`, `ECX`, `EDX`;
-the dispatcher is `syscall_dispatch` in `kernel/kernel.c`.
+the dispatcher is `syscall_dispatch` in `kernel/core/kernel.c`.
 
 Syscall groups:
 
@@ -82,7 +82,7 @@ operation returning an error is always preferable to halting.
 
 ## Scheduler
 
-`kernel/task.c` provides a round-robin preemptive scheduler with per-task context
+`kernel/core/task.c` provides a round-robin preemptive scheduler with per-task context
 switching, `SYS_YIELD`, `SYS_GETPID` and `SYS_TASK_COUNT`. It self-tests during
 boot and panics if the self-test fails, because a broken scheduler makes every
 later failure untrustworthy.

@@ -5,8 +5,8 @@
 #include "../../ui/theme/ios_macos_theme.h"
 #include "../../net/bridge/host_bridge.h"
 #include "../../include/vfs.h"
-#include "../../kernel/elf64.h"
-#include "../../kernel/syscall64.h"
+#include "../../kernel/pkg/elf64.h"
+#include "../../kernel/core/syscall64.h"
 #include "../../runtime/art/surface_flinger.h"
 
 #define BR_MAX_NODES 28

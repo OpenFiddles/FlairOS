@@ -28,14 +28,20 @@ check_iso(sys.argv[1])
 check_iso(sys.argv[2])
 root = pathlib.Path(__file__).resolve().parents[1]
 stage2 = (root / "bootloader/stage2.asm").read_text()
-boot_c = (root / "kernel/boot.c").read_text()
+bootinfo = (root / "bootloader/bootinfo.inc").read_text()
+entry_asm = (root / "kernel/boot/entry.asm").read_text()
+boot_c = (root / "kernel/boot/boot.c").read_text()
 boot_h = (root / "include/boot.h").read_text()
-fs_c = (root / "kernel/fs.c").read_text()
+fs_c = (root / "kernel/fs/fs.c").read_text()
 ata_c = (root / "drivers/drv_ata.c").read_text()
-kernel_c = (root / "kernel/kernel.c").read_text()
+kernel_c = (root / "kernel/core/kernel.c").read_text()
 fs_h = (root / "include/fs.h").read_text()
 web = (root / "web/index.html").read_text()
-assert "FORCE_BOOT_MODE" in stage2 and "BOOT_INFO_ADDR + 8" in stage2
+assert "FORCE_BOOT_MODE" in stage2 and "BOOT_INFO_ADDR + BI_MODE" in stage2
+# The loader and the kernel image agree on the image header it verifies.
+assert "KERNEL_MAGIC    equ 0x4B524C46" in bootinfo
+assert "0x4B524C46" in entry_asm
+assert "FLAIR_BOOT_INFO_VERSION 2u" in boot_h
 assert "FLAIR_BOOT_LIVE" in boot_h and "FLAIR_BOOT_SETUP" in boot_h
 assert "boot_is_live_session()" in fs_c
 assert "if (fsk_volatile || !fsk_disk)" in fs_c

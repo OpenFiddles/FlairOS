@@ -15,14 +15,17 @@ def source(path):
 
 
 stage = source("bootloader/stage1.asm")
+stage2 = source("bootloader/stage2.asm")
+bootinfo = source("bootloader/bootinfo.inc")
+images = source("bootloader/loader/images.inc")
 fs = source("include/fs.h")
-fs_kernel = source("kernel/fs.c")
+fs_kernel = source("kernel/fs/fs.c")
 airp = source("include/airp.h")
 vm = source("drivers/vm.c")
 pmm = source("drivers/pmm.c")
-desktop = source("kernel/desktop.c")
-kernel = source("kernel/kernel.c")
-linker = source("kernel/link.ld")
+desktop = source("kernel/ui/desktop.c")
+kernel = source("kernel/core/kernel.c")
+linker = source("kernel/boot/link.ld")
 makefile = source("Makefile")
 
 def number(pattern, text, label):
@@ -30,27 +33,70 @@ def number(pattern, text, label):
     assert match, f"missing {label}"
     return int(match.group(1), 0)
 
-assert number(r"APP_SECTORS\s+equ\s+(\d+)", stage, "boot app sectors") == 128
-explorer_first = number(r"EXPLORER_LBA\s+equ\s+(\d+)", stage, "Explorer start LBA")
-explorer_sectors = number(r"EXPLORER_SECTORS\s+equ\s+(\d+)", stage, "Explorer sectors")
-terminal_first = number(r"TERMINAL_LBA\s+equ\s+(\d+)", stage, "Terminal start LBA")
-terminal_sectors = number(r"TERMINAL_SECTORS\s+equ\s+(\d+)", stage, "Terminal sectors")
+loader_consts = {}
+for name, value in re.findall(r"^([A-Z0-9_]+)\s+equ\s+(\w+)",
+                              bootinfo + "\n" + images, re.MULTILINE):
+    try:
+        loader_consts[name] = int(value, 0)
+    except ValueError:
+        pass
+
+
+def table_rows(text):
+    """Parse the loader's image table into (lba, segment, sectors, flags)."""
+    rows = []
+    for line in text[text.index("image_table:"):].splitlines()[1:]:
+        line = line.split(";")[0].strip()
+        if not line.startswith("dw "):
+            continue
+        fields = [f.strip() for f in line[3:].split(",")]
+        if len(fields) != 4:
+            continue
+        rows.append(tuple(loader_consts[f] if f in loader_consts else int(f, 0)
+                          for f in fields))
+    return rows
+
+
+assert loader_consts["KERNEL_LBA"] == 7 and loader_consts["KERNEL_SECTORS"] == 256
+assert number(r"STAGE2_SECTORS\s+equ\s+(\d+)", stage, "loader sectors") == 6
+assert number(r"APP_SECTORS\s+equ\s+(\d+)", images, "boot app sectors") == 128
+explorer_first = number(r"EXPLORER_LBA\s+equ\s+(\d+)", images, "Explorer start LBA")
+explorer_sectors = number(r"EXPLORER_SECTORS\s+equ\s+(\d+)", images, "Explorer sectors")
+terminal_first = number(r"TERMINAL_LBA\s+equ\s+(\d+)", images, "Terminal start LBA")
+terminal_sectors = number(r"TERMINAL_SECTORS\s+equ\s+(\d+)", images, "Terminal sectors")
 assert explorer_first == 2447 and explorer_sectors == 32
 assert terminal_first == explorer_first + explorer_sectors and terminal_sectors == 64
-settings_first = number(r"SETTINGS_LBA\s+equ\s+(\d+)", stage, "Settings start LBA")
-settings_sectors = number(r"SETTINGS_SECTORS\s+equ\s+(\d+)", stage, "Settings sectors")
-notes_first = number(r"NOTES_LBA\s+equ\s+(\d+)", stage, "Notes start LBA")
-notes_sectors = number(r"NOTES_SECTORS\s+equ\s+(\d+)", stage, "Notes sectors")
+settings_first = number(r"SETTINGS_LBA\s+equ\s+(\d+)", images, "Settings start LBA")
+settings_sectors = number(r"SETTINGS_SECTORS\s+equ\s+(\d+)", images, "Settings sectors")
+notes_first = number(r"NOTES_LBA\s+equ\s+(\d+)", images, "Notes start LBA")
+notes_sectors = number(r"NOTES_SECTORS\s+equ\s+(\d+)", images, "Notes sectors")
 assert settings_first == terminal_first + terminal_sectors and settings_sectors == 32
 assert notes_first == settings_first + settings_sectors and notes_sectors == 16
-assert number(r"PYTHON_SECTORS\s+equ\s+(\d+)", stage, "Python sectors") == 257
-assert "mov word [lba], EXPLORER_LBA" in stage
-assert "mov word [lba], TERMINAL_LBA" in stage
-assert "mov word [lba], 2623" in stage
-assert "cmp dword [es:0], 0x50524941" in stage
-assert "mov ax, 0x3000" in stage and "mov ax, 0x3400" in stage
-assert "mov ax, 0x9000" in stage and "mov ax, 0x3800" in stage
-assert "mov ax, 0x6000" in stage
+assert number(r"PYTHON_SECTORS\s+equ\s+(\d+)", images, "Python sectors") == 257
+
+# Stage 2 owns the image table: kernel first, then the staged app packages.
+assert table_rows(images) == [
+    (7, 0x1000, 256, loader_consts["IMG_KERNEL"]),
+    (263, 0x4000, 128, 0),
+    (2447, 0x9000, 32, 0),
+    (2479, 0x3800, 64, 0),
+    (2543, 0x3000, 32, 0),
+    (2575, 0x3400, 16, 0),
+    (2591, 0x9400, 16, 0),
+    (2623, 0x6000, 257, loader_consts["IMG_OPTIONAL"]),
+]
+assert "%include \"loader/images.inc\"" in stage2
+assert "call load_images" in stage2
+assert "call build_boot_info" in stage2
+assert "verify_kernel" in images
+assert "KERNEL_MAGIC" in images
+# The boot protocol and its C mirror must describe the same block.
+assert "BOOT_INFO_ADDR    equ 0x4000" in bootinfo
+assert "BOOT_INFO_VERSION equ 2" in bootinfo
+assert "BI_CHECKSUM     equ 60" in bootinfo and "BI_SIZE         equ 64" in bootinfo
+boot_h = source("include/boot.h")
+assert "FLAIR_BOOT_INFO_ADDR 0x4000u" in boot_h
+assert "FLAIR_BOOT_INFO_VERSION 2u" in boot_h
 
 fs_dir = number(r"#define FS_DIR_LBA\s+(\d+)", fs, "filesystem directory LBA")
 files = number(r"#define FS_FILES\s+(\d+)", fs, "filesystem file count")

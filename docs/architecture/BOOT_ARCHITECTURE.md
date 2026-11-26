@@ -11,26 +11,46 @@ UEFI support, and none is claimed.
 
 ### Stage 1 — boot sector (`bootloader/stage1.asm`, 512 bytes, LBA 0)
 
-Loaded by BIOS at `0x7C00` in real mode. Responsibilities:
+Loaded by BIOS at `0x7C00` in real mode. It does one job:
 
-1. Initialise segments and stack at `0x7C00`.
-2. Read stage 2 (4 sectors, LBA 1) to `0x0000:0x9000`.
-3. Read the kernel (256 sectors, LBA 5) to `0x1000:0x0000` (physical `0x10000`).
-4. Read the boot app (128 sectors, LBA 261) to `0x4000:0x0000` (physical `0x40000`).
-5. Stage the built-in packages from reserved sectors above the filesystem.
-6. Pass the boot drive in `DL` and jump to stage 2.
+1. Initialise segments, stack and COM1 (so a boot is observable headless).
+2. Read the loader (6 sectors, LBA 1) to `0x0000:0x9000`.
+3. Pass the boot drive in `DL` and jump to the loader.
 
-Disk reads use BIOS `int 0x13` with CHS geometry computed from the LBA and
-three retries per sector. CHS is used rather than LBA extensions because the
-1.44 MB geometry is fixed and this keeps stage 1 inside 512 bytes.
+Sector reads go through `bootloader/loader/disk.inc`, which translates an LBA
+to CHS geometry. The fixed 1.44 MB geometry keeps this inside the 512-byte
+sector; the loader uses the BIOS extended disk interface instead.
+
+### Stage 2 — loader (`bootloader/stage2.asm` + `bootloader/loader/*.inc`)
+
+The loader is loaded at `0x9000` and does the work a boot sector has no room
+for:
+
+1. Initialise the serial console and probe extended disk access (`edd.inc`).
+2. Enable A20 (BIOS, fast A20, then 8042) and verify it (`memory.inc`).
+3. Collect the firmware E820 map into the boot-info block (`memory.inc`).
+4. Show the boot menu with a 1.5 s timeout; the live and setup images define
+   `FORCE_BOOT_MODE` and skip it (`menu.inc`).
+5. Load every image from the table in `images.inc`, in 64-sector chunks, with
+   EDD reads and a CHS fallback. Optional slots are probed first: only the
+   first sector is read, the `AIRP` magic is checked, and the rest load only on
+   a match, so an absent MicroPython costs one sector read.
+6. Verify the kernel image before trusting it: the entry stub declares a magic
+   (`FLRK`), a header version and its own size in sectors. A mismatched image is
+   reported and boot stops instead of executing garbage (`images.inc`).
+7. Ask the VBE firmware for a 32-bit linear-framebuffer mode (1024×768, then
+   800×600) and record it (`video.inc`). The kernel still programs its own
+   display, but falls back to this framebuffer if DISPI probing fails.
+8. Publish the checksummed boot-info block, install the GDT, enter protected
+   mode and jump to `0x10000` with the stack at `0x90000`.
 
 ### Staging layout
 
 | Region | LBA | Destination | Sectors |
 | --- | --- | --- | --- |
-| Stage 2 | 1 | `0x9000` | 4 |
-| Kernel | 5 | `0x10000` | 256 |
-| Boot app | 261 | `0x40000` | 128 |
+| Loader | 1 | `0x9000` | 6 |
+| Kernel | 7 | `0x10000` | 256 |
+| Boot app | 263 | `0x40000` | 128 |
 | Filesystem | 398 | — | 2085 |
 | Explorer package | 2447 | `0x90000` | 32 |
 | Terminal package | 2479 | `0x38000` | 64 |
@@ -39,32 +59,39 @@ three retries per sector. CHS is used rather than LBA extensions because the
 | Desktop package | 2591 | `0x94000` | 16 |
 | MicroPython (optional) | 2623 | `0x60000` | 257 |
 
-The MicroPython slot is probed before loading: only its first sector is read,
-the `AIRP` magic is checked, and the remaining sectors load only on a match. An
-absent MicroPython therefore costs one sector read rather than a boot failure.
+The table in `bootloader/loader/images.inc` is the single description of this
+layout; `tests/boot_layout_test.py` parses it and checks the extents against the
+image build.
 
-### Stage 2 — protected mode (`bootloader/stage2.asm`, `0x9000`)
+### Boot protocol
 
-1. Collect the BIOS E820 memory map into `0x5000` (count) and `0x5010` (entries).
-2. Enable A20 via `int 0x15` with a keyboard-controller fallback.
-3. Install the GDT and switch to 32-bit protected mode.
-4. Hand control to the kernel entry at `0x10000` with the stack at `0x90000`.
+`bootloader/bootinfo.inc` and `include/boot.h` define one versioned block at
+`0x4000` (protocol version 2). Its 60 header bytes are checksummed and the E820
+map follows at `0x4040`:
 
-Stage 2 also writes a boot-info descriptor including the selected boot mode.
-**Known issue:** stage 2 writes the mode at `0x4FF0 + 8`, while `kernel/boot.c`
-reads from `0x4FF8` with a magic check. These must agree; this is tracked in
-[ROADMAP.md](ROADMAP.md).
+| Field | Offset | Consumer |
+| --- | --- | --- |
+| magic `BOOT`, version | 0, 4 | `boot_init` validation |
+| boot mode, boot drive | 8, 12 | `boot_mode`, `boot_drive` |
+| E820 count, address | 16, 20 | `boot_e820_count`, `boot_e820_entries` |
+| kernel LBA, sectors, bytes | 24–32 | `boot_kernel_sectors` |
+| LFB address, width, height, bpp, pitch | 36–46 | `boot_video` |
+| VBE version, video memory | 48, 52 | `boot_video` |
+| flags, checksum | 56, 60 | `boot_flags` |
+
+A block that fails the checksum is ignored, and `kernel/boot/boot.c` falls back
+to the version 1 handoff so an older boot floppy still starts.
 
 ## Boot modes
 
-`kernel/boot.c` resolves the mode from the handoff block, defaulting to normal
+`kernel/boot/boot.c` resolves the mode from the handoff block, defaulting to normal
 boot when the block is absent or inconsistent:
 
 | Mode | Behaviour |
 | --- | --- |
 | Normal | Full system, desktop session |
 | Live | Runs from removable media without a persistent disk |
-| Setup | Runs `kernel/setup.c` instead of the desktop |
+| Setup | Runs `kernel/boot/setup.c` instead of the desktop |
 | Recovery | Console-focused recovery session |
 | Diagnostics | Hardware diagnostics |
 
@@ -78,12 +105,13 @@ The kernel receives three things and nothing else:
 
 | Item | Location | Consumer |
 | --- | --- | --- |
-| E820 memory map | `0x5000`, entries `0x5010` | `drivers/pmm.c` |
-| Boot drive | `DL` at entry | `kernel/boot.c` |
-| Boot mode descriptor | `0x4FF0` region | `kernel/boot.c` |
+| Boot mode, drive | boot info `+8`, `+12` | `kernel/boot/boot.c` |
+| E820 memory map | boot info `+16`, entries at `+20` | `drivers/pmm.c`, `kernel/boot/hwinfo.c` |
+| Kernel extent | boot info `+24` | `boot_kernel_sectors` |
+| Framebuffer | boot info `+36` | `kernel/ui/desktop_gfx.c` fallback |
 
-Everything else the kernel needs it discovers itself. This keeps the
-firmware interface small enough to trust.
+Everything else the kernel needs it discovers itself. This keeps the firmware
+interface small enough to trust.
 
 ## AArch64 entry point
 

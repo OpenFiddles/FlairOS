@@ -14,7 +14,7 @@ static-size ceiling.
 | `0x09000`–`0x09FFF` | Stage 2 | `stage2.asm` |
 | `0x05000` | E820 region count | `drivers/pmm.c` |
 | `0x05010` | E820 entries | `drivers/pmm.c` |
-| `0x10000`–`0x2FFFF` | **Kernel image** | `kernel/link.ld` |
+| `0x10000`–`0x2FFFF` | **Kernel image** | `kernel/boot/link.ld` |
 | `0x30000`–`0x33FFF` | Settings package staging | `stage1.asm` |
 | `0x34000`–`0x37FFF` | Notes package staging | `stage1.asm` |
 | `0x38000`–`0x3FFFF` | Terminal package staging | `stage1.asm` |
@@ -24,7 +24,7 @@ static-size ceiling.
 | `0x90000`–`0x93FFF` | Explorer package staging | `stage1.asm` |
 | `0x94000`–`0x97FFF` | Desktop package staging | `stage1.asm` |
 | `0xA0000`–`0xBFFFF` | VGA aperture (framebuffer) | VBE |
-| `0xB8000`–`0xB8F9F` | VGA text buffer | `kernel/kernel.c` |
+| `0xB8000`–`0xB8F9F` | VGA text buffer | `kernel/core/kernel.c` |
 | `0x100000`+ | Managed frames | PMM |
 
 The MicroPython and package staging regions overlap intentionally: MicroPython is
@@ -33,7 +33,7 @@ could collide with are loaded before it.
 
 ## The 0x30000 ceiling
 
-`kernel/link.ld` asserts:
+`kernel/boot/link.ld` asserts:
 
 ```
 ASSERT(__bss_end <= 0x30000, "kernel bss overlaps the reserved PMM bitmap and Explorer staging gap")
@@ -47,8 +47,8 @@ limit (see `agent/ChatGPT/decisions.md`).
 
 Current state: `__bss_end` is `0x2E8C8`, leaving about 5.9 KB.
 
-That headroom is why the desktop theme loader (`kernel/airjson.c` plus
-`kernel/desktop_theme.c`, about 6.9 KB of text) is **not linked into the i386
+That headroom is why the desktop theme loader (`kernel/pkg/airjson.c` plus
+`kernel/ui/desktop_theme.c`, about 6.9 KB of text) is **not linked into the i386
 image yet**. It is complete and host-tested, but linking it would exceed the
 ceiling by roughly 1 KB. The options are to reclaim static memory elsewhere or
 to move staged packages out of the `0x30000` region; both are roadmap items, and
@@ -96,6 +96,6 @@ ensure `.bss` starts zeroed for every launch.
 
 ## Shared memory
 
-`kernel/ashmem.c` provides named shared regions and `kernel/binder.c` an
+`kernel/mm/ashmem.c` provides named shared regions and `kernel/mm/binder.c` an
 IPC-style handle registry, both used by the application runtime research path
 rather than by the core desktop.

@@ -7,7 +7,7 @@
 #define TX_APP_BASE  0x40000u
 #define TX_APP_MAGIC 0x54505041u
 
-/* Provided by kernel/airp.c under FLAIROS_HOST_TEST: a private app slot. */
+/* Provided by kernel/pkg/airp.c under FLAIROS_HOST_TEST: a private app slot. */
 extern unsigned char airp_host_slot[];
 
 static int failures;

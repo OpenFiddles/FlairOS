@@ -22,8 +22,8 @@ if(FLAIROS_ARCH STREQUAL "aarch64")
         "${S}/arch/aarch64/boot.S"
         "${S}/arch/aarch64/hal.c"
         "${S}/arch/aarch64/hello.c"
-        "${S}/kernel/dex.c"
-        "${S}/kernel/apk.c"
+        "${S}/kernel/pkg/dex.c"
+        "${S}/kernel/pkg/apk.c"
     )
     target_include_directories(arm64_objs PRIVATE "${S}/include")
     target_compile_definitions(arm64_objs PRIVATE FLAIROS_DEVICE_PHONE FLAIROS_DISPLAY_PORTRAIT)
@@ -121,19 +121,21 @@ if(FLAIROS_TOOLCHAIN_CFLAGS)
 endif()
 
 # --- Bootloader Stages ---
+file(GLOB BOOTLOADER_INCLUDES CONFIGURE_DEPENDS
+    "${S}/bootloader/*.inc" "${S}/bootloader/loader/*.inc")
 add_custom_command(
     OUTPUT "${B}/stage1.bin"
-    COMMAND "${NASM_BIN}" -f bin "${S}/bootloader/stage1.asm" -o "${B}/stage1.bin"
-    DEPENDS "${S}/bootloader/stage1.asm"
+    COMMAND "${NASM_BIN}" -f bin -I "${S}/bootloader/" "${S}/bootloader/stage1.asm" -o "${B}/stage1.bin"
+    DEPENDS "${S}/bootloader/stage1.asm" ${BOOTLOADER_INCLUDES}
     COMMENT "Assembling stage1.bin"
 )
 
 macro(add_stage2_variant TARGET_FILE MODE)
     add_custom_command(
         OUTPUT "${B}/${TARGET_FILE}"
-        COMMAND "${NASM_BIN}" -f bin -D "FORCE_BOOT_MODE=${MODE}" "${S}/bootloader/stage2.asm" -o "${B}/${TARGET_FILE}"
-        COMMAND "${PYTHON3_BIN}" "${S}/tools/check_size.py" "${B}/${TARGET_FILE}" 2048 2048
-        DEPENDS "${S}/bootloader/stage2.asm"
+        COMMAND "${NASM_BIN}" -f bin -I "${S}/bootloader/" -D "FORCE_BOOT_MODE=${MODE}" "${S}/bootloader/stage2.asm" -o "${B}/${TARGET_FILE}"
+        COMMAND "${PYTHON3_BIN}" "${S}/tools/check_size.py" "${B}/${TARGET_FILE}" 3072 3072
+        DEPENDS "${S}/bootloader/stage2.asm" ${BOOTLOADER_INCLUDES}
         COMMENT "Assembling ${TARGET_FILE}"
     )
 endmacro()
@@ -159,46 +161,46 @@ file(GLOB_RECURSE DRV_SRCS CONFIGURE_DEPENDS "${S}/drivers/*.c")
 
 set(KERNEL_C_SRCS
     "${S}/arch/i386/hal.c"
-    "${S}/kernel/desktop.c"
-    "${S}/kernel/mobile.c"
-    "${S}/kernel/desktop_gfx.c"
-    "${S}/kernel/desktop_render.c"
-    "${S}/kernel/desktop_chrome.c"
-    "${S}/kernel/windown.c"
-    "${S}/kernel/task.c"
-    "${S}/kernel/elf.c"
-    "${S}/kernel/vfs.c"
-    "${S}/kernel/fat32.c"
-    "${S}/kernel/ashmem.c"
-    "${S}/kernel/binder.c"
-    "${S}/kernel/apk.c"
-    "${S}/kernel/dex.c"
-    "${S}/kernel/font5x7.c"
-    "${S}/kernel/kernel.c"
-    "${S}/kernel/drivers.c"
-    "${S}/kernel/keyboard.c"
-    "${S}/kernel/panic.c"
-    "${S}/kernel/mouse_cursor.c"
-    "${S}/kernel/mouse_init.c"
-    "${S}/kernel/pit_timer.c"
+    "${S}/kernel/ui/desktop.c"
+    "${S}/kernel/ui/mobile.c"
+    "${S}/kernel/ui/desktop_gfx.c"
+    "${S}/kernel/ui/desktop_render.c"
+    "${S}/kernel/ui/desktop_chrome.c"
+    "${S}/kernel/ui/windown.c"
+    "${S}/kernel/core/task.c"
+    "${S}/kernel/pkg/elf.c"
+    "${S}/kernel/fs/vfs.c"
+    "${S}/kernel/fs/fat32.c"
+    "${S}/kernel/mm/ashmem.c"
+    "${S}/kernel/mm/binder.c"
+    "${S}/kernel/pkg/apk.c"
+    "${S}/kernel/pkg/dex.c"
+    "${S}/kernel/gfx/font5x7.c"
+    "${S}/kernel/core/kernel.c"
+    "${S}/kernel/core/drivers.c"
+    "${S}/kernel/dev/keyboard.c"
+    "${S}/kernel/core/panic.c"
+    "${S}/kernel/dev/mouse_cursor.c"
+    "${S}/kernel/dev/mouse_init.c"
+    "${S}/kernel/dev/pit_timer.c"
     ${DRV_SRCS}
-    "${S}/kernel/axi.c"
-    "${S}/kernel/fs.c"
-    "${S}/kernel/sysdispatch.c"
-    "${S}/kernel/boot.c"
-    "${S}/kernel/hwinfo.c"
-    "${S}/kernel/setup.c"
-    "${S}/kernel/airp.c"
-    "${S}/kernel/fb.c"
-    "${S}/kernel/vbe.c"
-    "${S}/kernel/airgraph.c"
-    "${S}/kernel/bmp.c"
-    "${S}/kernel/image.c"
-    "${S}/kernel/cursor.c"
-    "${S}/kernel/sprunkui.c"
-    "${S}/kernel/airnim.c"
-    "${S}/kernel/status.c"
-    "${S}/kernel/sprunkui_anim.c"
+    "${S}/kernel/core/axi.c"
+    "${S}/kernel/fs/fs.c"
+    "${S}/kernel/core/sysdispatch.c"
+    "${S}/kernel/boot/boot.c"
+    "${S}/kernel/boot/hwinfo.c"
+    "${S}/kernel/boot/setup.c"
+    "${S}/kernel/pkg/airp.c"
+    "${S}/kernel/gfx/fb.c"
+    "${S}/kernel/gfx/vbe.c"
+    "${S}/kernel/gfx/airgraph.c"
+    "${S}/kernel/gfx/bmp.c"
+    "${S}/kernel/gfx/image.c"
+    "${S}/kernel/gfx/cursor.c"
+    "${S}/kernel/gfx/sprunkui.c"
+    "${S}/kernel/gfx/airnim.c"
+    "${S}/kernel/gfx/status.c"
+    "${S}/kernel/gfx/sprunkui_anim.c"
 )
 
 add_library(kernel_objs OBJECT ${KERNEL_C_SRCS})
@@ -208,9 +210,9 @@ target_compile_options(kernel_objs PRIVATE ${FLAIROS_CFLAGS})
 
 add_custom_command(
     OUTPUT "${B}/kernel.elf"
-    COMMAND "${FLAIROS_LD}" -m elf_i386 -nostdlib --gc-sections -T "${S}/kernel/link.ld"
+    COMMAND "${FLAIROS_LD}" -m elf_i386 -nostdlib --gc-sections -T "${S}/kernel/boot/link.ld"
             -o "${B}/kernel.elf" ${KERNEL_ASM_OBJS} $<TARGET_OBJECTS:kernel_objs>
-    DEPENDS ${KERNEL_ASM_OBJS} kernel_objs "${S}/kernel/link.ld"
+    DEPENDS ${KERNEL_ASM_OBJS} kernel_objs "${S}/kernel/boot/link.ld"
     COMMENT "Linking kernel.elf"
     COMMAND_EXPAND_LISTS
 )
@@ -291,9 +293,9 @@ macro(add_disk_image IMG_NAME STAGE2_BIN)
         OUTPUT "${B}/${IMG_NAME}"
         COMMAND dd if=/dev/zero of="${B}/${IMG_NAME}" bs=512 count=2880 status=none
         COMMAND dd if="${B}/stage1.bin" of="${B}/${IMG_NAME}" bs=512 count=1 conv=notrunc status=none
-        COMMAND dd if="${B}/${STAGE2_BIN}" of="${B}/${IMG_NAME}" bs=512 seek=1 count=4 conv=notrunc status=none
-        COMMAND dd if="${B}/kernel.bin" of="${B}/${IMG_NAME}" bs=512 seek=5 count=256 conv=notrunc status=none
-        COMMAND dd if="${B}/app.bin" of="${B}/${IMG_NAME}" bs=512 seek=261 count=128 conv=notrunc status=none
+        COMMAND dd if="${B}/${STAGE2_BIN}" of="${B}/${IMG_NAME}" bs=512 seek=1 count=6 conv=notrunc status=none
+        COMMAND dd if="${B}/kernel.bin" of="${B}/${IMG_NAME}" bs=512 seek=7 count=256 conv=notrunc status=none
+        COMMAND dd if="${B}/app.bin" of="${B}/${IMG_NAME}" bs=512 seek=263 count=128 conv=notrunc status=none
         COMMAND dd if="${B}/explorer.airp" of="${B}/${IMG_NAME}" bs=512 seek=2447 count=32 conv=notrunc status=none
         COMMAND dd if="${B}/terminal.airp" of="${B}/${IMG_NAME}" bs=512 seek=2479 count=64 conv=notrunc status=none
         COMMAND dd if="${B}/settings.airp" of="${B}/${IMG_NAME}" bs=512 seek=2543 count=32 conv=notrunc status=none
@@ -388,32 +390,32 @@ function(add_flairos_host_test TEST_NAME)
     add_test(NAME "${TEST_NAME}" COMMAND "${B}/${TEST_NAME}")
 endfunction()
 
-add_flairos_host_test(airgraph_host_test tests/airgraph_host_test.c kernel/airgraph.c kernel/sprunkui.c kernel/fb.c)
-add_flairos_host_test(status_host_test tests/status_host_test.c kernel/status.c)
-add_flairos_host_test(sprunkui_anim_host_test tests/sprunkui_anim_host_test.c kernel/sprunkui_anim.c kernel/sprunkui.c kernel/airnim.c kernel/airgraph.c kernel/fb.c)
-add_flairos_host_test(airnim_host_test tests/airnim_host_test.c kernel/airnim.c kernel/airgraph.c kernel/fb.c)
+add_flairos_host_test(airgraph_host_test tests/airgraph_host_test.c kernel/gfx/airgraph.c kernel/gfx/sprunkui.c kernel/gfx/fb.c)
+add_flairos_host_test(status_host_test tests/status_host_test.c kernel/gfx/status.c)
+add_flairos_host_test(sprunkui_anim_host_test tests/sprunkui_anim_host_test.c kernel/gfx/sprunkui_anim.c kernel/gfx/sprunkui.c kernel/gfx/airnim.c kernel/gfx/airgraph.c kernel/gfx/fb.c)
+add_flairos_host_test(airnim_host_test tests/airnim_host_test.c kernel/gfx/airnim.c kernel/gfx/airgraph.c kernel/gfx/fb.c)
 add_flairos_host_test(vfs_host_test tests/vfs_host_test.c)
-add_flairos_host_test(elf_host_test tests/elf_host_test.c kernel/elf.c)
+add_flairos_host_test(elf_host_test tests/elf_host_test.c kernel/pkg/elf.c)
 add_flairos_host_test(task_host_test tests/task_host_test.c)
-add_flairos_host_test(windown_host_test tests/windown_host_test.c kernel/windown.c kernel/desktop_chrome.c kernel/font5x7.c kernel/airgraph.c kernel/fb.c)
-add_flairos_host_test(desktop_chrome_host_test tests/desktop_chrome_host_test.c kernel/desktop_chrome.c kernel/font5x7.c kernel/airgraph.c kernel/fb.c)
-add_flairos_host_test(desktop_render_host_test tests/desktop_render_host_test.c kernel/desktop_render.c kernel/font5x7.c kernel/airgraph.c kernel/fb.c kernel/bmp.c)
-add_flairos_host_test(bmp_host_test tests/bmp_host_test.c kernel/bmp.c)
-add_flairos_host_test(image_host_test tests/image_host_test.c kernel/image.c kernel/bmp.c)
+add_flairos_host_test(windown_host_test tests/windown_host_test.c kernel/ui/windown.c kernel/ui/desktop_chrome.c kernel/gfx/font5x7.c kernel/gfx/airgraph.c kernel/gfx/fb.c)
+add_flairos_host_test(desktop_chrome_host_test tests/desktop_chrome_host_test.c kernel/ui/desktop_chrome.c kernel/gfx/font5x7.c kernel/gfx/airgraph.c kernel/gfx/fb.c)
+add_flairos_host_test(desktop_render_host_test tests/desktop_render_host_test.c kernel/ui/desktop_render.c kernel/gfx/font5x7.c kernel/gfx/airgraph.c kernel/gfx/fb.c kernel/gfx/bmp.c)
+add_flairos_host_test(bmp_host_test tests/bmp_host_test.c kernel/gfx/bmp.c)
+add_flairos_host_test(image_host_test tests/image_host_test.c kernel/gfx/image.c kernel/gfx/bmp.c)
 add_flairos_host_test(driver_host_test tests/driver_host_test.c drivers/drv_core.c)
-add_flairos_host_test(fb_host_test tests/fb_host_test.c kernel/fb.c)
+add_flairos_host_test(fb_host_test tests/fb_host_test.c kernel/gfx/fb.c)
 add_flairos_host_test(ata_identify_host_test tests/ata_identify_host_test.c drivers/ata_identify.c)
 add_flairos_host_test(pmm_host_test tests/pmm_host_test.c drivers/mm_core.c)
 add_flairos_host_test(vm_region_host_test tests/vm_region_host_test.c drivers/vm_region.c)
-add_flairos_host_test(cursor_host_test tests/cursor_host_test.c kernel/cursor.c kernel/bmp.c kernel/airgraph.c kernel/fb.c)
-add_flairos_host_test(fat32_host_test tests/fat32_host_test.c kernel/fat32.c)
+add_flairos_host_test(cursor_host_test tests/cursor_host_test.c kernel/gfx/cursor.c kernel/gfx/bmp.c kernel/gfx/airgraph.c kernel/gfx/fb.c)
+add_flairos_host_test(fat32_host_test tests/fat32_host_test.c kernel/fs/fat32.c)
 add_flairos_host_test(ashmem_host_test tests/ashmem_host_test.c)
 add_flairos_host_test(binder_host_test tests/binder_host_test.c)
-add_flairos_host_test(apk_host_test tests/apk_host_test.c kernel/apk.c)
-add_flairos_host_test(dex_host_test tests/dex_host_test.c kernel/dex.c kernel/apk.c)
+add_flairos_host_test(apk_host_test tests/apk_host_test.c kernel/pkg/apk.c)
+add_flairos_host_test(dex_host_test tests/dex_host_test.c kernel/pkg/dex.c kernel/pkg/apk.c)
 add_flairos_host_test(telemetry_bridge_test tests/telemetry_bridge_test.c net/bridge/host_bridge.c net/service/net_service.c)
 add_flairos_host_test(bt_host_test tests/bt_host_test.c tests/bt_mock_hci.c drivers/bt/bt_hci.c net/bt/bt_core.c)
-add_flairos_host_test(runtime64_airp_test tests/runtime64_airp_test.c tests/bt_mock_hci.c kernel/bmp.c kernel/vfs.c kernel/kmem64.c kernel/font5x7.c kernel/apk.c kernel/dex.c kernel/binder.c kernel/ashmem.c graphics/compositor/glass_fx.c runtime/art/art_bridge.c runtime/art/sandbox.c net/airp/airp_net.c drivers/bt/bt_hci.c net/bt/bt_core.c ported/developer/libs/flair_posix/flair_posix.c ported/developer/libs/flair_zlib/flair_zlib.c ported/developer/openjdk/src/jvm_class.c ported/developer/toybox/toybox_mini.c ported/developer/kilo/kilo_core.c ported/python/flair_py.c net/bridge/host_bridge.c kernel/elf64.c kernel/syscall64.c runtime/art/surface_flinger.c ui/shells/flair_browser.c runtime/art/dex_interp.c runtime/art/android_libs.c net/service/net_service.c ui/systemui/airstin_ui.c ui/shells/shell_desktop.c)
+add_flairos_host_test(runtime64_airp_test tests/runtime64_airp_test.c tests/bt_mock_hci.c kernel/gfx/bmp.c kernel/fs/vfs.c kernel/mm/kmem64.c kernel/gfx/font5x7.c kernel/pkg/apk.c kernel/pkg/dex.c kernel/mm/binder.c kernel/mm/ashmem.c graphics/compositor/glass_fx.c runtime/art/art_bridge.c runtime/art/sandbox.c net/airp/airp_net.c drivers/bt/bt_hci.c net/bt/bt_core.c ported/developer/libs/flair_posix/flair_posix.c ported/developer/libs/flair_zlib/flair_zlib.c ported/developer/openjdk/src/jvm_class.c ported/developer/toybox/toybox_mini.c ported/developer/kilo/kilo_core.c ported/python/flair_py.c net/bridge/host_bridge.c kernel/pkg/elf64.c kernel/core/syscall64.c runtime/art/surface_flinger.c ui/shells/flair_browser.c runtime/art/dex_interp.c runtime/art/android_libs.c net/service/net_service.c ui/systemui/airstin_ui.c ui/shells/shell_desktop.c)
 
 get_property(HOST_TEST_BINS GLOBAL PROPERTY FLAIROS_HOST_TEST_BINS)
 add_custom_target(host-tests DEPENDS ${HOST_TEST_BINS})

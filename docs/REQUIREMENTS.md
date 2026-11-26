@@ -43,7 +43,7 @@ Each requirement has an ID, how it is verified, and an honest status.
 |----|-------------|-------------|--------|
 | GFX-1 | A frame is presented once, fully composed. No half-drawn frame reaches the screen. | UI screenshots show no ghosting | Met |
 | GFX-2 | The cursor is drawn at its true pixel position, as an original arrow, hand (over clickable items) or I-beam (over the terminal), and `CURSOR.BMP` on the system volume can replace the arrow. | Host `cursor_host_test`; UI screenshots | Met |
-| GFX-3 | PNG images can be loaded. | none | Open: only BMP is decoded today (`kernel/bmp.c`) |
+| GFX-3 | PNG images can be loaded. | none | Open: only BMP is decoded today (`kernel/gfx/bmp.c`) |
 
 ## Running the checks
 

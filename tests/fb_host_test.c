@@ -1,5 +1,5 @@
-/* Host check for kernel/fb.c. From the repo root:
-   gcc -m32 -std=gnu99 -Wall -Wextra -Iinclude -o build/fb_host_test tests/fb_host_test.c kernel/fb.c && build/fb_host_test */
+/* Host check for kernel/gfx/fb.c. From the repo root:
+   gcc -m32 -std=gnu99 -Wall -Wextra -Iinclude -o build/fb_host_test tests/fb_host_test.c kernel/gfx/fb.c && build/fb_host_test */
 #include <stdio.h>
 #include <string.h>
 #include "fb.h"

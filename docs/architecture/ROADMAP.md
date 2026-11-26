@@ -34,7 +34,7 @@ Keep the assertion. Keep i386 building. Do not grow it.
 
 ### 3. Fix the boot-mode handoff mismatch
 
-`stage2.asm` writes the boot mode at `0x4FF0 + 8`; `kernel/boot.c` reads `0x4FF8`.
+`stage2.asm` writes the boot mode at `0x4FF0 + 8`; `kernel/boot/boot.c` reads `0x4FF8`.
 They must agree. Today the kernel falls back to normal boot, so the bug is
 invisible until a non-normal mode is actually needed.
 
