@@ -5,3 +5,5 @@ build-ninja/
 build-*/
 CMakeCache.txt
 CMakeFiles/
+artifacts/
+.freecode-source-ready

@@ -2,6 +2,7 @@
 #define FLAIROS_DESKTOP_GFX_H
 #include <stdint.h>
 struct sp_context;
+struct sp_theme;
 int desktop_gfx_init(void);
 int desktop_gfx_active(void);
 int desktop_gfx_set_accent(unsigned int accent);
@@ -33,5 +34,10 @@ int desktop_gfx_status_hit(int mx);
 void desktop_gfx_panel_set(int open);
 int desktop_gfx_panel_open(void);
 int desktop_gfx_panel_click(int mx, int my);
+
+/* Session theme. The desktop package (FlairDesktop.airp) supplies its theme
+   resource; desktop_gfx_apply_theme installs a validated theme. */
+struct sp_theme *desktop_gfx_theme(void);
+void desktop_gfx_apply_theme(const struct sp_theme *theme);
 
 #endif

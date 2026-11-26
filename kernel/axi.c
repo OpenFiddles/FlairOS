@@ -692,9 +692,19 @@ int axi_apk_install_path(const char *src_path, const char *name) {
 
 static u32 axk_present(void) {
     axk_mouse();
-    if (!desktop_gfx_active()) kernel_panic("AXI window presentation requires AirGraph");
+    /* AXI window presentation is a user-facing compositor operation. When the
+       desktop is not active (developer console, text mode, or a recovered
+       session after an AirGraph failure) there is no surface to present to.
+       Report the condition to the caller instead of panicking the kernel. */
+    if (!desktop_gfx_active()) {
+        serial_str("axi: present skipped, AirGraph inactive\n");
+        return AX_FAIL;
+    }
     axk_present_shell();
-    if (!desktop_gfx_active()) kernel_panic("AirGraph failed during AXI window presentation");
+    if (!desktop_gfx_active()) {
+        serial_str("axi: AirGraph went inactive during presentation\n");
+        return AX_FAIL;
+    }
     return 0;
 }
 

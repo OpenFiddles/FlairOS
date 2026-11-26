@@ -1,0 +1,11 @@
+{
+  "shell.name": "FlairOS",
+  "shell.clock": "Clock",
+  "shell.terminal": "Terminal",
+  "shell.files": "Files",
+  "shell.settings": "Settings",
+  "shell.notes": "Notes",
+  "shell.close": "Close",
+  "shell.rotate": "Rotate display",
+  "shell.touch": "Touch mode"
+}

@@ -1,0 +1,25 @@
+{
+  "name": "FlairDesktop",
+  "id": "org.flairos.desktop",
+  "version": "2.0.0",
+  "api_level": 2,
+  "type": "session-shell",
+  "arch": ["i386"],
+  "description": "FlairOS desktop session: shell chrome, dock, panels and theme.",
+  "vendor": "OpenFiddles",
+  "entry": {
+    "modes": ["desktop", "mobile", "tv"],
+    "startup": "boot"
+  },
+  "resources": {
+    "theme": "theme.json",
+    "launcher": "launcher.json",
+    "strings": "strings.json"
+  },
+  "permissions": [
+    "display.compose",
+    "input.pointer",
+    "input.keyboard",
+    "vfs.read"
+  ]
+}

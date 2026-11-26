@@ -977,8 +977,36 @@ u32 syscall_dispatch(struct saved_regs *r) {
     return r->eax;
 }
 
+/* Stage 1 loads the boot app at TX_APP_BASE, but the desktop launches Settings,
+   Notes, Explorer and Terminal through that same slot, so by the time the
+   developer console runs `run` the slot may hold an unrelated application.
+   Keep a private snapshot of the boot image and restore it before running. */
+#define BOOT_APP_BYTES (128u * 512u)
+static u8 *boot_app_snapshot;
+static u32 boot_app_snapshot_len;
+
+static void boot_app_snapshot_init(void) {
+    const u8 *src = (const u8 *)TX_APP_BASE;
+    const u32 *head = (const u32 *)src;
+    if (head[0] != TX_APP_MAGIC)
+        return;
+    boot_app_snapshot = (u8 *)kmalloc(BOOT_APP_BYTES);
+    if (!boot_app_snapshot)
+        return;
+    for (u32 i = 0; i < BOOT_APP_BYTES; i++)
+        boot_app_snapshot[i] = src[i];
+    boot_app_snapshot_len = BOOT_APP_BYTES;
+}
+
 static int run_app(void) {
-    const u32 *head = (const u32 *)TX_APP_BASE;
+    const u32 *head;
+    if (!boot_app_snapshot || !boot_app_snapshot_len)
+        return 0;
+    /* Restore the snapshot and clear the rest of the slot so stale .bss from the
+       previously launched app cannot leak into this run. */
+    for (u32 i = 0; i < boot_app_snapshot_len; i++)
+        ((u8 *)TX_APP_BASE)[i] = boot_app_snapshot[i];
+    head = (const u32 *)TX_APP_BASE;
     if (head[0] != TX_APP_MAGIC)
         return 0;
     vm_run_app(head[1], USER_STACK_TOP);
@@ -1386,6 +1414,9 @@ void kmain(void) {
     dbg_log_buf = (char *)kmalloc(DBG_LOG_CAP);
     if (dbg_log_buf) dbg_log_ready = 1;
     splash_progress(48, "Memory manager initialized");
+    /* The heap is ready: preserve the boot app before the desktop reuses the
+       application slot for Settings, Notes, Explorer and Terminal. */
+    boot_app_snapshot_init();
     drv_register_builtin();
     drv_init_all();
     splash_progress(56, "System drivers initialized");

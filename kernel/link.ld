@@ -12,7 +12,7 @@ SECTIONS
     .data   : { *(.data .data.*) }
     .bss : {
         __bss_start = .;
-        *(SORT_BY_ALIGNMENT(.bss .bss.*))
+        *(.bss .bss.*)
         *(COMMON)
         __bss_end = .;
     }

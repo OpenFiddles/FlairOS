@@ -247,6 +247,12 @@ $(BUILD)/setup.o: kernel/setup.c include/setup.h include/boot.h include/drv_ata.
 $(BUILD)/airp.o: kernel/airp.c include/airp.h kernel/textile.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+$(BUILD)/airjson.o: kernel/airjson.c include/airjson.h | $(BUILD)
+	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
+
+$(BUILD)/desktop_theme.o: kernel/desktop_theme.c include/desktop_theme.h include/airjson.h include/airp.h include/sprunkui.h include/srgb_linear.h include/desktop_gfx.h | $(BUILD)
+	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
+
 $(BUILD)/fb.o: kernel/fb.c include/fb.h | $(BUILD)
 	$(CC) $(CFLAGS) -Iinclude -c $< -o $@
 
@@ -357,8 +363,25 @@ $(BUILD)/notes.airp: $(BUILD)/notes.bin tools/airpack.py
 	python3 tools/airpack.py $(BUILD)/notes.bin $@ notes
 	test `stat -c %s $@` -le 8192
 
+# --- FlairDesktop session package ---
+# A component package: manifest plus declarative resources, no executable. The
+# session shell implementation lives in the kernel, so the container describes
+# the session rather than shipping a duplicate copy of it.
+DESKTOP_PKG_SRCS = desktop/manifest/desktop.json desktop/themes/default.json \
+                   desktop/resources/launcher.json desktop/resources/strings.json
+
+$(BUILD)/FlairDesktop.airp: $(DESKTOP_PKG_SRCS) tools/airpkg.py | $(BUILD)
+	python3 tools/airpkg.py pack - $@ \
+		--name FlairDesktop --flags desktop,system,resources-only --arch i386 \
+		--manifest desktop/manifest/desktop.json \
+		--resource 'theme.json=desktop/themes/default.json:theme' \
+		--resource 'launcher.json=desktop/resources/launcher.json:ui' \
+		--resource 'strings.json=desktop/resources/strings.json:strings'
+	python3 tools/airpkg.py validate $@ --arch i386
+	test `stat -c %s $@` -le 8192
+
 # Assembles the disk image using the precise structural sector positioning offsets
-$(BUILD)/textile.img: $(BUILD)/stage1.bin $(BUILD)/stage2.bin $(BUILD)/kernel.bin $(BUILD)/app.bin $(BUILD)/explorer.airp $(BUILD)/terminal.airp $(BUILD)/settings.airp $(BUILD)/notes.airp
+$(BUILD)/textile.img: $(BUILD)/stage1.bin $(BUILD)/stage2.bin $(BUILD)/kernel.bin $(BUILD)/app.bin $(BUILD)/explorer.airp $(BUILD)/terminal.airp $(BUILD)/settings.airp $(BUILD)/notes.airp $(BUILD)/FlairDesktop.airp
 	dd if=/dev/zero of=$@ bs=512 count=2880 status=none
 	dd if=$(BUILD)/stage1.bin of=$@ bs=512 count=1 conv=notrunc status=none
 	dd if=$(BUILD)/stage2.bin of=$@ bs=512 seek=1 count=4 conv=notrunc status=none
@@ -368,8 +391,9 @@ $(BUILD)/textile.img: $(BUILD)/stage1.bin $(BUILD)/stage2.bin $(BUILD)/kernel.bi
 	dd if=$(BUILD)/terminal.airp of=$@ bs=512 seek=2479 count=64 conv=notrunc status=none
 	dd if=$(BUILD)/settings.airp of=$@ bs=512 seek=2543 count=32 conv=notrunc status=none
 	dd if=$(BUILD)/notes.airp of=$@ bs=512 seek=2575 count=16 conv=notrunc status=none
+	dd if=$(BUILD)/FlairDesktop.airp of=$@ bs=512 seek=2591 count=16 conv=notrunc status=none
 
-$(BUILD)/livecd.img: $(BUILD)/stage1.bin $(BUILD)/stage2-live.bin $(BUILD)/kernel.bin $(BUILD)/app.bin $(BUILD)/explorer.airp $(BUILD)/terminal.airp $(BUILD)/settings.airp $(BUILD)/notes.airp
+$(BUILD)/livecd.img: $(BUILD)/stage1.bin $(BUILD)/stage2-live.bin $(BUILD)/kernel.bin $(BUILD)/app.bin $(BUILD)/explorer.airp $(BUILD)/terminal.airp $(BUILD)/settings.airp $(BUILD)/notes.airp $(BUILD)/FlairDesktop.airp
 	dd if=/dev/zero of=$@ bs=512 count=2880 status=none
 	dd if=$(BUILD)/stage1.bin of=$@ bs=512 count=1 conv=notrunc status=none
 	dd if=$(BUILD)/stage2-live.bin of=$@ bs=512 seek=1 count=4 conv=notrunc status=none
@@ -379,8 +403,9 @@ $(BUILD)/livecd.img: $(BUILD)/stage1.bin $(BUILD)/stage2-live.bin $(BUILD)/kerne
 	dd if=$(BUILD)/terminal.airp of=$@ bs=512 seek=2479 count=64 conv=notrunc status=none
 	dd if=$(BUILD)/settings.airp of=$@ bs=512 seek=2543 count=32 conv=notrunc status=none
 	dd if=$(BUILD)/notes.airp of=$@ bs=512 seek=2575 count=16 conv=notrunc status=none
+	dd if=$(BUILD)/FlairDesktop.airp of=$@ bs=512 seek=2591 count=16 conv=notrunc status=none
 
-$(BUILD)/bootcd.img: $(BUILD)/stage1.bin $(BUILD)/stage2-setup.bin $(BUILD)/kernel.bin $(BUILD)/app.bin $(BUILD)/explorer.airp $(BUILD)/terminal.airp $(BUILD)/settings.airp $(BUILD)/notes.airp
+$(BUILD)/bootcd.img: $(BUILD)/stage1.bin $(BUILD)/stage2-setup.bin $(BUILD)/kernel.bin $(BUILD)/app.bin $(BUILD)/explorer.airp $(BUILD)/terminal.airp $(BUILD)/settings.airp $(BUILD)/notes.airp $(BUILD)/FlairDesktop.airp
 	dd if=/dev/zero of=$@ bs=512 count=2880 status=none
 	dd if=$(BUILD)/stage1.bin of=$@ bs=512 count=1 conv=notrunc status=none
 	dd if=$(BUILD)/stage2-setup.bin of=$@ bs=512 seek=1 count=4 conv=notrunc status=none
@@ -390,6 +415,7 @@ $(BUILD)/bootcd.img: $(BUILD)/stage1.bin $(BUILD)/stage2-setup.bin $(BUILD)/kern
 	dd if=$(BUILD)/terminal.airp of=$@ bs=512 seek=2479 count=64 conv=notrunc status=none
 	dd if=$(BUILD)/settings.airp of=$@ bs=512 seek=2543 count=32 conv=notrunc status=none
 	dd if=$(BUILD)/notes.airp of=$@ bs=512 seek=2575 count=16 conv=notrunc status=none
+	dd if=$(BUILD)/FlairDesktop.airp of=$@ bs=512 seek=2591 count=16 conv=notrunc status=none
 
 $(BUILD)/livecd.iso: $(BUILD)/livecd.img
 	mkdir -p $(BUILD)/livecd-root
@@ -447,11 +473,25 @@ $(BUILD)/airgraph_host_test: tests/airgraph_host_test.c kernel/airgraph.c kernel
 $(BUILD)/status_host_test: tests/status_host_test.c kernel/status.c include/status.h include/drv_net.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -DFLAIROS_HOST_TEST -o $@ tests/status_host_test.c kernel/status.c
 
-$(BUILD)/sprunkui_anim_host_test: -DFLAIROS_HOST_TEST tests/sprunkui_anim_host_test.c kernel/sprunkui_anim.c kernel/sprunkui.c kernel/airnim.c kernel/airgraph.c kernel/fb.c include/sprunkui.h include/airnim.h include/fb.h | $(BUILD)
+$(BUILD)/sprunkui_anim_host_test: tests/sprunkui_anim_host_test.c kernel/sprunkui_anim.c kernel/sprunkui.c kernel/airnim.c kernel/airgraph.c kernel/fb.c include/sprunkui.h include/airnim.h include/fb.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ -DFLAIROS_HOST_TEST tests/sprunkui_anim_host_test.c kernel/sprunkui_anim.c kernel/sprunkui.c kernel/airnim.c kernel/airgraph.c kernel/fb.c
 
-$(BUILD)/airnim_host_test: -DFLAIROS_HOST_TEST tests/airnim_host_test.c kernel/airnim.c kernel/airgraph.c kernel/fb.c include/airnim.h include/airgraph.h include/fb.h | $(BUILD)
+$(BUILD)/airnim_host_test: tests/airnim_host_test.c kernel/airnim.c kernel/airgraph.c kernel/fb.c include/airnim.h include/airgraph.h include/fb.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ -DFLAIROS_HOST_TEST tests/airnim_host_test.c kernel/airnim.c kernel/airgraph.c kernel/fb.c
+
+# sprunkui.c is linked only for the real sp_theme_default fallback palette.
+# Section-level collection drops its AirGraph drawing code, which this test
+# never calls and which has no host implementation.
+$(BUILD)/desktop_theme_host_test: tests/desktop_theme_host_test.c kernel/desktop_theme.c kernel/airp.c kernel/airjson.c kernel/sprunkui.c include/desktop_theme.h include/sprunkui.h include/srgb_linear.h | $(BUILD)
+	$(HOSTCC) -std=gnu99 -Wall -Wextra -DFLAIROS_HOST_TEST -Iinclude -Ikernel \
+		-ffunction-sections -fdata-sections -Wl,--gc-sections \
+		-o $@ tests/desktop_theme_host_test.c kernel/desktop_theme.c kernel/airp.c kernel/airjson.c kernel/sprunkui.c
+
+$(BUILD)/airjson_host_test: tests/airjson_host_test.c kernel/airjson.c include/airjson.h | $(BUILD)
+	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -Ikernel -o $@ tests/airjson_host_test.c kernel/airjson.c
+
+$(BUILD)/airp_host_test: tests/airp_host_test.c kernel/airp.c include/airp.h kernel/textile.h | $(BUILD)
+	$(HOSTCC) -std=gnu99 -Wall -Wextra -DFLAIROS_HOST_TEST -Iinclude -Ikernel -o $@ tests/airp_host_test.c kernel/airp.c
 
 $(BUILD)/vfs_host_test: tests/vfs_host_test.c kernel/vfs.c include/vfs.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/vfs_host_test.c
@@ -481,7 +521,7 @@ $(BUILD)/driver_host_test: tests/driver_host_test.c drivers/drv_core.c include/d
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/driver_host_test.c drivers/drv_core.c
 
 $(BUILD)/io_host_test: tests/io_host_test.c drivers/io_manager.c include/io.h | $(BUILD)
-	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/io_host_test.c drivers/io_manager.c
+	$(HOSTCC) -std=gnu99 -Wall -Wextra -DFLAIROS_HOST_TEST -Iinclude -o $@ tests/io_host_test.c drivers/io_manager.c
 
 $(BUILD)/fb_host_test: tests/fb_host_test.c kernel/fb.c include/fb.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/fb_host_test.c kernel/fb.c
@@ -498,7 +538,7 @@ $(BUILD)/vm_region_host_test: tests/vm_region_host_test.c drivers/vm_region.c in
 $(BUILD)/cursor_host_test: tests/cursor_host_test.c kernel/cursor.c kernel/bmp.c kernel/airgraph.c kernel/fb.c include/cursor.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -DFLAIROS_HOST_TEST -Iinclude -o $@ tests/cursor_host_test.c kernel/cursor.c kernel/bmp.c kernel/airgraph.c kernel/fb.c
 
-test: $(BUILD)/textile.img $(BUILD)/livecd.iso $(BUILD)/bootcd.iso $(BUILD)/airgraph_host_test $(BUILD)/driver_host_test $(BUILD)/io_host_test $(BUILD)/fb_host_test $(BUILD)/ata_identify_host_test $(BUILD)/pmm_host_test $(BUILD)/vm_region_host_test $(BUILD)/desktop_render_host_test $(BUILD)/desktop_chrome_host_test $(BUILD)/windown_host_test $(BUILD)/task_host_test $(BUILD)/elf_host_test $(BUILD)/vfs_host_test $(BUILD)/bmp_host_test $(BUILD)/image_host_test $(BUILD)/cursor_host_test $(BUILD)/fat32_host_test $(BUILD)/airnim_host_test $(BUILD)/status_host_test $(BUILD)/sprunkui_anim_host_test
+test: $(BUILD)/textile.img $(BUILD)/livecd.iso $(BUILD)/bootcd.iso $(BUILD)/airgraph_host_test $(BUILD)/driver_host_test $(BUILD)/io_host_test $(BUILD)/fb_host_test $(BUILD)/ata_identify_host_test $(BUILD)/pmm_host_test $(BUILD)/vm_region_host_test $(BUILD)/desktop_render_host_test $(BUILD)/desktop_chrome_host_test $(BUILD)/windown_host_test $(BUILD)/task_host_test $(BUILD)/elf_host_test $(BUILD)/vfs_host_test $(BUILD)/bmp_host_test $(BUILD)/image_host_test $(BUILD)/cursor_host_test $(BUILD)/fat32_host_test $(BUILD)/airnim_host_test $(BUILD)/status_host_test $(BUILD)/sprunkui_anim_host_test $(BUILD)/airjson_host_test $(BUILD)/desktop_theme_host_test $(BUILD)/airp_host_test
 	$(BUILD)/airgraph_host_test
 	$(BUILD)/fb_host_test
 	$(BUILD)/driver_host_test
@@ -509,6 +549,9 @@ test: $(BUILD)/textile.img $(BUILD)/livecd.iso $(BUILD)/bootcd.iso $(BUILD)/airg
 	$(BUILD)/desktop_render_host_test
 	$(BUILD)/desktop_chrome_host_test
 	$(BUILD)/windown_host_test
+	$(BUILD)/airjson_host_test
+	$(BUILD)/desktop_theme_host_test
+	$(BUILD)/airp_host_test
 	$(BUILD)/airnim_host_test
 	$(BUILD)/status_host_test
 	$(BUILD)/sprunkui_anim_host_test

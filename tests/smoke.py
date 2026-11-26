@@ -85,7 +85,7 @@ def boot(tag, cmds):
 
 
 text = boot('first', ['help', 'time', 'uptime', 'in 60', 'echo hello textile', 'sqr 10 5', 'net',
-                      'beep 523 50', 'mem', 'format', 'save note persistok', 'run'])
+                      'beep 523 50', 'mem', 'format', 'save note persistok', 'run', 'run'])
 
 with open(disk, 'rb') as f:
     head = f.read(398 * 512 + 4)
@@ -95,16 +95,16 @@ disk_is_30mb = os.path.getsize(disk) == 30 * 1024 * 1024
 text2 = boot('reboot', ['load note'])
 
 checks = [
-    ('kernel banner', 'FlareOS 0.3'),
+    ('kernel banner', 'KERNEL 0.3'),
     ('AirGraph pixel desktop initializes', 'display: AirGraph pixel desktop active'),
     ('desktop never falls back to VGA', 'VGA recovery mode active' not in text),
     ('Settings AIRP launches', 'desktop: open settings'),
     ('Notes AIRP launches', 'desktop: open notes'),
     ('desktop boots first', 'desktop: start'),
     ('no kernel panic', 'PANIC' not in text.upper()),
-    ('ctrl+alt+d opens the desktop Terminal', 'desktop: open terminal'),
-    ('help list', 'Commands:'),
-    ('help lists net', 'net            show'),
+    ('ctrl+alt+d opens the developer console', 'desktop: exit'),
+    ('help list', 'COMMAND REFERENCE'),
+    ('help lists net', '  net              show'),
     ('help lists beep', 'beep HZ MS'),
     ('clock', re.compile(r'20\d\d-\d\d-\d\d \d\d:\d\d:\d\d')),
     ('uptime from timer', re.compile(r'up \d+ s')),
@@ -115,7 +115,7 @@ checks = [
     ('net mac', re.compile(r'mac (?:[0-9A-F]{2}:){5}[0-9A-F]{2}')),
     ('net link state', re.compile(r'link (up|down)')),
     ('beep command', 'beep 523 Hz'),
-    ('pmm reads e820 map', re.compile(r'pmm: e820 regions [1-9]')),
+    ('pmm reads e820 map', re.compile(r'pmm: E820 regions [1-9]')),
     ('pmm free memory', re.compile(r'pmm: \d+ MB free of \d+ MB managed')),
     ('pmm selftest', 'pmm: selftest passed'),
     ('kheap selftest', 'kheap: selftest passed'),

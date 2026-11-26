@@ -16,6 +16,14 @@
 #include "../include/vfs.h"
 #include "../include/drv_net.h"
 #include "../include/hwinfo.h"
+/* FlairDesktop.airp is staged by stage 1 at 0x94000: above the Explorer staging
+   buffer and below the VGA aperture at 0xA0000. It is a component package, so
+   this buffer holds a manifest and resources rather than an executable.
+   kernel/desktop_theme.c reads it, but is not linked into this image yet: the
+   i386 kernel is at its 0x30000 static-memory ceiling, so the theme currently
+   comes from the built-in palette. See docs/architecture/MEMORY_ARCHITECTURE.md. */
+#define DESKTOP_PACKAGE_STAGE ((const u8 *)0x94000)
+#define DESKTOP_PACKAGE_BYTES (16u * 512u)
 
 void pointer_set_display(int width, int height);
 
@@ -45,6 +53,9 @@ static struct ag_viewport display_viewport;
 static struct sp_theme desktop_ui_theme;
 static struct sp_context desktop_ui_context;
 static int display_ready;
+
+/* AirGraph surfaces are XRGB8888 with an unused high byte. */
+#define XRGB_MASK 0x00FFFFFFu
 static int display_attempted;
 static unsigned int active_profile =
 #if defined(FLAIROS_DEVICE_TV) || defined(FLAIROS_DISPLAY_4K)
@@ -239,6 +250,35 @@ static void desktop_ui_draw_text(struct ag_surface *surface, int32_t x,
     }
 }
 
+struct sp_theme *desktop_gfx_theme(void) {
+    return &desktop_ui_theme;
+}
+
+/* Installs a sanitised session theme. The desktop package loader fills a
+   candidate theme and this applies it; bounds are re-checked here so a caller
+   cannot install a theme that breaks layout. */
+void desktop_gfx_apply_theme(const struct sp_theme *theme) {
+    if (!theme)
+        return;
+    desktop_ui_theme.color.background = theme->color.background & XRGB_MASK;
+    desktop_ui_theme.color.surface = theme->color.surface & XRGB_MASK;
+    desktop_ui_theme.color.elevated = theme->color.elevated & XRGB_MASK;
+    desktop_ui_theme.color.border = theme->color.border & XRGB_MASK;
+    desktop_ui_theme.color.text = theme->color.text & XRGB_MASK;
+    desktop_ui_theme.color.muted = theme->color.muted & XRGB_MASK;
+    desktop_ui_theme.color.accent = theme->color.accent & XRGB_MASK;
+    desktop_ui_theme.color.accent_text = theme->color.accent_text & XRGB_MASK;
+    desktop_ui_theme.color.success = theme->color.success & XRGB_MASK;
+    desktop_ui_theme.color.warning = theme->color.warning & XRGB_MASK;
+    desktop_ui_theme.color.danger = theme->color.danger & XRGB_MASK;
+    desktop_ui_theme.radius = theme->radius < 0 ? 0 :
+        (theme->radius > 28 ? 28 : theme->radius);
+    desktop_ui_theme.spacing = theme->spacing < 0 ? 0 :
+        (theme->spacing > 40 ? 40 : theme->spacing);
+    desktop_ui_theme.border_width = theme->border_width < 0 ? 0 :
+        (theme->border_width > 8 ? 8 : theme->border_width);
+}
+
 struct sp_context *desktop_gfx_ui_context(void) {
     return display_ready ? &desktop_ui_context : 0;
 }
@@ -422,12 +462,11 @@ int desktop_gfx_init(void) {
     }
 
     display_ready = 1;
+    /* Start from the built-in Material 3 palette so every field has a value.
+       The desktop package's theme resource is validated and tested by
+       kernel/desktop_theme.c, but installing it here needs static-memory
+       headroom this image does not have yet. */
     sp_theme_default(&desktop_ui_theme);
-    {
-        unsigned char accent = 0;
-        if (fs_kernel_read_file("UI.CFG", &accent, 1) == 1 && accent <= 1)
-            desktop_ui_theme.color.accent = accent ? 0x000F9D8Au : 0x006750A4u;
-    }
     desktop_ui_context.device = &display_device;
     desktop_ui_context.surface = desktop_render_surface();
     desktop_ui_context.theme = &desktop_ui_theme;

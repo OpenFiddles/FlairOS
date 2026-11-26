@@ -1,0 +1,21 @@
+{
+  "name": "FlairOS Default",
+  "variant": "dark",
+  "accent": "violet",
+  "radius": 12,
+  "spacing": 10,
+  "border_width": 1,
+  "colors": {
+    "background": "141218",
+    "surface": "211F26",
+    "elevated": "2B2930",
+    "border": "49454F",
+    "text": "E6E0E9",
+    "muted": "CAC4D0",
+    "accent": "6750A4",
+    "accent_text": "FFFFFF",
+    "success": "2E9E6B",
+    "warning": "E6A23C",
+    "danger": "E5534B"
+  }
+}

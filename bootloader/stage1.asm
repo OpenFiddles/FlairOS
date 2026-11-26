@@ -1,5 +1,5 @@
 ; Stage 1 loads built-in AIRP apps from reserved sectors after filesystem data
-; (LBA 2447..2590), stages them below TX_APP_BASE, and probes optional
+; (LBA 2447..2606), stages them below TX_APP_BASE, and probes optional
 ; MicroPython at LBA 2623..2879. The primary filesystem occupies LBA 398..2446.
 [BITS 16]
 [ORG 0x7C00]
@@ -15,6 +15,8 @@ SETTINGS_LBA     equ 2543
 SETTINGS_SECTORS equ 32
 NOTES_LBA        equ 2575
 NOTES_SECTORS    equ 16
+DESKTOP_LBA      equ 2591
+DESKTOP_SECTORS  equ 16
 PYTHON_SECTORS   equ 257
 
 start:
@@ -85,6 +87,16 @@ start:
     mov word [lba], NOTES_LBA
     mov word [offset], 0
     mov word [remaining], NOTES_SECTORS
+    call load_range
+
+    ; Load the FlairDesktop session package to 0x9400:0x0000 (Physical 0x94000).
+    ; It is a component package (manifest plus resources, no executable), so it
+    ; lives above the Explorer staging buffer and below the VGA aperture.
+    mov ax, 0x9400
+    mov es, ax
+    mov word [lba], DESKTOP_LBA
+    mov word [offset], 0
+    mov word [remaining], DESKTOP_SECTORS
     call load_range
 
     ; Probe the optional MicroPython AIRP slot. Only load the remaining sectors

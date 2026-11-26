@@ -1,0 +1,11 @@
+{
+  "dock": ["welcome", "terminal", "files", "settings", "notes"],
+  "pinned": ["terminal", "files"],
+  "start_menu": [
+    { "id": "welcome", "label": "Welcome", "target": "app:hello" },
+    { "id": "terminal", "label": "Terminal", "target": "app:terminal" },
+    { "id": "files", "label": "Files", "target": "app:explorer" },
+    { "id": "settings", "label": "Settings", "target": "app:settings" },
+    { "id": "notes", "label": "Notes", "target": "app:notes" }
+  ]
+}

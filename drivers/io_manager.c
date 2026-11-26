@@ -229,7 +229,11 @@ unsigned int io_device_count(void) {
 
 
 /* ---- Boot-time self-test (requirement REQ-IO-1 .. REQ-IO-6, see docs/REQUIREMENTS.md) ---- */
+#ifdef FLAIROS_HOST_TEST
+static void serial_str(const char *s) { (void)s; }
+#else
 void serial_str(const char *s);
+#endif
 
 struct io_selftest_ext { unsigned char data[32]; unsigned int size; };
 
