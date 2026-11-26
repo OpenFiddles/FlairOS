@@ -14,34 +14,63 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-test:
-    name: Build and test (i386)
+  # The gating job. The product is the 64-bit line: desktop, mobile and tv
+  # shells on x86_64 and aarch64, plus the host tests over the shared kernel.
+  presets-64:
+    name: 64-bit presets and host tests
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install 64-bit toolchain
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq clang lld llvm binutils make python3 > /dev/null
+
+      - name: Build desktop, mobile and tv for x86_64 and aarch64
+        run: python3 tools/build_preset.py --all
+
+      - name: Assert every preset image exists
+        run: |
+          for p in desktop mobile tv; do
+            test -s "build-presets/$p-x86_64/flairos-$p-x86_64.mb.elf"
+            test -s "build-presets/$p-aarch64/flairos-$p-aarch64.elf"
+          done
+
+      - name: Host tests over the shared kernel sources
+        run: make test
+
+      - name: Upload 64-bit preset images
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flairos-64-presets
+          path: build-presets/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # The i386 reference build. It still builds and boots, but it is opt-in and
+  # never blocks a pull request: nothing the product depends on lives here.
+  legacy-i386:
+    name: Legacy i386 image (manual, non-blocking)
+    if: github.event_name == 'workflow_dispatch'
+    continue-on-error: true
     runs-on: ubuntu-22.04
     timeout-minutes: 25
     steps:
       - name: Check out source
         uses: actions/checkout@v4
 
-      - name: Install toolchain
+      - name: Install i386 toolchain
         run: |
           sudo apt-get update -qq
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nasm gcc-multilib binutils make python3 qemu-system-x86 xorriso > /dev/null
 
-      - name: Architecture guard
+      - name: Build the legacy floppy, LiveCD and Setup images
         run: |
-          make -n ARCH=i386 > /dev/null
-          if make -n ARCH=x86_64 > /dev/null 2>&1; then
-            echo "x86_64 must be refused until it has a boot layer"
-            exit 1
-          fi
-          if make -n ARCH=arm > /dev/null 2>&1; then
-            echo "arm must be refused until it has a boot layer"
-            exit 1
-          fi
-
-      - name: Build disk image
-        run: |
-          make ARCH=i386 boot-media
+          make legacy
           test -s build/textile.img
           test -s build/livecd.iso
           test -s build/bootcd.iso
@@ -49,52 +78,27 @@ jobs:
       - name: Validate LiveCD and Setup boot media
         run: python3 tests/boot_media_test.py build/livecd.iso build/bootcd.iso
 
-      - name: QEMU desktop and filesystem smoke (diagnostic)
+      - name: Boot layout and AIRP boundary checks
+        run: python3 tests/boot_layout_test.py
+
+      - name: QEMU desktop smoke (diagnostic)
         continue-on-error: true
         run: python3 tests/smoke.py build/textile.img
 
       - name: Validate built-in Settings and Notes AIRP packages
         run: python3 tests/airp_apps_test.py build/settings.airp build/notes.airp
 
-      - name: AirGraph, desktop chrome, and image tests
-        run: |
-          make ARCH=i386 build/airgraph_host_test build/desktop_render_host_test build/desktop_chrome_host_test build/bmp_host_test build/image_host_test
-          build/airgraph_host_test
-          build/desktop_render_host_test
-          build/desktop_chrome_host_test
-          build/bmp_host_test
-          build/image_host_test
-
-      - name: Boot layout and app-memory safety tests
-        run: python3 tests/boot_layout_test.py
-
-      - name: Build 4K AirGraph profile
-        run: |
-          make ARCH=i386 DISPLAY=4k BUILD=build-4k
-          test -s build-4k/textile.img
-
-      - name: Build standalone GUI Terminal app
-        run: make terminal-app
-
-      - name: Filesystem tests (non-blocking)
-        continue-on-error: true
-        run: make fs-test
-
-      - name: Boot layout and AIRP boundary tests (non-blocking)
-        continue-on-error: true
-        run: python3 tests/boot_layout_test.py
-
-      - name: Upload disk image
+      - name: Upload legacy disk image
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: flairOS-i386-image
+          name: flairOS-i386-legacy
           path: build/textile.img
           if-no-files-found: ignore
           retention-days: 7
 
   airp-explorer:
-    name: Build Explorer AIRP
+    name: Build Explorer AIRP (i386 userland)
     runs-on: ubuntu-22.04
     continue-on-error: true
     steps:
@@ -144,7 +148,7 @@ jobs:
           if-no-files-found: ignore
 
   cmake-ninja:
-    name: CMake + Ninja (non-blocking)
+    name: CMake + Ninja (legacy i386, non-blocking)
     runs-on: ubuntu-22.04
     continue-on-error: true
     steps:
@@ -161,8 +165,8 @@ jobs:
 
   pages:
     name: Deploy web emulator to GitHub Pages
-    if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs['build-test'].result == 'success'
-    needs: [build-test, micropython-port]
+    if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs['presets-64'].result == 'success'
+    needs: [presets-64, micropython-port]
     runs-on: ubuntu-22.04
     permissions:
       contents: read
@@ -177,7 +181,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nasm gcc-multilib binutils make seabios vgabios xorriso python3 > /dev/null
-          make ARCH=i386 boot-media
+          make legacy
           mkdir -p public/v86 /tmp/v86
           cp web/index.html public/index.html
           cp build/textile.img public/textile-standard.img

@@ -27,8 +27,8 @@ assert len(sys.argv) == 3, "usage: boot_media_test.py LIVE.iso BOOT.iso"
 check_iso(sys.argv[1])
 check_iso(sys.argv[2])
 root = pathlib.Path(__file__).resolve().parents[1]
-stage2 = (root / "bootloader/stage2.asm").read_text()
-bootinfo = (root / "bootloader/bootinfo.inc").read_text()
+stage2 = (root / "legacy/i386/bootloader/stage2.asm").read_text()
+bootinfo = (root / "legacy/i386/bootloader/bootinfo.inc").read_text()
 entry_asm = (root / "kernel/boot/entry.asm").read_text()
 boot_c = (root / "kernel/boot/boot.c").read_text()
 boot_h = (root / "include/boot.h").read_text()

@@ -19,7 +19,7 @@ TMP_DIR="${PREFIX:-/tmp}/tmp"
 mkdir -p "$TMP_DIR"
 cd "$ROOT"
 
-make -j4 all storage-image >/dev/null
+make -j4 legacy >/dev/null
 
 export XDG_RUNTIME_DIR="$TMP_DIR"
 export DISPLAY=:0

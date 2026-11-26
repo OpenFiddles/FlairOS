@@ -17,7 +17,7 @@ case "$CMD" in
       exit 0
     fi
     cd "$ROOT"
-    make -j4 all storage-image >/dev/null
+    make -j4 legacy >/dev/null
     nohup qemu-system-i386 \
       -fda build/textile.img \
       -hda build/storage.img \

@@ -14,10 +14,10 @@ def source(path):
     return (ROOT / path).read_text()
 
 
-stage = source("bootloader/stage1.asm")
-stage2 = source("bootloader/stage2.asm")
-bootinfo = source("bootloader/bootinfo.inc")
-images = source("bootloader/loader/images.inc")
+stage = source("legacy/i386/bootloader/stage1.asm")
+stage2 = source("legacy/i386/bootloader/stage2.asm")
+bootinfo = source("legacy/i386/bootloader/bootinfo.inc")
+images = source("legacy/i386/bootloader/loader/images.inc")
 fs = source("include/fs.h")
 fs_kernel = source("kernel/fs/fs.c")
 airp = source("include/airp.h")

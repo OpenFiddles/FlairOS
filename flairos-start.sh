@@ -355,7 +355,7 @@ vnc_status() {
 # ---------------------------------------------------------------------------
 i386_image() {
   log "building i386 reference image (regression only, not the product)"
-  make -j"$(nproc)" all storage-image
+  make -j"$(nproc)" legacy
   [ -s build/textile.img ] || die "build/textile.img missing"
   ok "i386 image: build/textile.img ($(stat -c%s build/textile.img) bytes)"
 }

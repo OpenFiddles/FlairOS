@@ -2,6 +2,11 @@ import os, re, socket, subprocess, sys, tempfile, time
 
 img = sys.argv[1] if len(sys.argv) > 1 else 'build/textile.img'
 qemu = os.environ.get('QEMU', 'qemu-system-i386')
+if not os.environ.get('QEMU') and not any(
+        os.path.exists(os.path.join(d, 'qemu-system-i386')) for d in os.environ.get('PATH', '').split(os.pathsep)):
+    # qemu-system-x86_64 boots the same 32-bit floppy; use it when the i386
+    # binary is not installed.
+    qemu = 'qemu-system-x86_64'
 work = tempfile.mkdtemp()
 
 disk = os.path.join(work, 'storage-30mb.img')

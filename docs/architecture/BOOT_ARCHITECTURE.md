@@ -1,15 +1,17 @@
 # Boot architecture
 
-The i386 BIOS path is the only boot path that reaches a desktop. This document
-describes it exactly as implemented, and states where the AArch64 entry point
-stands.
+The i386 BIOS path is the legacy reference build. It lives in `legacy/i386/`,
+still builds and still boots, but the product boots through
+`arch/x86_64/boot.S` and `arch/aarch64/boot.S` into `kernel/boot/kmain64.c`.
+This document describes the i386 path exactly as implemented, because it is the
+one that has been booted end to end from real firmware.
 
 ## Two-stage BIOS boot
 
 A 1.44 MB floppy image (`build/textile.img`) is the boot medium. There is no
 UEFI support, and none is claimed.
 
-### Stage 1 — boot sector (`bootloader/stage1.asm`, 512 bytes, LBA 0)
+### Stage 1 — boot sector (`legacy/i386/bootloader/stage1.asm`, 512 bytes, LBA 0)
 
 Loaded by BIOS at `0x7C00` in real mode. It does one job:
 
@@ -17,11 +19,11 @@ Loaded by BIOS at `0x7C00` in real mode. It does one job:
 2. Read the loader (6 sectors, LBA 1) to `0x0000:0x9000`.
 3. Pass the boot drive in `DL` and jump to the loader.
 
-Sector reads go through `bootloader/loader/disk.inc`, which translates an LBA
+Sector reads go through `legacy/i386/bootloader/loader/disk.inc`, which translates an LBA
 to CHS geometry. The fixed 1.44 MB geometry keeps this inside the 512-byte
 sector; the loader uses the BIOS extended disk interface instead.
 
-### Stage 2 — loader (`bootloader/stage2.asm` + `bootloader/loader/*.inc`)
+### Stage 2 — loader (`legacy/i386/bootloader/stage2.asm` + `legacy/i386/bootloader/loader/*.inc`)
 
 The loader is loaded at `0x9000` and does the work a boot sector has no room
 for:
@@ -59,13 +61,13 @@ for:
 | Desktop package | 2591 | `0x94000` | 16 |
 | MicroPython (optional) | 2623 | `0x60000` | 257 |
 
-The table in `bootloader/loader/images.inc` is the single description of this
+The table in `legacy/i386/bootloader/loader/images.inc` is the single description of this
 layout; `tests/boot_layout_test.py` parses it and checks the extents against the
 image build.
 
 ### Boot protocol
 
-`bootloader/bootinfo.inc` and `include/boot.h` define one versioned block at
+`legacy/i386/bootloader/bootinfo.inc` and `include/boot.h` define one versioned block at
 `0x4000` (protocol version 2). Its 60 header bytes are checksummed and the E820
 map follows at `0x4040`:
 

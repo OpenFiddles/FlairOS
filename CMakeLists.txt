@@ -122,20 +122,20 @@ endif()
 
 # --- Bootloader Stages ---
 file(GLOB BOOTLOADER_INCLUDES CONFIGURE_DEPENDS
-    "${S}/bootloader/*.inc" "${S}/bootloader/loader/*.inc")
+    "${S}/legacy/i386/bootloader/*.inc" "${S}/legacy/i386/bootloader/loader/*.inc")
 add_custom_command(
     OUTPUT "${B}/stage1.bin"
-    COMMAND "${NASM_BIN}" -f bin -I "${S}/bootloader/" "${S}/bootloader/stage1.asm" -o "${B}/stage1.bin"
-    DEPENDS "${S}/bootloader/stage1.asm" ${BOOTLOADER_INCLUDES}
+    COMMAND "${NASM_BIN}" -f bin -I "${S}/legacy/i386/bootloader/" "${S}/legacy/i386/bootloader/stage1.asm" -o "${B}/stage1.bin"
+    DEPENDS "${S}/legacy/i386/bootloader/stage1.asm" ${BOOTLOADER_INCLUDES}
     COMMENT "Assembling stage1.bin"
 )
 
 macro(add_stage2_variant TARGET_FILE MODE)
     add_custom_command(
         OUTPUT "${B}/${TARGET_FILE}"
-        COMMAND "${NASM_BIN}" -f bin -I "${S}/bootloader/" -D "FORCE_BOOT_MODE=${MODE}" "${S}/bootloader/stage2.asm" -o "${B}/${TARGET_FILE}"
+        COMMAND "${NASM_BIN}" -f bin -I "${S}/legacy/i386/bootloader/" -D "FORCE_BOOT_MODE=${MODE}" "${S}/legacy/i386/bootloader/stage2.asm" -o "${B}/${TARGET_FILE}"
         COMMAND "${PYTHON3_BIN}" "${S}/tools/check_size.py" "${B}/${TARGET_FILE}" 3072 3072
-        DEPENDS "${S}/bootloader/stage2.asm" ${BOOTLOADER_INCLUDES}
+        DEPENDS "${S}/legacy/i386/bootloader/stage2.asm" ${BOOTLOADER_INCLUDES}
         COMMENT "Assembling ${TARGET_FILE}"
     )
 endmacro()
@@ -149,9 +149,9 @@ set(KERNEL_ASM_OBJS "")
 foreach(asm_name entry isr usermode)
     add_custom_command(
         OUTPUT "${B}/${asm_name}.o"
-        COMMAND "${NASM_BIN}" -f elf32 "${S}/kernel/${asm_name}.asm" -o "${B}/${asm_name}.o"
-        DEPENDS "${S}/kernel/${asm_name}.asm"
-        COMMENT "Assembling kernel/${asm_name}.asm"
+        COMMAND "${NASM_BIN}" -f elf32 "${S}/kernel/boot/${asm_name}.asm" -o "${B}/${asm_name}.o"
+        DEPENDS "${S}/kernel/boot/${asm_name}.asm"
+        COMMENT "Assembling kernel/boot/${asm_name}.asm"
     )
     list(APPEND KERNEL_ASM_OBJS "${B}/${asm_name}.o")
 endforeach()
@@ -160,7 +160,7 @@ endforeach()
 file(GLOB_RECURSE DRV_SRCS CONFIGURE_DEPENDS "${S}/drivers/*.c")
 
 set(KERNEL_C_SRCS
-    "${S}/arch/i386/hal.c"
+    "${S}/legacy/i386/arch/hal.c"
     "${S}/kernel/ui/desktop.c"
     "${S}/kernel/ui/mobile.c"
     "${S}/kernel/ui/desktop_gfx.c"

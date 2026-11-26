@@ -23,7 +23,7 @@ enum flair_boot_mode {
     FLAIR_BOOT_DIAGNOSTICS = 4
 };
 
-/* Field-for-field mirror of bootloader/bootinfo.inc. The loader writes this
+/* Field-for-field mirror of legacy/i386/bootloader/bootinfo.inc. The loader writes this
    block, followed by e820_count entries of flair_e820_entry at e820_addr. */
 struct flair_boot_info {
     u32 magic;

@@ -1,10 +1,13 @@
-# Bootloader
+# Bootloader (legacy i386)
 
-The BIOS boot path for the i386 image. It builds with NASM into one 512-byte
+The BIOS boot path for the i386 reference image. This tree is kept complete and
+bootable but is no longer the product: the 64-bit line boots through
+`arch/x86_64/boot.S` and `arch/aarch64/boot.S` into `kernel/boot/kmain64.c`.
+Build it with `make legacy`. It builds with NASM into one 512-byte
 boot sector and one 6-sector loader; `bootinfo.inc` is shared with the kernel.
 
 ```
-bootloader/
+legacy/i386/bootloader/
 ├── bootinfo.inc      boot protocol constants and disk extents (shared)
 ├── stage1.asm        boot sector: console, load the loader, jump
 ├── stage2.asm        loader entry: menu, images, verification, handoff
@@ -21,8 +24,8 @@ bootloader/
 Assemble with the include path so the modules resolve:
 
 ```
-nasm -f bin -I bootloader/ bootloader/stage1.asm -o stage1.bin
-nasm -f bin -I bootloader/ -D FORCE_BOOT_MODE=0 bootloader/stage2.asm -o stage2.bin
+nasm -f bin -I legacy/i386/bootloader/ legacy/i386/bootloader/stage1.asm -o stage1.bin
+nasm -f bin -I legacy/i386/bootloader/ -D FORCE_BOOT_MODE=0 legacy/i386/bootloader/stage2.asm -o stage2.bin
 ```
 
 `FORCE_BOOT_MODE` picks the image: `0` normal (interactive menu), `1` live,

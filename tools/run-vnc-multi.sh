@@ -27,7 +27,7 @@ case "$CMD" in
     stop_one mobile-a64
     stop_one tv-a64
 
-    make -j4 all storage-image >/dev/null
+    make -j4 legacy >/dev/null
     python3 "$ROOT/tools/build_preset.py" --all >/dev/null
 
     # 0) Termux Host Bridge -> 127.0.0.1:5910

@@ -9,7 +9,7 @@ board bootable by itself.
 ## Current implementation
 
 - `include/hal.h` defines CPU-control and legacy port-I/O contracts.
-- `arch/i386/hal.c` implements the contract for the current i386 target.
+- `legacy/i386/arch/hal.c` implements the contract for the current i386 target.
 - `arch/aarch64/hal.c` provides AArch64 CPU interrupt/wait primitives and
   explicitly rejects x86-style port I/O. It is groundwork, not a complete
   mobile or AArch64 platform port.

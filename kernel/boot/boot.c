@@ -1,6 +1,6 @@
 #include "../../include/boot.h"
 
-/* The loader publishes a checksummed block at 0x4000 (bootloader/bootinfo.inc).
+/* The loader publishes a checksummed block at 0x4000 (legacy/i386/bootloader/bootinfo.inc).
    A block that fails the checksum is treated as absent: the kernel then falls
    back to the version 1 handoff, and reports no loader facts. */
 static enum flair_boot_mode active_mode = FLAIR_BOOT_NORMAL;

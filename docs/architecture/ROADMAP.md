@@ -5,6 +5,14 @@ item. Nothing here is a promise about dates.
 
 ## Immediate
 
+### 0. i386 is retired to `legacy/`
+
+Done: the BIOS loader and `arch/i386` live under `legacy/i386/`, `make` builds
+the 64-bit presets instead, i386 is reachable only through `make legacy` and
+`make legacy-test`, and CI gates on the 64-bit build plus the host tests with
+the i386 job manual and non-blocking. The i386 image is still produced and still
+boots; it is deleted only once the 64-bit image boots from disk.
+
 ### 1. Make the 64-bit target bootable
 
 The direction is decided: **64-bit is the product, and AArch64 and x86_64 are the

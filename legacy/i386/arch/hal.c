@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
 /* i386 CPU and legacy PC I/O + MMIO backend. */
-#include "../../include/hal.h"
+#include "../../../include/hal.h"
 
 int hal_early_init(void) { return 0; }
 const char *hal_arch_name(void) { return "i386"; }

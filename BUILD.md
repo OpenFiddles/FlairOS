@@ -8,8 +8,17 @@ A small x86 hobby kernel: a 512-byte boot sector loads a 64-sector kernel, switc
 
 ## Build and run
 
-    make            # builds build/textile.img (1.44 MB floppy image)
-    make run        # boots in QEMU, serial output in the terminal
-    make test       # headless boot + keyboard test (tests/smoke.py), with an RTL8139 attached
+The product is the 64-bit line: desktop, mobile and TV shells on x86_64 and
+aarch64. It needs clang, ld.lld, llvm-objcopy and python3.
 
-Needs nasm, gcc with 32-bit support (gcc-multilib on Debian/Ubuntu), ld, objcopy and qemu-system-i386.
+    make                      # builds all six 64-bit preset images
+    ./flairos-start.sh verify # boots them headless and checks render=ok
+    make test                 # host tests over the shared kernel sources
+
+The i386 image is the legacy reference build. It is kept bootable but is no
+longer built by default; it needs nasm, gcc with 32-bit support (gcc-multilib on
+Debian/Ubuntu), ld, objcopy, xorriso and qemu-system-i386.
+
+    make legacy      # builds build/textile.img, the LiveCD and the Setup boot CD
+    make legacy-test # host tests plus the i386 boot, layout and media tests
+    make run         # boots the i386 image in QEMU, serial output in the terminal

@@ -34,8 +34,8 @@ is going*. The gap between those two things is the whole of the roadmap.
 
 | Layer | Responsibility | Location |
 | --- | --- | --- |
-| Firmware interface | BIOS calls, disk reads, memory map, video mode | `bootloader/` |
-| Boot management | Boot modes, staging, handoff, recovery | `bootloader/`, `kernel/boot/boot.c` |
+| Firmware interface | BIOS calls, disk reads, memory map, video mode | `legacy/i386/bootloader/` |
+| Boot management | Boot modes, staging, handoff, recovery | `legacy/i386/bootloader/`, `kernel/boot/boot.c` |
 | Kernel | Interrupts, syscalls, scheduler, panics | `kernel/` |
 | Memory | Physical frames, paging, heap | `drivers/pmm.c`, `drivers/vm.c`, `drivers/kheap.c` |
 | Hardware abstraction | Port I/O and per-architecture primitives | `arch/*/hal.c`, `include/hal.h` |

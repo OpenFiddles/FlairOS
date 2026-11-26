@@ -31,7 +31,7 @@ yet, which tends to produce abstractions that fit nothing.
 
 | Port | File | Completeness |
 | --- | --- | --- |
-| i386 | `arch/i386/hal.c` | Complete; the working target |
+| i386 | `legacy/i386/arch/hal.c` | Complete; the working target |
 | AArch64 | `arch/aarch64/hal.c` | Bring-up: serial, timer, halt. Port I/O returns failure |
 | x86_64 | `arch/x86_64/hal.c` | Present but not a supported build target |
 

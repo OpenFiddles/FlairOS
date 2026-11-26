@@ -5,7 +5,7 @@ extern kmain
 extern __bss_start
 extern __bss_end
 
-; The loader (bootloader/loader/images.inc) checks this header before it jumps
+; The loader (legacy/i386/bootloader/loader/images.inc) checks this header before it jumps
 ; here. The entry point is the two-byte jump; the header it skips declares what
 ; the image is and how many sectors it should occupy.
 ;

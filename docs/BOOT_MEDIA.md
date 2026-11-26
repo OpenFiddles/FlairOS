@@ -2,7 +2,7 @@
 
 ## Images
 
-- `make boot-media` builds both optical images.
+- `make legacy boot-media` builds both optical images (the i386 line is opt-in).
 - `build/livecd.iso` boots directly into the existing FlairOS desktop in Live mode.
 - `build/bootcd.iso` boots into the non-destructive FlairOS Setup center.
 - `build/textile.img` remains the legacy normal-boot floppy image.
