@@ -133,6 +133,12 @@ OBJS = $(BUILD)/hal.o \
 presets:
 	python3 tools/build_preset.py --all
 
+# Boots every preset from its disk image under QEMU and asserts the captured
+# framebuffer, so a regression of the disk path fails instead of passing on a
+# log line. Needs qemu-system-x86_64 (KVM where available, TCG otherwise).
+verify-disk:
+	python3 tools/verify_disk_boot.py
+
 # --- Legacy i386 reference image (opt-in) ---
 legacy: $(BUILD)/textile.img $(BUILD)/livecd.iso $(BUILD)/bootcd.iso $(BUILD)/storage.img
 
@@ -595,7 +601,7 @@ acceptance: legacy-image
 clean:
 	rm -rf $(BUILD)
 
-.PHONY: presets legacy legacy-image run run-vnc win-demo test legacy-test acceptance clean livecd bootcd boot-media storage-image
+.PHONY: presets verify-disk legacy legacy-image run run-vnc win-demo test legacy-test acceptance clean livecd bootcd boot-media storage-image
 
 # --- SDK example app (built on request, not on the disk image) ---
 $(BUILD)/hello.o: examples/hello/hello.c sdk/flareos.h | $(BUILD)

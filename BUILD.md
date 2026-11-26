@@ -12,7 +12,8 @@ The product is the 64-bit line: desktop, mobile and TV shells on x86_64 and
 aarch64. It needs clang, ld.lld, llvm-objcopy and python3.
 
     make                      # builds all six 64-bit preset images
-    ./flairos-start.sh verify # boots them headless and checks render=ok
+    make verify-disk          # boots each x86_64 disk image, checks the screen
+    ./flairos-start.sh verify # boots the -kernel images headless
     make test                 # host tests over the shared kernel sources
 
 The i386 image is the legacy reference build. It is kept bootable but is no

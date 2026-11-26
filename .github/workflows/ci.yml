@@ -42,6 +42,17 @@ jobs:
       - name: Host tests over the shared kernel sources
         run: make test
 
+      - name: Install QEMU for the disk-boot assertion
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq qemu-system-x86 > /dev/null
+
+      # Boots each preset from its raw disk image (no -kernel, no floppy, no ISO)
+      # and asserts the captured framebuffer, so a regression of the disk path
+      # fails CI instead of passing on a log line.
+      - name: Disk boot to render=ok with framebuffer assertion
+        run: python3 tools/verify_disk_boot.py
+
       - name: Upload 64-bit preset images
         if: always()
         uses: actions/upload-artifact@v4

@@ -18,8 +18,13 @@ boots; it is deleted only once the 64-bit image boots from disk.
 The direction is decided: **64-bit is the product, and AArch64 and x86_64 are the
 same product line.** i386 is a reference implementation, not a destination.
 
-The repository does not yet have a bootable 64-bit desktop, which is the gap
-that matters:
+Status: **x86_64 boots from disk** — `tools/make_bootdisk.py` writes a raw image
+whose boot sector and loader read the kernel off disk sectors, and
+`make verify-disk` boots every preset from that image under QEMU and asserts the
+captured framebuffer. AArch64 is still `-kernel` only: QEMU `virt` has no
+firmware in this environment, so nothing can execute from a disk until a UEFI
+(EDK2) image is vendored, and the kernel has no virtio-blk driver yet. That is
+the remaining gap:
 
 | Option | Work required | What you get |
 | --- | --- | --- |

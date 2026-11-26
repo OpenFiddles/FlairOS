@@ -12,7 +12,8 @@ freecode reads this file before every change. Add anything it should always reme
 
 - i386: retired to `legacy/` (BIOS loader at `legacy/i386/bootloader/`, HAL at `legacy/i386/arch/hal.c`). It still builds and boots, but only on request: `make legacy` or `make legacy-test`. The default `make` builds the 64-bit presets, and CI gates on those plus `make test`; the i386 CI job is manual and non-blocking. Its kernel is pinned at `0x30000` static memory; that ceiling is why `kernel/ui/desktop_theme.c` + `kernel/pkg/airjson.c` are not linked into it.
 - AArch64: `cmake --preset arm64-phone` builds `build-arm64/flairos-arm64.bin`; booting it in QEMU `virt` prints the HAL banner and a DEX check, then halts. No display, heap, scheduler or shell yet.
-- x86_64: the 64-bit desktop/shell/ART sources (`ui/shells/`, `ui/systemui/`, `runtime/art/`, `kernel/boot/kmain64.c`) compile and are host-tested but have **no bootable image**; `CMakeLists.txt` rejects `FLAIROS_ARCH=x86_64`. The shell code itself is architecture-neutral (it renders into an `ag_surface`).
+- x86_64: boots from disk. `tools/build_preset.py` emits a Multiboot ELF *and* a raw disk image per preset; the image's boot sector and 16-bit loader (`tools/bootdisk/`) read the kernel off disk sectors with the BIOS, switch to protected mode and jump to the ELF entry. `make verify-disk` boots each preset from that image under QEMU and asserts the captured framebuffer; CI gates on it. `CMakeLists.txt` still rejects `FLAIROS_ARCH=x86_64` because the CMake path is the legacy i386 one.
+- aarch64: `-kernel` only. QEMU `virt` has no firmware here, and there is no virtio-blk driver, so nothing can be read or executed from a disk image yet. That is the blocker, not an untested claim.
 - Tooling in this workspace disappears after a server restart and must be reinstalled: `nasm`, `qemu-system-x86`/`qemu-system-arm`, `cmake`, `ninja-build`, `gcc-aarch64-linux-gnu`.
 
 ## House rules

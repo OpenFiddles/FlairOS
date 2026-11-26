@@ -37,6 +37,16 @@ COMMON_SRCS = [
     "net/bridge/host_bridge.c",
 ]
 
+def elf_entry(path):
+    """Read e_entry from an ELF64 header: the loader must jump to the real entry."""
+    import struct
+    with open(path, "rb") as f:
+        head = f.read(64)
+    if head[:4] != b"\x7fELF" or head[4] != 2:
+        raise RuntimeError(f"{path} is not an ELF64 image")
+    return struct.unpack_from("<Q", head, 24)[0]
+
+
 def run(cmd):
     res = subprocess.run(cmd, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     if res.returncode != 0:
@@ -95,9 +105,18 @@ def build_one(preset_name, arch):
     run(["ld.lld", "-m", ld_emul, "-nostdlib", "-T", ld_script, "-o", elf] + objs)
 
     if arch == "x86_64":
+        # Two boot media: a Multiboot ELF for `qemu -kernel`, and a raw disk
+        # image whose boot sector and loader read the kernel off disk sectors.
         mb_elf = os.path.join(out_dir, f"flairos-{preset_name}-{arch}.mb.elf")
         run([sys.executable, os.path.join(ROOT, "arch/x86_64/mb_wrap.py"), elf, mb_elf])
         print(f"[OK] {preset_name}/{arch}: {mb_elf} ({os.path.getsize(mb_elf)} bytes)")
+        flat = os.path.join(out_dir, f"flairos-{preset_name}-{arch}.bin")
+        run(["llvm-objcopy", "-O", "binary", elf, flat])
+        img = os.path.join(out_dir, f"flairos-{preset_name}-{arch}.img")
+        entry = elf_entry(elf)
+        run([sys.executable, os.path.join(ROOT, "tools/make_bootdisk.py"), flat, img,
+             "--entry", hex(entry)])
+        print(f"[OK] {preset_name}/{arch}: {img} ({os.path.getsize(img)} bytes)")
     else:
         bin_path = os.path.join(out_dir, f"flairos-{preset_name}-{arch}.bin")
         run(["llvm-objcopy", "-O", "binary", elf, bin_path])

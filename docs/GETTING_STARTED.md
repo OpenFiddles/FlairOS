@@ -29,8 +29,15 @@ From the repository root:
 
 ```sh
 make                    # all six 64-bit preset images
+make verify-disk        # boot each preset from its disk image, assert the screen
 make legacy             # legacy i386 floppy, LiveCD and Setup boot CD
 ```
+
+The x86_64 presets produce two media: a Multiboot ELF for `qemu -kernel`, and a
+raw disk image (`flairos-<preset>-x86_64.img`) whose boot sector and loader read
+the kernel off disk sectors. `make verify-disk` boots the disk image under QEMU,
+waits for the kernel's own `render=ok` line and checks the captured framebuffer
+dimensions and content.
 
 `make` writes the 64-bit images to `build-presets/<preset>-<arch>/`; `make
 legacy` writes the i386 image and optical media to `build/`. See
