@@ -51,8 +51,9 @@ keys.
   BSS's own parameters.
 - `wpa2.c` implements SHA-1, HMAC-SHA1, PBKDF2-HMAC-SHA1, the 802.11 PRF, the
   WPA2-PSK PMK (`PBKDF2(passphrase, SSID, 4096, 256)`), the PTK
-  (KCK/KEK/TK), EAPOL-Key MIC generation and verification, AES-128 (FIPS 197)
-  and RFC 3394 AES key wrap/unwrap for the group key.
+  (KCK/KEK/TK), EAPOL-Key MIC generation and verification, AES-128 (FIPS 197),
+  RFC 3394 AES key wrap/unwrap for the group key, and CCM (RFC 3610) plus the
+  802.11 CCMP nonce/AAD construction used for data frames.
 - `wifi_core.c` owns the adapter interface, the scan table, the connect state
   and the honest "no adapter" path. A driver registers `struct wifi_drv_ops`.
   There are two kinds of driver, and `wifi_raw_join()` says which is in use:
@@ -87,15 +88,35 @@ The station MAC and the 32-octet SNonce come from the platform
 and no random number generator; a raw join without them fails with a named
 reason. Open networks are joined without a PSK and need no SNonce.
 
+**Data path.** On a raw-frame link the core also carries traffic once the keys
+are in. `wifi_send_data()` builds a ToDS data frame and CCMP-protects it:
+with the pairwise TK for a unicast destination, or with the current GTK and
+its key index for a group-addressed one. `wifi_rx_frame()` treats a protected
+data frame as CCMP input, choosing the key from the CCMP header's key index,
+rejecting a packet number that is not above the last accepted one for that key,
+verifying the MIC before anything is delivered, and handing the payload to the
+callback registered with `wifi_set_data_rx()`. Packet numbers are tracked
+separately for the pairwise key and each group key index, in both directions.
+
+A group-key message 1 arriving on a live link is a GTK rekey: its MIC and
+replay counter are checked, the new GTK is unwrapped with the KEK, the driver
+is asked to install it, the key index is bumped, the new key's packet numbers
+start from zero, and the group-key message 2 goes back. The pairwise key and
+the link stay up. A bad rekey MIC, a replay regression or a rekey that does not
+change the key index tears the link down like any other join failure.
+
+A driver with only `connect` keeps the old behaviour: `wifi_data_ready()` is
+false, `wifi_send_data()` refuses, and nothing is decrypted.
+
 WPA2-Enterprise and WEP are refused with a named reason instead of attempted
 partially, as are WPA-PSK/TKIP networks on the raw-frame path.
 
-**Not implemented:** CCMP/TKIP data encryption and decryption (EAPOL frames are
-sent in the clear and the core neither encrypts nor decrypts data frames), GTK
-rekey after the join completes, 802.1X/EAP, regulatory-domain handling, power
-save, and any chip driver (there is no PCI, USB or SDIO WiFi device driver, and
-no radio firmware loading yet). No driver means no scan results and no link,
-which is what the core reports.
+**Not implemented:** TKIP, 802.1X/EAP, fragmentation and aggregation, A4 (WDS)
+and QoS transmit (a QoS header can be decrypted, but the core always sends a
+plain data frame), block-ack, regulatory-domain handling, power save, and any
+chip driver (there is no PCI, USB or SDIO WiFi device driver, and no radio
+firmware loading yet). No driver means no scan results and no link, which is
+what the core reports.
 
 **Desktop integration.** The status bar reads wireless link state through
 `link_read()` in `kernel/gfx/status.c`, which calls `net_device_ops.signal()`
@@ -126,7 +147,14 @@ a `signal` callback therefore shows signal strength without UI changes.
   associate status, MIC failures on 2/4, 3/4, 4/4 and the group message, replay
   regressions, deauthenticate, disassociate and a step timeout each end
   disconnected with the reason recorded and the disconnect op called, and each
-  is followed by a successful retry that proves no state leaked.
+  is followed by a successful retry that proves no state leaked. It also checks
+  the CCM primitive against RFC 3610 Packet Vector #1, then carries data: the
+  outgoing CCMP frames (unicast under the TK, group under the GTK) and the
+  incoming ones are compared byte for byte with frames built in Python with
+  AESCCM, the per-key packet numbers are asserted, a GTK rekey bumps the key
+  index to 2 with traffic continuing under it, and a data MIC failure, a data
+  replay regression, a bad rekey MIC and a rekey replay each end disconnected,
+  record the reason, call the disconnect op and are followed by a clean retry.
 
 None of the tests proves behaviour on real radios. Nothing here has been run
 against a physical Bluetooth controller or WiFi chip, so frame exchange and

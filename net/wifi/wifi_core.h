@@ -23,6 +23,13 @@
  *    the group-key handshake, installing the pairwise and group keys only once
  *    the matching step has been verified.
  *
+ * A raw-frame device also gets the data path: once keys are installed the core
+ * CCMP-protects outgoing frames with the pairwise TK (or the GTK for a
+ * group-addressed destination), authenticates and decrypts incoming protected
+ * frames, enforces the per-key packet number in both directions, and runs GTK
+ * rekeys delivered as group-key message 1. A driver with only `connect` keeps
+ * the old behaviour: wifi_send_data() refuses and nothing is decrypted.
+ *
  * The raw path needs a station MAC and 32 octets of supplicant entropy
  * (SNonce) from the platform, because the core has neither a MAC assignment
  * nor a random number generator.
@@ -50,6 +57,7 @@ enum wifi_join_step {
 #define WIFI_JOIN_TIMEOUT_MS 1000u
 #define WIFI_MAC_LEN 6
 #define WIFI_NONCE_LEN 32
+#define WIFI_DATA_MAX 1500  /* largest payload accepted in one data frame */
 
 struct wifi_drv_ops {
     const char *name;
@@ -118,5 +126,27 @@ const char *wifi_last_error(void);
 int wifi_join_step(void);
 const char *wifi_join_step_name(void);
 int wifi_assoc_aid(void);
+
+/* ---- data path --------------------------------------------------------- */
+
+/* Decrypted payloads are handed here: `src` is the original transmitter, and
+   the buffer is only valid for the call. */
+typedef void (*wifi_data_rx_fn)(const uint8_t src[WIFI_MAC_LEN], const uint8_t *payload,
+                               int len, void *ctx);
+void wifi_set_data_rx(wifi_data_rx_fn fn, void *ctx);
+
+/* Non-zero once a raw-frame link is up with keys installed. */
+int wifi_data_ready(void);
+
+/* Encrypt with CCMP and transmit. A group-addressed destination (the low bit of
+   dst) selects the current GTK and its key index; anything else uses the
+   pairwise TK. Returns -1 when the link, a driver op or the key is missing. */
+int wifi_send_data(const uint8_t dst[WIFI_MAC_LEN], const uint8_t *payload, int len);
+
+/* Key state, for diagnostics: the current GTK key index, and the last packet
+   number used per key index (0 = pairwise, 1-3 = group). */
+int wifi_group_key_id(void);
+uint64_t wifi_tx_packet_number(int key_id);
+uint64_t wifi_rx_packet_number(int key_id);
 
 #endif

@@ -53,7 +53,17 @@ static uint8_t g_anonce[WIFI_NONCE_LEN];
 static struct wifi_ptk g_ptk;
 static uint8_t g_gtk[32];
 static int g_gtk_len = 0;
+static uint8_t g_gtk_key_id = 0;
 static int g_assoc_aid = 0;
+
+/* Data path. Packet numbers are tracked per key index: 0 is the pairwise key,
+   1-3 are group keys, and the current group key is the one in g_gtk. */
+static uint64_t g_tx_pn[4];
+static uint64_t g_rx_pn[4];
+static uint8_t g_tx_buf[HDR_LEN + 8 + WIFI_DATA_MAX + 8];
+static uint8_t g_rx_buf[WIFI_DATA_MAX + 16];
+static wifi_data_rx_fn g_data_rx = 0;
+static void *g_data_rx_ctx = 0;
 
 static int add_or_update_bss(const struct wifi_bss *bss);
 
@@ -134,6 +144,9 @@ static void join_reset(void) {
     bytes_zero((uint8_t *)&g_ptk, (int)sizeof(g_ptk));
     bytes_zero(g_gtk, sizeof(g_gtk));
     g_gtk_len = 0;
+    g_gtk_key_id = 0;
+    bytes_zero((uint8_t *)g_tx_pn, (int)sizeof(g_tx_pn));
+    bytes_zero((uint8_t *)g_rx_pn, (int)sizeof(g_rx_pn));
     bytes_zero(g_pmk, sizeof(g_pmk));
     bytes_zero(g_join_bssid, sizeof(g_join_bssid));
     bytes_zero(g_join_sec_ie, sizeof(g_join_sec_ie));
@@ -282,7 +295,8 @@ static void link_up(void) {
 /* Unwrap a GTK from EAPOL key data. With the encrypted bit set the whole key
    data is AES-key-wrapped under the KEK and has to be opened first; inside it
    sits an element DD <len> 00:0F:AC 01 <key id> <wrapped GTK>. */
-static int take_gtk(const uint8_t *kd, int len, int encrypted) {
+static int parse_gtk(const uint8_t *kd, int len, int encrypted, uint8_t *out, int out_cap,
+                     int *out_len, uint8_t *key_id) {
     uint8_t plain[80];
     int i = 0;
 
@@ -300,17 +314,108 @@ static int take_gtk(const uint8_t *kd, int len, int encrypted) {
             const uint8_t *p = kd + i + 2;
             if (p[0] == 0x00 && p[1] == 0x0F && p[2] == 0xAC && p[3] == 0x01) {
                 int wlen = (int)elen - 5;
-                int plain = wifi_wpa2_unwrap(g_ptk.kek, p + 5, wlen, g_gtk, (int)sizeof(g_gtk));
-                if (plain > 0) {
-                    g_gtk_len = plain;
-                    return 0;
-                }
-                return -1;
+                int opened = wifi_wpa2_unwrap(g_ptk.kek, p + 5, wlen, out, out_cap);
+                if (opened <= 0) return -1;
+                if (key_id) *key_id = (uint8_t)(p[4] & 3u);
+                if (out_len) *out_len = opened;
+                return 0;
             }
         }
         i += 2 + (int)elen;
     }
     return -1;
+}
+
+/* ---- data path --------------------------------------------------------- */
+
+void wifi_set_data_rx(wifi_data_rx_fn fn, void *ctx) {
+    g_data_rx = fn;
+    g_data_rx_ctx = ctx;
+}
+
+int wifi_data_ready(void) {
+    return g_connected && g_step == WIFI_JOIN_DONE && raw_join_capable();
+}
+
+int wifi_group_key_id(void) { return g_gtk_key_id; }
+
+uint64_t wifi_tx_packet_number(int key_id) {
+    if (key_id < 0 || key_id > 3) return 0;
+    return g_tx_pn[key_id];
+}
+
+uint64_t wifi_rx_packet_number(int key_id) {
+    if (key_id < 0 || key_id > 3) return 0;
+    return g_rx_pn[key_id];
+}
+
+int wifi_send_data(const uint8_t dst[WIFI_MAC_LEN], const uint8_t *payload, int len) {
+    const uint8_t *key;
+    uint64_t pn;
+    int key_id;
+
+    if (!dst || len < 0 || len > WIFI_DATA_MAX || (len > 0 && !payload)) return -1;
+    if (!wifi_data_ready()) return -1;
+    if (dst[0] & 0x01u) {
+        if (g_gtk_key_id == 0 || g_gtk_len < 16) return -1;
+        key = g_gtk;
+        key_id = g_gtk_key_id;
+    } else {
+        key = g_ptk.tk;
+        key_id = 0;
+    }
+    pn = g_tx_pn[key_id] + 1;
+    put_header(g_tx_buf, 0x08, 0x41, g_join_bssid, g_sta, dst); /* ToDS + protected */
+    if (wifi_ccmp_encrypt(key, g_tx_buf, HDR_LEN, pn, key_id, payload, len,
+                          g_tx_buf + HDR_LEN) != 0)
+        return -1;
+    /* Commit the packet number before transmitting: a failed send may still
+       have reached the air, and a PN must never be reused under one key. */
+    g_tx_pn[key_id] = pn;
+    if (send_frame(g_tx_buf, HDR_LEN + 8 + len + 8) != 0) return -1;
+    return 0;
+}
+
+/* A protected data frame: pick the key from the CCMP header's key index, check
+   the packet number for that key, decrypt and verify, then deliver. */
+static int handle_data(const uint8_t *f, int len) {
+    int hdr_len, key_id, plen;
+    const uint8_t *ccmp;
+    const uint8_t *key;
+    uint64_t pn;
+
+    if (!wifi_data_ready()) return 0;
+    if (!(f[1] & 0x40u)) return 0; /* not protected */
+    hdr_len = ((f[0] >> 4) & 0x08u) ? HDR_LEN + 2 : HDR_LEN; /* QoS adds 2 */
+    if (len < hdr_len + 16) return 0;
+    ccmp = f + hdr_len;
+    if (!(ccmp[0] & 0x20u)) return 0; /* no extended IV: not CCMP */
+    key_id = (ccmp[0] >> 6) & 3;
+    if (key_id == 0) {
+        key = g_ptk.tk;
+    } else if (key_id == g_gtk_key_id && g_gtk_len >= 16) {
+        key = g_gtk;
+    } else {
+        return 0; /* a key index we no longer hold */
+    }
+    plen = len - hdr_len - 16;
+    if (plen > WIFI_DATA_MAX || plen > (int)sizeof(g_rx_buf)) return 0;
+    pn = wifi_ccmp_pn(ccmp);
+    if (pn <= g_rx_pn[key_id]) {
+        join_fail("Data replay counter regression");
+        return -1;
+    }
+    bytes_copy(g_rx_buf, ccmp + 8, plen);
+    if (wifi_ccmp_decrypt(key, f, hdr_len, ccmp, g_rx_buf, plen, ccmp + 8 + plen) != 0) {
+        join_fail("MIC mismatch on a data frame");
+        return -1;
+    }
+    g_rx_pn[key_id] = pn;
+    if (g_data_rx) {
+        const uint8_t *src = (f[1] & 0x02u) ? f + 16 : f + 10; /* FromDS: A3 */
+        g_data_rx(src, g_rx_buf, plen, g_data_rx_ctx);
+    }
+    return 0;
 }
 
 /* ---- received frames --------------------------------------------------- */
@@ -432,8 +537,15 @@ static int handle_eapol(const uint8_t *e, int elen) {
             return -1;
         }
         g_replay = replay;
-        have_gtk = ((key_info & 0x1000u) && kd_len > 0)
-                       ? (take_gtk(e + 99, kd_len, 1) == 0) : 0;
+        have_gtk = 0;
+        if ((key_info & 0x1000u) && kd_len > 0) {
+            uint8_t id = 0;
+            if (parse_gtk(e + 99, kd_len, 1, g_gtk, (int)sizeof(g_gtk), &g_gtk_len,
+                          &id) == 0) {
+                g_gtk_key_id = (uint8_t)(id != 0 ? id : ((key_info >> 4) & 3u));
+                have_gtk = g_gtk_key_id != 0;
+            }
+        }
         if (g_ops->install_key(g_ops->ctx, 1, g_ptk.tk, 16) != 0) {
             join_fail("Driver refused the pairwise key");
             return -1;
@@ -466,10 +578,19 @@ static int handle_eapol(const uint8_t *e, int elen) {
             return -1;
         }
         g_replay = replay;
-        if (!(key_info & 0x1000u) || kd_len <= 0 ||
-            take_gtk(e + 99, kd_len, 1) != 0) {
-            join_fail("No group key in the group handshake");
-            return -1;
+        {
+            uint8_t id = 0;
+            if (!(key_info & 0x1000u) || kd_len <= 0 ||
+                parse_gtk(e + 99, kd_len, 1, g_gtk, (int)sizeof(g_gtk), &g_gtk_len,
+                          &id) != 0) {
+                join_fail("No group key in the group handshake");
+                return -1;
+            }
+            g_gtk_key_id = (uint8_t)(id != 0 ? id : ((key_info >> 4) & 3u));
+            if (g_gtk_key_id == 0) {
+                join_fail("No group key index in the group handshake");
+                return -1;
+            }
         }
         group_info = (uint16_t)(0x0302u | (key_info & 0x0030u));
         if (send_eapol(group_info, replay, 0, 0, 0) != 0) {
@@ -481,6 +602,52 @@ static int handle_eapol(const uint8_t *e, int elen) {
             return -1;
         }
         link_up();
+        return 0;
+    }
+
+    /* GTK rekey: group-key message 1 while the link is up. The pairwise key and
+       the link stay; only the group key and its key index change. */
+    if (g_step == WIFI_JOIN_DONE && g_connected) {
+        uint8_t fresh[32];
+        int fresh_len = 0;
+        uint8_t id = 0;
+        uint16_t group_info;
+
+        if ((key_info & 0x0008u) || !(key_info & 0x0100u) ||
+            !(key_info & 0x0200u)) return 0;
+        if (replay <= g_replay) {
+            join_fail("Replay counter regression");
+            return -1;
+        }
+        if (!wifi_wpa2_eapol_mic_ok(g_ptk.kck, e, elen)) {
+            join_fail("MIC mismatch on a group rekey");
+            return -1;
+        }
+        if (!(key_info & 0x1000u) || kd_len <= 0 ||
+            parse_gtk(e + 99, kd_len, 1, fresh, (int)sizeof(fresh), &fresh_len, &id) != 0) {
+            join_fail("No group key in the rekey");
+            return -1;
+        }
+        if (id == 0) id = (uint8_t)((key_info >> 4) & 3u);
+        if (id == 0 || id == g_gtk_key_id) {
+            join_fail("Group rekey did not change the key index");
+            return -1;
+        }
+        g_replay = replay;
+        bytes_copy(g_gtk, fresh, fresh_len);
+        g_gtk_len = fresh_len;
+        g_gtk_key_id = id;
+        g_rx_pn[id] = 0;
+        g_tx_pn[id] = 0;
+        if (g_ops->install_key(g_ops->ctx, 0, g_gtk, g_gtk_len) != 0) {
+            join_fail("Driver refused the group key");
+            return -1;
+        }
+        group_info = (uint16_t)(0x0302u | (key_info & 0x0030u));
+        if (send_eapol(group_info, replay, 0, 0, 0) != 0) {
+            join_fail("Driver refused the group response");
+            return -1;
+        }
         return 0;
     }
 
@@ -529,7 +696,9 @@ int wifi_rx_frame(const uint8_t *frame, int len, int8_t rssi) {
     if (type == 2) {
         const uint8_t *e = 0;
         int elen = 0;
-        if (eapol_from_data(frame, len, &e, &elen) == 0) return handle_eapol(e, elen);
+        if (!(frame[1] & 0x40u) && eapol_from_data(frame, len, &e, &elen) == 0)
+            return handle_eapol(e, elen);
+        return handle_data(frame, len);
     }
     return 0;
 }

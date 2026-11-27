@@ -33,8 +33,40 @@ static const char *MIC_MSG3_HEX = "49e136c2809ac4a18dc4ef54ad1af514";
 static const char *MIC_MSG3_NOGTK_HEX = "b5d8659fcb46f0c56dd080c25d39719a";
 static const char *MIC_GROUP1_HEX = "4808762b64711a4e0e3041d11205c63c";
 
+/* Data-path frames, all computed independently in Python with
+   cryptography's AESCCM (CCMP + AES key wrap). The unicast frames use the
+   pairwise TK, the group ones the GTK with its key index. */
+static const char *TX_UNICAST_HEX =
+    "0841000000112233445502000000000100aabbccddee00002001000000000000324effcd641aa519a04bf4db";
+static const char *TX_UNICAST_PN2_HEX =
+    "0841000000112233445502000000000100aabbccddee00002002000000000000c18a2d1a2dcef84a961f459f";
+static const char *RX_UNICAST_HEX =
+    "0842000002000000000100112233445500aabbccddee000020010000000000007f310166616b215766cfd4d9";
+static const char *RX_UNICAST_BADMIC_HEX =
+    "0842000002000000000100112233445500aabbccddee000020010000000000007f310166616b215766cfd4d8";
+static const char *RX_GROUP_HEX =
+    "0842000001005e000001001122334455001122334455000060010000000000000d4e98ef74a7ddc8c60deeec2e";
+static const char *TX_GROUP_HEX =
+    "0841000000112233445502000000000101005e00000100006001000000000000eb27809699fd3ea8d1d9511bf8";
+static const char *GTK2_HEX = "505152535455565758595a5b5c5d5e5f";
+static const char *RX_GROUP2_HEX =
+    "0842000001005e0000010011223344550011223344550000a0010000000000002ffab1ce98e0ad3e4e6fe8c9c9";
+static const char *TX_GROUP2_HEX =
+    "0841000000112233445502000000000101005e0000010000a001000000000000e64208882f1dc4fed8a3cf5ec5";
+/* Group-key message 1 carrying the new GTK (key index 2), replay 4. */
+static const char *REKEY_HEX =
+    "080200000200000000010011223344550011223344550000aaaa03000000888e020300870213220010000000000000000400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000cae8c02d53b4e6d8e84f0cb35a26c18e0028432ac6d0d6a1addddaf310a82743bfafbcfcabbab0d48502fc07262c4762012aea20ecef3113580e";
+static const char *REKEY_BADMIC_HEX =
+    "080200000200000000010011223344550011223344550000aaaa03000000888e020300870213220010000000000000000400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000cbe8c02d53b4e6d8e84f0cb35a26c18e0028432ac6d0d6a1addddaf310a82743bfafbcfcabbab0d48502fc07262c4762012aea20ecef3113580e";
+static const char *REKEY_REPLAY3_HEX =
+    "080200000200000000010011223344550011223344550000aaaa03000000888e020300870213220010000000000000000300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000489f5365eab03aeed281b168ba08d1890028432ac6d0d6a1addddaf310a82743bfafbcfcabbab0d48502fc07262c4762012aea20ecef3113580e";
+static const char *GROUP2_AFTER_REKEY_HEX =
+    "080100000011223344550200000000010011223344550000aaaa03000000888e0203005f02032200100000000000000004000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008bb2546e529238465688dd0f24c4c0dd0000";
+
 static const uint8_t AP[6] = { 0x00, 0x11, 0x22, 0x33, 0x44, 0x55 };
 static const uint8_t STA[6] = { 0x02, 0x00, 0x00, 0x00, 0x00, 0x01 };
+static const uint8_t DST[6] = { 0x00, 0xaa, 0xbb, 0xcc, 0xdd, 0xee };
+static const uint8_t GRP[6] = { 0x01, 0x00, 0x5e, 0x00, 0x00, 0x01 };
 
 static uint8_t anonce[32];
 static uint8_t snonce[32];
@@ -134,8 +166,39 @@ static const struct wifi_drv_ops raw_ops = {
     mock_disconnect, mock_signal, mock_send, mock_install, 0
 };
 
+static uint8_t rx_payload[1600];
+static int rx_len = -1;
+static uint8_t rx_src[6];
+
+static void on_data(const uint8_t src[6], const uint8_t *payload, int len, void *ctx) {
+    (void)ctx;
+    for (int i = 0; i < 6; i++) rx_src[i] = src[i];
+    rx_len = len > (int)sizeof(rx_payload) ? (int)sizeof(rx_payload) : len;
+    for (int i = 0; i < rx_len; i++) rx_payload[i] = payload[i];
+}
+
+static int emit_hex(const char *hex) {
+    uint8_t buf[512];
+    int n = hex_to(buf, (int)sizeof(buf), hex);
+    return wifi_rx_frame(buf, n, -40);
+}
+
+static int sent_is(const char *hex) {
+    int n = (int)(strlen(hex) / 2);
+    return n == last_len && hex_eq(last, n, hex);
+}
+
+static int payload_is(const char *text) {
+    int n = (int)strlen(text);
+    if (rx_len != n) return 0;
+    for (int i = 0; i < n; i++)
+        if (rx_payload[i] != (uint8_t)text[i]) return 0;
+    return 1;
+}
+
 static void attempt_reset(void) {
     last_len = 0;
+    rx_len = -1;
     sends = 0;
     disc_calls = 0;
     pair_installs = group_installs = 0;
@@ -661,7 +724,123 @@ int main(void) {
         EXPECT(full_join("retry after timeout") == 0);
     }
 
-    /* 5. Explicit disconnect resets the join too. */
+    /* 5. CCM against the published RFC 3610 Packet Vector #1. */
+    {
+        uint8_t key[16], nonce[13], aad[8], plain[23], out[31], back[31];
+        hex_to(key, 16, "c0c1c2c3c4c5c6c7c8c9cacbcccdcecf");
+        hex_to(nonce, 13, "00000003020100a0a1a2a3a4a5");
+        hex_to(aad, 8, "0001020304050607");
+        EXPECT(hex_to(plain, 23, "08090a0b0c0d0e0f101112131415161718191a1b1c1d1e") == 23);
+        EXPECT(wifi_ccm_encrypt(key, nonce, aad, 8, plain, 23, out) == 0);
+        EXPECT(hex_eq(out, 31,
+                      "588c979a61c663d2f066d0c2c0f989806d5f6b61dac38417e8d12cfdf926e0"));
+        for (int i = 0; i < 31; i++) back[i] = out[i];
+        EXPECT(wifi_ccm_decrypt(key, nonce, aad, 8, back, 23, back + 23) == 0);
+        EXPECT(hex_eq(back, 23, "08090a0b0c0d0e0f101112131415161718191a1b1c1d1e"));
+        back[30] ^= 0x01; /* corrupt the MIC: the tag check must reject it */
+        EXPECT(wifi_ccm_decrypt(key, nonce, aad, 8, back, 23, back + 23) != 0);
+    }
+
+    /* 6. Data path: a freshly joined link carries CCMP traffic both ways. */
+    wifi_set_data_rx(on_data, 0);
+    attempt_reset();
+    EXPECT(full_join("data path") == 0);
+    EXPECT(wifi_data_ready() == 1);
+    EXPECT(wifi_group_key_id() == 1);
+
+    /* Outgoing unicast under the pairwise TK, packet number 1 then 2. */
+    EXPECT(wifi_send_data(DST, (const uint8_t *)"ping", 4) == 0);
+    EXPECT(sent_is(TX_UNICAST_HEX));
+    EXPECT(wifi_tx_packet_number(0) == 1);
+    EXPECT(wifi_send_data(DST, (const uint8_t *)"ping", 4) == 0);
+    EXPECT(sent_is(TX_UNICAST_PN2_HEX));
+    EXPECT(wifi_tx_packet_number(0) == 2);
+
+    /* Incoming unicast: authenticated, decrypted and delivered. */
+    rx_len = -1;
+    EXPECT(emit_hex(RX_UNICAST_HEX) == 0);
+    EXPECT(payload_is("pong"));
+    EXPECT(rx_src[0] == 0x00 && rx_src[5] == 0xee); /* original transmitter */
+    EXPECT(wifi_rx_packet_number(0) == 1);
+
+    /* A group-addressed frame arrives under the GTK and its key index. */
+    rx_len = -1;
+    EXPECT(emit_hex(RX_GROUP_HEX) == 0);
+    EXPECT(payload_is("hello"));
+    EXPECT(wifi_rx_packet_number(1) == 1);
+
+    /* And a group-addressed frame leaves under the GTK. */
+    EXPECT(wifi_send_data(GRP, (const uint8_t *)"world", 5) == 0);
+    EXPECT(sent_is(TX_GROUP_HEX));
+    EXPECT(wifi_tx_packet_number(1) == 1);
+
+    /* 7. GTK rekey: key index 1 -> 2, pairwise key and the link untouched. */
+    EXPECT(emit_hex(REKEY_HEX) == 0);
+    EXPECT(wifi_connected() == 1);
+    EXPECT(wifi_join_step() == WIFI_JOIN_DONE);
+    EXPECT(wifi_group_key_id() == 2);
+    EXPECT(pair_installs == 1);
+    EXPECT(group_installs == 2);
+    EXPECT(group_connected == 1); /* installed on a live link */
+    EXPECT(hex_eq(group_key, group_key_len, GTK2_HEX));
+    EXPECT(hex_eq(pair_key, 16, TK_HEX));
+    EXPECT(sent_is(GROUP2_AFTER_REKEY_HEX)); /* group-key message 2 */
+
+    /* Traffic continues under the new key; the pairwise counter is untouched. */
+    rx_len = -1;
+    EXPECT(emit_hex(RX_GROUP2_HEX) == 0);
+    EXPECT(payload_is("again"));
+    EXPECT(wifi_rx_packet_number(2) == 1);
+    EXPECT(wifi_rx_packet_number(0) == 1);
+    EXPECT(wifi_send_data(GRP, (const uint8_t *)"fresh", 5) == 0);
+    EXPECT(sent_is(TX_GROUP2_HEX));
+    EXPECT(wifi_tx_packet_number(2) == 1);
+    EXPECT(wifi_disconnect() == 0);
+
+    /* 8. Data-path failures: each ends disconnected and then retries cleanly. */
+    {
+        attempt_reset();
+        EXPECT(full_join("data mic") == 0);
+        disc = disc_calls;
+        EXPECT(emit_hex(RX_UNICAST_BADMIC_HEX) == -1);
+        expect_failure("data mic", "MIC mismatch on a data frame", disc);
+        attempt_reset();
+        EXPECT(full_join("retry after data mic") == 0);
+        EXPECT(wifi_disconnect() == 0);
+    }
+    {
+        attempt_reset();
+        EXPECT(full_join("data replay") == 0);
+        EXPECT(emit_hex(RX_UNICAST_HEX) == 0);
+        disc = disc_calls;
+        EXPECT(emit_hex(RX_UNICAST_HEX) == -1);
+        expect_failure("data replay", "Data replay counter regression", disc);
+        attempt_reset();
+        EXPECT(full_join("retry after data replay") == 0);
+        EXPECT(wifi_disconnect() == 0);
+    }
+    {
+        attempt_reset();
+        EXPECT(full_join("rekey mic") == 0);
+        disc = disc_calls;
+        EXPECT(emit_hex(REKEY_BADMIC_HEX) == -1);
+        expect_failure("rekey mic", "MIC mismatch on a group rekey", disc);
+        attempt_reset();
+        EXPECT(full_join("retry after rekey mic") == 0);
+        EXPECT(wifi_disconnect() == 0);
+    }
+    {
+        attempt_reset();
+        EXPECT(full_join("rekey replay") == 0);
+        disc = disc_calls;
+        EXPECT(emit_hex(REKEY_REPLAY3_HEX) == -1);
+        expect_failure("rekey replay", "Replay counter regression", disc);
+        attempt_reset();
+        EXPECT(full_join("retry after rekey replay") == 0);
+        EXPECT(wifi_disconnect() == 0);
+    }
+
+    /* 9. Explicit disconnect resets the join too. */
     EXPECT(wifi_disconnect() == 0);
     EXPECT(wifi_connected() == 0);
     EXPECT(wifi_join_step() == WIFI_JOIN_IDLE);

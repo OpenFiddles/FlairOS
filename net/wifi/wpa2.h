@@ -71,4 +71,32 @@ int wifi_wpa2_wrap(const uint8_t kek[16], const uint8_t *plain, int len,
 int wifi_wpa2_unwrap(const uint8_t kek[16], const uint8_t *wrapped, int len,
                      uint8_t *out, int out_cap);
 
+/* CCMP: CCM (RFC 3610) with AES-128, an 8-octet MIC and a 2-octet length
+   field, plus the 802.11 nonce and AAD construction (802.11-2016 12.5.3).
+
+   `hdr` is the 802.11 MAC header as transmitted (24 octets, or 26 for QoS);
+   its Protected Frame bit is set and its Retry bit cleared for the AAD here,
+   so callers may pass either form. `pn` is the 48-bit packet number.
+
+   Encrypt writes 8 octets of CCMP header, the ciphertext and an 8-octet MIC
+   into `out`, which needs 16 + len octets. Decrypt takes the payload in place
+   and returns -1 when the MIC does not verify (the payload is then garbage and
+   must be dropped). */
+/* The CCM primitive itself (RFC 3610, M = 8, L = 2), exposed so the published
+   packet vector can be checked. Encrypt writes len + 8 octets. */
+int wifi_ccm_encrypt(const uint8_t key[16], const uint8_t nonce[13],
+                     const uint8_t *aad, int aad_len, const uint8_t *plain, int len,
+                     uint8_t *out);
+int wifi_ccm_decrypt(const uint8_t key[16], const uint8_t nonce[13],
+                     const uint8_t *aad, int aad_len, uint8_t *payload, int len,
+                     const uint8_t mic[8]);
+
+int wifi_ccmp_encrypt(const uint8_t tk[16], const uint8_t *hdr, int hdr_len,
+                      uint64_t pn, int key_id, const uint8_t *plain, int len,
+                      uint8_t *out);
+int wifi_ccmp_decrypt(const uint8_t tk[16], const uint8_t *hdr, int hdr_len,
+                      const uint8_t *ccmp, uint8_t *payload, int len,
+                      const uint8_t mic[8]);
+uint64_t wifi_ccmp_pn(const uint8_t ccmp[8]);
+
 #endif

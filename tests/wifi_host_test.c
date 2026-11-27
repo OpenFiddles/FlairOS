@@ -317,6 +317,12 @@ int main(void) {
     CHECK(strcmp(wifi_ssid(), "IEEE") == 0);
     CHECK(wifi_signal() == 72);
 
+    /* A full-MAC driver has no raw-frame ops, so the core carries no data for
+       it: the old behaviour is unchanged. */
+    CHECK(wifi_data_ready() == 0);
+    CHECK(wifi_send_data((const uint8_t[6]){ 0x02, 0, 0, 0, 0, 9 },
+                         (const uint8_t *)"x", 1) != 0);
+
     CHECK(wifi_disconnect() == 0);
     CHECK(mock_disconnect_calls == 1);
     CHECK(wifi_connected() == 0);

@@ -487,3 +487,188 @@ int wifi_wpa2_unwrap(const uint8_t kek[16], const uint8_t *wrapped, int len,
     if (a != 0xA6A6A6A6A6A6A6A6ull) return -1;
     return len - 8;
 }
+
+/* ---- CCM (RFC 3610) and CCMP ------------------------------------------ */
+
+/* X = E(X xor block); the last block is zero padded, which is what CCM wants. */
+static void ccm_mac_block(const struct wifi_aes128 *aes, uint8_t x[16],
+                          const uint8_t *data, int n) {
+    uint8_t b[16];
+    for (int i = 0; i < 16; i++) b[i] = i < n ? data[i] : 0;
+    for (int i = 0; i < 16; i++) b[i] ^= x[i];
+    wifi_aes128_encrypt_block(aes, b, x);
+}
+
+/* CBC-MAC over B0 || length(AAD) || AAD || plaintext. M = 8 and L = 2, the
+   parameters CCMP fixes. */
+static void ccm_mac(const struct wifi_aes128 *aes, const uint8_t nonce[13],
+                    const uint8_t *aad, int aad_len, const uint8_t *plain, int len,
+                    uint8_t tag[16]) {
+    uint8_t x[16];
+    uint8_t b[16];
+
+    b[0] = 0x59u; /* Adata=1, M=8, L=2 */
+    for (int i = 0; i < 13; i++) b[1 + i] = nonce[i];
+    b[14] = (uint8_t)((unsigned)len >> 8);
+    b[15] = (uint8_t)len;
+    wifi_aes128_encrypt_block(aes, b, x);
+
+    if (aad_len > 0) {
+        uint8_t a[32];
+        int n = 0;
+        a[n++] = (uint8_t)((unsigned)aad_len >> 8);
+        a[n++] = (uint8_t)aad_len;
+        for (int i = 0; i < aad_len && n < (int)sizeof(a); i++) a[n++] = aad[i];
+        for (int off = 0; off < n; off += 16)
+            ccm_mac_block(aes, x, a + off, n - off > 16 ? 16 : n - off);
+    }
+    for (int off = 0; off < len; off += 16)
+        ccm_mac_block(aes, x, plain + off, len - off > 16 ? 16 : len - off);
+
+    for (int i = 0; i < 16; i++) tag[i] = x[i];
+}
+
+/* S_i = E(flags || nonce || counter); XOR the payload with S_1, S_2, ... */
+static void ccm_ctr_xor(const struct wifi_aes128 *aes, const uint8_t nonce[13],
+                        uint16_t first, const uint8_t *in, uint8_t *out, int len) {
+    uint8_t a[16];
+    uint8_t s[16];
+    uint16_t ctr = first;
+
+    for (int off = 0; off < len; off += 16, ctr++) {
+        int take = len - off > 16 ? 16 : len - off;
+        a[0] = 0x01u; /* L - 1 */
+        for (int i = 0; i < 13; i++) a[1 + i] = nonce[i];
+        a[14] = (uint8_t)(ctr >> 8);
+        a[15] = (uint8_t)ctr;
+        wifi_aes128_encrypt_block(aes, a, s);
+        for (int i = 0; i < take; i++) out[off + i] = (uint8_t)(in[off + i] ^ s[i]);
+    }
+}
+
+/* 802.11 AAD: FC (Protected set, Retry cleared), A1, A2, A3, SC, and the QoS
+   control field for a QoS data frame. */
+static int ccmp_aad(const uint8_t *hdr, int hdr_len, uint8_t aad[24], int *aad_len) {
+    if (!hdr || !aad || !aad_len) return -1;
+    if (hdr_len != 24 && hdr_len != 26) return -1;
+    aad[0] = hdr[0];
+    aad[1] = (uint8_t)((hdr[1] | 0x40u) & (uint8_t)~0x08u);
+    for (int i = 0; i < 6; i++) aad[2 + i] = hdr[4 + i];
+    for (int i = 0; i < 6; i++) aad[8 + i] = hdr[10 + i];
+    for (int i = 0; i < 6; i++) aad[14 + i] = hdr[16 + i];
+    aad[20] = hdr[22];
+    aad[21] = hdr[23];
+    if (hdr_len == 26) {
+        aad[22] = hdr[24];
+        aad[23] = hdr[25];
+        *aad_len = 24;
+    } else {
+        *aad_len = 22;
+    }
+    return 0;
+}
+
+/* priority || A2 || PN, with PN little-endian in the nonce. */
+static void ccmp_nonce(uint8_t nonce[13], uint8_t priority, const uint8_t a2[6],
+                       uint64_t pn) {
+    nonce[0] = priority;
+    for (int i = 0; i < 6; i++) nonce[1 + i] = a2[i];
+    for (int i = 0; i < 6; i++) nonce[7 + i] = (uint8_t)(pn >> (8 * i));
+}
+
+uint64_t wifi_ccmp_pn(const uint8_t ccmp[8]) {
+    uint64_t pn = 0;
+    if (!ccmp) return 0;
+    pn |= (uint64_t)ccmp[1];
+    pn |= (uint64_t)ccmp[2] << 8;
+    pn |= (uint64_t)ccmp[4] << 16;
+    pn |= (uint64_t)ccmp[5] << 24;
+    pn |= (uint64_t)ccmp[6] << 32;
+    pn |= (uint64_t)ccmp[7] << 40;
+    return pn;
+}
+
+/* The CCM core, exposed so the published RFC 3610 packet vector can be checked
+   directly. `out` receives ciphertext || MIC and needs len + 8 octets. */
+int wifi_ccm_encrypt(const uint8_t key[16], const uint8_t nonce[13],
+                     const uint8_t *aad, int aad_len, const uint8_t *plain, int len,
+                     uint8_t *out) {
+    struct wifi_aes128 aes;
+    uint8_t tag[16];
+    uint8_t zeros[16];
+    uint8_t s0[16];
+    uint8_t mic[8];
+
+    if (!key || !nonce || !out || (len > 0 && !plain)) return -1;
+    if (aad_len < 0 || aad_len > 30 || len < 0 || len > 0xFFFF) return -1;
+
+    wifi_aes128_setkey(&aes, key);
+    ccm_mac(&aes, nonce, aad, aad_len, plain, len, tag);
+    for (int i = 0; i < 16; i++) zeros[i] = 0;
+    ccm_ctr_xor(&aes, nonce, 0, zeros, s0, 16);
+    for (int i = 0; i < 8; i++) mic[i] = (uint8_t)(tag[i] ^ s0[i]);
+
+    ccm_ctr_xor(&aes, nonce, 1, plain, out, len);
+    for (int i = 0; i < 8; i++) out[len + i] = mic[i];
+    return 0;
+}
+
+int wifi_ccm_decrypt(const uint8_t key[16], const uint8_t nonce[13],
+                     const uint8_t *aad, int aad_len, uint8_t *payload, int len,
+                     const uint8_t mic[8]) {
+    struct wifi_aes128 aes;
+    uint8_t tag[16];
+    uint8_t zeros[16];
+    uint8_t s0[16];
+    uint8_t diff = 0;
+
+    if (!key || !nonce || !mic || (len > 0 && !payload)) return -1;
+    if (aad_len < 0 || aad_len > 30 || len < 0 || len > 0xFFFF) return -1;
+
+    wifi_aes128_setkey(&aes, key);
+    ccm_ctr_xor(&aes, nonce, 1, payload, payload, len);
+    ccm_mac(&aes, nonce, aad, aad_len, payload, len, tag);
+    for (int i = 0; i < 16; i++) zeros[i] = 0;
+    ccm_ctr_xor(&aes, nonce, 0, zeros, s0, 16);
+
+    for (int i = 0; i < 8; i++) diff |= (uint8_t)((tag[i] ^ s0[i]) ^ mic[i]);
+    return diff == 0 ? 0 : -1;
+}
+
+int wifi_ccmp_encrypt(const uint8_t tk[16], const uint8_t *hdr, int hdr_len,
+                      uint64_t pn, int key_id, const uint8_t *plain, int len,
+                      uint8_t *out) {
+    uint8_t nonce[13];
+    uint8_t aad[24];
+    int aad_len;
+
+    if (!tk || !out || (len > 0 && !plain)) return -1;
+    if (len < 0 || len > 0xFFFF) return -1;
+    if (ccmp_aad(hdr, hdr_len, aad, &aad_len) != 0) return -1;
+    ccmp_nonce(nonce, hdr_len == 26 ? (uint8_t)(hdr[24] & 0x0Fu) : 0, hdr + 10, pn);
+
+    out[0] = (uint8_t)(0x20u | ((uint8_t)(key_id & 3) << 6));
+    out[1] = (uint8_t)pn;
+    out[2] = (uint8_t)(pn >> 8);
+    out[3] = 0;
+    out[4] = (uint8_t)(pn >> 16);
+    out[5] = (uint8_t)(pn >> 24);
+    out[6] = (uint8_t)(pn >> 32);
+    out[7] = (uint8_t)(pn >> 40);
+    return wifi_ccm_encrypt(tk, nonce, aad, aad_len, plain, len, out + 8);
+}
+
+int wifi_ccmp_decrypt(const uint8_t tk[16], const uint8_t *hdr, int hdr_len,
+                      const uint8_t *ccmp, uint8_t *payload, int len,
+                      const uint8_t mic[8]) {
+    uint8_t nonce[13];
+    uint8_t aad[24];
+    int aad_len;
+
+    if (!tk || !ccmp || !mic || (len > 0 && !payload)) return -1;
+    if (len < 0 || len > 0xFFFF) return -1;
+    if (ccmp_aad(hdr, hdr_len, aad, &aad_len) != 0) return -1;
+    ccmp_nonce(nonce, hdr_len == 26 ? (uint8_t)(hdr[24] & 0x0Fu) : 0, hdr + 10,
+               wifi_ccmp_pn(ccmp));
+    return wifi_ccm_decrypt(tk, nonce, aad, aad_len, payload, len, mic);
+}
