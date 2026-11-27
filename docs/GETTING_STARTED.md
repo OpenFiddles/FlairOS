@@ -54,6 +54,9 @@ make legacy-test  # host tests plus the i386 boot, layout and media tests
 CI gates on the 64-bit preset build and the host tests. The i386 job is manual
 and non-blocking.
 
+The scripts under `tools/` build the images, package apps and drive the
+emulators; `tools/README.md` says what each one does and what calls it.
+
 ## Development boundaries
 
 - Work on the 64-bit path. i386 changes belong in `legacy/i386/` and exist to keep the reference image reproducible.

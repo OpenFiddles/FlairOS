@@ -1,6 +1,6 @@
 # FlairOS Agent Skills & Toolchain Guide
 
-This repository provides a complete build, packaging, testing, and live VNC visual-interaction toolchain for **FlairOS** (`i386`, `x86_64`, `aarch64`).
+This repository provides a complete build, packaging, testing, and live VNC visual-interaction toolchain for **FlairOS** (`i386`, `x86_64`, `aarch64`). `tools/README.md` lists every script under `tools/` with what it does and what calls it.
 
 ## 1. Live Multi-Arch VNC Servers (`tools/run-vnc-multi.sh`)
 Start, stop, or check all 5 QEMU VNC targets (plus the `127.0.0.1:5910` Termux host bridge):

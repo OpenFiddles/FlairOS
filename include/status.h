@@ -23,7 +23,8 @@ struct power_provider {
 int power_register(const struct power_provider *provider);
 int power_read(struct power_info *out);    /* 1 if any provider reports a battery */
 const char *power_source_name(void);
-/* Line protocol used by the serial bridge: "BAT <0-100> [0|1]" or "NOBAT". */
+/* Line protocol used by the serial bridge: "BAT <0-100> [0|1]" or "NOBAT".
+   The host-side producer is tools/battery_bridge.py. */
 int power_parse_line(const char *line, struct power_info *out);
 
 struct link_info {
