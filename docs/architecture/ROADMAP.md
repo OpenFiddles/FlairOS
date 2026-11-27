@@ -84,8 +84,9 @@ The last one is the real unlock: adding a staged package currently means editing
 - [x] Resolution-aware ten-foot layout: one 1280x720 design scaled to 720p-4K
 - [x] `FlairTV.airp` component package carrying the launcher layout
 - [x] 4K TV preset (`presets/tv4k`, 3840x2160 @ 90 Hz)
-- [ ] Control drawer scaled with the layout instead of fixed pixels
-- [ ] TV session strings read from `strings.json`
+- [x] Control drawer scaled with the layout instead of fixed pixels
+      (AirStinUI draws through the TV scale; desktop/mobile keep the 1x drawer)
+- [x] TV session strings read from `strings.json`
 
 ### Accessibility and theming
 

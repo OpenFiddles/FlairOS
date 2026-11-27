@@ -39,6 +39,66 @@ static int tv_json_string(const struct airjson_doc *doc, const char *obj,
     return out[0] ? 0 : -1;
 }
 
+static int tv_str_eq(const char *a, const char *b) {
+    while (*a && *a == *b) { a++; b++; }
+    return *a == *b;
+}
+
+static int tv_strings_set(struct tv_strings *s, const char *key, const char *text) {
+    for (int i = 0; i < s->count; i++) {
+        if (tv_str_eq(s->items[i].key, key)) {
+            tv_text_copy(s->items[i].text, (int)sizeof(s->items[i].text), text);
+            return 1;
+        }
+    }
+    if (s->count >= TV_STRINGS_MAX) return 0;
+    tv_text_copy(s->items[s->count].key, (int)sizeof(s->items[s->count].key), key);
+    tv_text_copy(s->items[s->count].text, (int)sizeof(s->items[s->count].text), text);
+    s->count++;
+    return 1;
+}
+
+void tv_strings_default(struct tv_strings *out) {
+    static const char *keys[] = { "app", "home", "sections", "focus", "status_card", "focused", "open" };
+    static const char *texts[] = {
+        "FlairTV", "HOME", "Apps   Android   AirP   Status", "10-FOOT FOCUS",
+        "AIRP + BT AUDIO", "FOCUSED", "OPEN"
+    };
+    if (!out) return;
+    out->count = 0;
+    for (int i = 0; i < (int)(sizeof(keys) / sizeof(keys[0])); i++)
+        (void)tv_strings_set(out, keys[i], texts[i]);
+}
+
+const char *tv_strings_get(const struct tv_strings *strings, const char *key) {
+    if (!strings || !key) return 0;
+    for (int i = 0; i < strings->count; i++)
+        if (tv_str_eq(strings->items[i].key, key)) return strings->items[i].text;
+    return 0;
+}
+
+/* Parses strings.json over the built-in wording, so a package only has to
+   declare the keys it wants to change and an unknown key is still usable. */
+static int tv_strings_parse(const char *json, unsigned int len, struct tv_strings *out) {
+    struct airjson_doc doc;
+    int count = 0;
+    char key[TV_STRING_KEY_MAX];
+    char text[TV_STRING_TEXT_MAX];
+
+    if (airjson_open(&doc, json, len) != AIRJSON_OK) return 0;
+    if (airjson_object_count(json, len, &count) != AIRJSON_OK || count <= 0) return 0;
+    for (int i = 0; i < count; i++) {
+        const char *k = 0, *v = 0;
+        unsigned int klen = 0, vlen = 0;
+        if (airjson_object_at(json, len, i, &k, &klen, &v, &vlen) != AIRJSON_OK) return 0;
+        if (airjson_get_string(k, klen, key, sizeof(key)) != AIRJSON_OK) return 0;
+        if (airjson_get_string(v, vlen, text, sizeof(text)) != AIRJSON_OK) return 0;
+        if (!key[0] || !text[0]) return 0;
+        if (!tv_strings_set(out, key, text)) return 0;
+    }
+    return 1;
+}
+
 void tv_launcher_default(struct tv_launcher *out) {
     if (!out) return;
     tv_text_copy(out->title, (int)sizeof(out->title), "FlairTV Living Room");
@@ -53,6 +113,7 @@ void tv_launcher_default(struct tv_launcher *out) {
         };
         for (int i = 0; i < 3; i++) out->tiles[i] = tiles[i];
     }
+    tv_strings_default(&out->strings);
 }
 
 int tv_launcher_load_package(const uint8_t *stage, uint32_t stage_len,
@@ -72,6 +133,7 @@ int tv_launcher_load_package(const uint8_t *stage, uint32_t stage_len,
     if (!out || !report) return 0;
     report->loaded = 0;
     report->tiles = 0;
+    report->strings = 0;
     report->reason = "no TV session package staged";
 
     if (!stage || stage_len == 0) return 0;
@@ -158,10 +220,24 @@ int tv_launcher_load_package(const uint8_t *stage, uint32_t stage_len,
         }
     }
 
+    if (airp_find_resource(&pkg, "strings.json", &type, &view) != AIRP_LOAD_OK) {
+        report->reason = "TV package has no strings.json";
+        return 0;
+    }
+    if (type != AIRP_RT_STRINGS) {
+        report->reason = "TV strings.json is not a strings resource";
+        return 0;
+    }
+    if (!tv_strings_parse((const char *)view.data, view.size, &candidate.strings)) {
+        report->reason = "TV strings.json is invalid";
+        return 0;
+    }
+
     candidate.tile_count = count;
     *out = candidate;
     report->loaded = 1;
     report->tiles = count;
+    report->strings = candidate.strings.count;
     report->reason = 0;
     return 1;
 }

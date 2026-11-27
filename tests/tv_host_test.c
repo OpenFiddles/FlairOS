@@ -103,9 +103,9 @@ static unsigned int build_pkg(unsigned char *buf, unsigned int buf_cap,
     return file_size;
 }
 
-/* Reads the shipped launcher layout; returns 0 when it cannot be read. */
-static unsigned int read_shipped_launcher(char *buf, unsigned int cap) {
-    FILE *f = fopen("tv/resources/launcher.json", "rb");
+/* Reads a shipped session resource; returns 0 when it cannot be read. */
+static unsigned int read_shipped(const char *path, char *buf, unsigned int cap) {
+    FILE *f = fopen(path, "rb");
     size_t n;
     if (!f)
         return 0;
@@ -135,8 +135,12 @@ static const char *LONG_LABEL =
     "\"label\":\"This label is far too long for a ten-foot tile\","
     "\"target\":\"app:0\"}]}}";
 
+static const char *LONG_STRING =
+    "{\"focus\":\"012345678901234567890123456789012345678901234567890123456789\"}";
+
 int main(void) {
     static char launcher_json[4096];
+    static char strings_json[4096];
     static unsigned char pkg[PKG_CAP];
     struct tv_launcher tv, sentinel;
     struct tv_launcher_report report;
@@ -148,8 +152,10 @@ int main(void) {
     struct pkg_res res[2];
     int count = 0;
 
-    json_len = read_shipped_launcher(launcher_json, sizeof launcher_json);
+    json_len = read_shipped("tv/resources/launcher.json", launcher_json, sizeof launcher_json);
     check(json_len > 0, "shipped tv/resources/launcher.json is readable");
+    check(read_shipped("tv/resources/strings.json", strings_json, sizeof strings_json) > 0,
+          "shipped tv/resources/strings.json is readable");
 
     /* --- Layout scale: one 1280x720 design, correct on every panel --------- */
     check(tv_layout_scale_q16(1280, 720) == 65536, "720p keeps the design scale");
@@ -206,7 +212,7 @@ int main(void) {
     res[0].data = launcher_json;
     res[0].type = AIRP_RT_UI;
     res[1].name = "strings.json";
-    res[1].data = "{\"app\":\"FlairTV\"}";
+    res[1].data = strings_json;
     res[1].type = AIRP_RT_STRINGS;
     len = build_pkg(pkg, PKG_CAP, res, 2,
                     AIRP_FLAG_SYSTEM | AIRP_FLAG_RESOURCES_ONLY);
@@ -220,6 +226,26 @@ int main(void) {
     check(strcmp(tv.tiles[2].target, "airp:cast") == 0, "cast tile keeps its target");
     check(tv.tiles[0].accent == 0x00EC4899u, "tile accent colour comes from the package");
     check(tv.tiles[2].accent == 0x003B82F6u, "third tile accent comes from the package");
+
+    /* --- Session strings come from the package's strings.json -------------- */
+    check(report.strings == 8, "package supplies every session string");
+    check(tv_strings_get(&tv.strings, "focus") &&
+              strcmp(tv_strings_get(&tv.strings, "focus"), "10-FOOT FOCUS") == 0,
+          "a shell label is read from the packaged strings.json");
+    check(tv_strings_get(&tv.strings, "no_signal") &&
+              strcmp(tv_strings_get(&tv.strings, "no_signal"), "No signal") == 0,
+          "strings the package adds beyond the built-in keys are kept");
+    check(tv_strings_get(&tv.strings, "open") &&
+              strcmp(tv_strings_get(&tv.strings, "open"), "OPEN") == 0,
+          "a built-in string the package repeats stays intact");
+
+    res[1].data = "{\"focus\":\"BIG FOCUS\"}";
+    len = build_pkg(pkg, PKG_CAP, res, 2, AIRP_FLAG_RESOURCES_ONLY);
+    check(tv_launcher_load_package(pkg, len, &tv, &report) == 1 &&
+              strcmp(tv_strings_get(&tv.strings, "focus"), "BIG FOCUS") == 0,
+          "a package string overrides the built-in wording");
+    check(strcmp(tv_strings_get(&tv.strings, "home"), "HOME") == 0,
+          "strings the package does not declare keep their built-in wording");
 
     /* --- Rejections keep the built-in layout ------------------------------ */
     tv_launcher_default(&sentinel);
@@ -254,6 +280,41 @@ int main(void) {
     len = build_pkg(pkg, PKG_CAP, res, 2, AIRP_FLAG_RESOURCES_ONLY);
     check(tv_launcher_load_package(pkg, len, &tv, &report) == 0,
           "an over-long tile label is refused");
+
+    /* --- Bad strings take the whole package down, text and layout ---------- */
+    res[0].data = launcher_json;
+    tv_launcher_default(&sentinel);
+    tv_launcher_default(&tv);
+    tv.title[0] = 'X';
+    tv_strings_default(&tv.strings);
+    {
+        struct tv_launcher keep = tv;
+        res[1].data = LONG_STRING;
+        len = build_pkg(pkg, PKG_CAP, res, 2, AIRP_FLAG_RESOURCES_ONLY);
+        check(tv_launcher_load_package(pkg, len, &tv, &report) == 0,
+              "an over-long session string is refused");
+        res[1].data = "{\"focus\":}";
+        len = build_pkg(pkg, PKG_CAP, res, 2, AIRP_FLAG_RESOURCES_ONLY);
+        check(tv_launcher_load_package(pkg, len, &tv, &report) == 0,
+              "a malformed strings.json is refused");
+        len = build_pkg(pkg, PKG_CAP, res, 1, AIRP_FLAG_RESOURCES_ONLY);
+        check(tv_launcher_load_package(pkg, len, &tv, &report) == 0,
+              "a package without strings.json is refused");
+        check(strcmp(tv.title, keep.title) == 0 &&
+                  strcmp(tv.tiles[0].label, keep.tiles[0].label) == 0 &&
+                  strcmp(tv_strings_get(&tv.strings, "focus"),
+                         tv_strings_get(&keep.strings, "focus")) == 0,
+              "a rejected package leaves both layout and text untouched");
+    }
+    check(tv_strings_get(&sentinel.strings, "app") &&
+              tv_strings_get(&sentinel.strings, "home") &&
+              tv_strings_get(&sentinel.strings, "sections") &&
+              tv_strings_get(&sentinel.strings, "focus") &&
+              tv_strings_get(&sentinel.strings, "status_card") &&
+              tv_strings_get(&sentinel.strings, "focused") &&
+              tv_strings_get(&sentinel.strings, "open"),
+          "the built-in layout declares every label the shell draws");
+    check(tv_strings_get(0, "app") == 0, "a missing layout has no strings");
 
     check(tv_launcher_load_package(0, 0, &tv, &report) == 0 && !report.loaded,
           "an unstaged session keeps the built-in layout");

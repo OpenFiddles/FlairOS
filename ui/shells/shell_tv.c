@@ -61,6 +61,13 @@ static void tv_launcher_ensure(const struct shell_boot_info *info) {
     if (focused_tile >= g_launcher.tile_count) focused_tile = 0;
 }
 
+/* Text the layout declares, or empty when it declares none. The built-in
+   layout always declares the keys the shell draws. */
+static const char *tv_label(const char *key) {
+    const char *text = tv_strings_get(&g_launcher.strings, key);
+    return text ? text : "";
+}
+
 /* "app:N" launches an ART package by index, "airp:cast" starts the screen
    stream. Unknown targets are ignored rather than guessed at. */
 static void tv_launch_tile(int idx) {
@@ -111,6 +118,7 @@ int shell_handle_input(const struct input64_state *in, int32_t w, int32_t h) {
     int32_t rx, ry, cw, ch;
 
     tv_set_surface(w, h);
+    airstin_ui_set_scale_q16(tv_scale_q16);
     tv_launcher_ensure(0);
     if (!in) return 0;
     if (in->key == INPUT64_KEY_UP) {
@@ -180,6 +188,7 @@ void shell_render(struct ag_surface *s, const struct shell_boot_info *info, int 
     (void)frame_idx;
     if (!s || !info) return;
     tv_set_surface(s->width, s->height);
+    airstin_ui_set_scale_q16(tv_scale_q16);
     tv_launcher_ensure(info);
     w = s->width;
     h = s->height;
@@ -189,10 +198,10 @@ void shell_render(struct ag_surface *s, const struct shell_boot_info *info, int 
     gfx_gradient_v(s, 0, 0, w, h, top_c, bot_c);
 
     /* Overscan-safe 10-foot top status bar. */
-    gfx_draw_text_aa(s, px(48), px(26), "FlairTV", THEME_TEXT_PRIMARY, tx(3));
-    gfx_pill_badge(s, px(210), px(26), "HOME", THEME_ACCENT_BLUE, THEME_TEXT_PRIMARY, tx(2));
-    gfx_draw_text_aa(s, px(310), px(30), "Apps   Android   AirP   Status",
-                     THEME_TEXT_MUTED, tx(2));
+    gfx_draw_text_aa(s, px(48), px(26), tv_label("app"), THEME_TEXT_PRIMARY, tx(3));
+    gfx_pill_badge(s, px(210), px(26), tv_label("home"), THEME_ACCENT_BLUE,
+                   THEME_TEXT_PRIMARY, tx(2));
+    gfx_draw_text_aa(s, px(310), px(30), tv_label("sections"), THEME_TEXT_MUTED, tx(2));
     airstin_render_status_cluster(s, w - px(16), info->arch_name, tv_cc_open);
 
     hx = px(48);
@@ -206,7 +215,7 @@ void shell_render(struct ag_surface *s, const struct shell_boot_info *info, int 
     act = art_am_active();
     as = airp_session_status();
     bt = bt_core_status();
-    gfx_pill_badge(s, hx + px(28), hy + px(24), "10-FOOT FOCUS", THEME_ACCENT_TEAL,
+    gfx_pill_badge(s, hx + px(28), hy + px(24), tv_label("focus"), THEME_ACCENT_TEAL,
                    THEME_BG_TOP, tx(2));
     gfx_pill_badge(s, hx + px(240), hy + px(24), art_bridge_abi(), THEME_ACCENT_INDIGO,
                    THEME_TEXT_PRIMARY, tx(2));
@@ -227,7 +236,7 @@ void shell_render(struct ag_surface *s, const struct shell_boot_info *info, int 
         gfx_stroke_round_rect(s, crx, cry, crw, crh, px(18), THEME_GLASS_BORDER, 130u);
         gfx_pill_badge(s, crx + px(20), cry + px(18), airp_state_name(as->state),
                        THEME_ACCENT_GREEN, THEME_TEXT_PRIMARY, tx(2));
-        gfx_draw_text_aa(s, crx + px(20), cry + px(62), "AIRP + BT AUDIO",
+        gfx_draw_text_aa(s, crx + px(20), cry + px(62), tv_label("status_card"),
                          THEME_TEXT_PRIMARY, tx(2));
         gfx_draw_text_scaled(s, crx + px(20), cry + px(96), as->status_text,
                              THEME_ACCENT_TEAL, tx(2));
@@ -253,7 +262,7 @@ void shell_render(struct ag_surface *s, const struct shell_boot_info *info, int 
             gfx_draw_text_scaled(s, cx + px(24), ry + px(134), tile->subtitle,
                                  THEME_TEXT_MUTED, tx(2));
         gfx_pill_badge(s, cx + px(24), ry + ch - px(46),
-                       i == focused_tile ? "FOCUSED" : "OPEN",
+                       i == focused_tile ? tv_label("focused") : tv_label("open"),
                        i == focused_tile ? THEME_ACCENT_BLUE : THEME_GLASS_DARK,
                        THEME_TEXT_PRIMARY, tx(2));
     }

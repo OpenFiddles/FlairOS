@@ -464,6 +464,98 @@ int airjson_array_at(const char *array, u32 len, int index,
     }
 }
 
+int airjson_object_count(const char *object, u32 len, int *out) {
+    u32 pos = 0;
+    int count = 0;
+    if (!object || !out)
+        return AIRJSON_ERR_SYNTAX;
+    trim(object, &pos, &len);
+    if (pos >= len || object[pos] != '{')
+        return AIRJSON_ERR_TYPE;
+    pos++;
+    skip_ws(object, len, &pos);
+    if (pos < len && object[pos] == '}') {
+        pos++;
+        skip_ws(object, len, &pos);
+        if (pos != len)
+            return AIRJSON_ERR_SYNTAX;
+        *out = 0;
+        return AIRJSON_OK;
+    }
+    for (;;) {
+        if (parse_string_raw(object, len, &pos) != AIRJSON_OK)
+            return AIRJSON_ERR_SYNTAX;
+        skip_ws(object, len, &pos);
+        if (pos >= len || object[pos] != ':')
+            return AIRJSON_ERR_SYNTAX;
+        pos++;
+        skip_ws(object, len, &pos);
+        if (parse_value(object, len, &pos, 0) != AIRJSON_OK)
+            return AIRJSON_ERR_SYNTAX;
+        count++;
+        skip_ws(object, len, &pos);
+        if (pos < len && object[pos] == ',') {
+            pos++;
+            skip_ws(object, len, &pos);
+            continue;
+        }
+        if (pos < len && object[pos] == '}') {
+            pos++;
+            skip_ws(object, len, &pos);
+            if (pos != len)
+                return AIRJSON_ERR_SYNTAX;
+            *out = count;
+            return AIRJSON_OK;
+        }
+        return AIRJSON_ERR_SYNTAX;
+    }
+}
+
+int airjson_object_at(const char *object, u32 len, int index,
+                      const char **key, u32 *key_len,
+                      const char **value, u32 *value_len) {
+    u32 pos = 0;
+    int i = 0;
+    if (!object || !key || !key_len || !value || !value_len || index < 0)
+        return AIRJSON_ERR_RANGE;
+    trim(object, &pos, &len);
+    if (pos >= len || object[pos] != '{')
+        return AIRJSON_ERR_TYPE;
+    pos++;
+    skip_ws(object, len, &pos);
+    if (pos < len && object[pos] == '}')
+        return AIRJSON_ERR_RANGE;
+    for (;;) {
+        u32 name_start = pos, name_end, value_start;
+        if (parse_string_raw(object, len, &pos) != AIRJSON_OK)
+            return AIRJSON_ERR_SYNTAX;
+        name_end = pos;
+        skip_ws(object, len, &pos);
+        if (pos >= len || object[pos] != ':')
+            return AIRJSON_ERR_SYNTAX;
+        pos++;
+        skip_ws(object, len, &pos);
+        value_start = pos;
+        if (parse_value(object, len, &pos, 0) != AIRJSON_OK)
+            return AIRJSON_ERR_SYNTAX;
+        if (i == index) {
+            *key = object + name_start;
+            *key_len = name_end - name_start;
+            *value = object + value_start;
+            *value_len = pos - value_start;
+            return AIRJSON_OK;
+        }
+        i++;
+        skip_ws(object, len, &pos);
+        if (pos < len && object[pos] == ',') {
+            pos++;
+            skip_ws(object, len, &pos);
+            continue;
+        }
+        return AIRJSON_ERR_RANGE;
+    }
+}
+
 int airjson_get_int(const char *value, u32 len, int *out) {
     u32 start = 0, end = len, pos;
     int negative = 0;

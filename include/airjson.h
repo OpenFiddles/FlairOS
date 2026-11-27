@@ -47,6 +47,13 @@ int airjson_root_get(const struct airjson_doc *doc, const char *key,
    returned by airjson_root_get or airjson_object_get. Counts and reads are
    re-validated against that span, so a caller never indexes past it. */
 int airjson_array_count(const char *array, unsigned int len, int *out);
+
+/* Object iteration, for maps whose keys are not known ahead of time. `key` is
+   the raw quoted span, so airjson_get_string decodes it like any other string. */
+int airjson_object_count(const char *object, unsigned int len, int *out);
+int airjson_object_at(const char *object, unsigned int len, int index,
+                      const char **key, unsigned int *key_len,
+                      const char **value, unsigned int *value_len);
 int airjson_array_at(const char *array, unsigned int len, int index,
                      const char **value, unsigned int *value_len);
 
