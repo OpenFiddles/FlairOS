@@ -373,10 +373,26 @@ void an_preset_motion(const struct an_preset *preset, int32_t progress,
     }
 }
 
+int an_preset_frame(const struct an_preset *preset, int32_t progress,
+                    int32_t x, int32_t y, int32_t w, int32_t h,
+                    int32_t viewport_w, int32_t viewport_h,
+                    uint32_t viewport_scale_q16, struct an_motion *out) {
+    if (!preset || !out) return -1;
+    an_preset_motion(preset, progress, w, h, viewport_scale_q16, out);
+    an_motion_clamp(out, x, y, w, h, viewport_w, viewport_h);
+    return 0;
+}
+
 int an_motion_clamp(struct an_motion *motion, int32_t x, int32_t y,
                     int32_t w, int32_t h, int32_t viewport_w, int32_t viewport_h) {
     int32_t min_dx, max_dx, min_dy, max_dy;
     if (!motion) return -1;
+    /* An element wider than the viewport has no room to slide; pin it rather
+       than letting the min/max bounds invert. */
+    if (w < 0) w = 0;
+    if (h < 0) h = 0;
+    if (viewport_w < 0) viewport_w = 0;
+    if (viewport_h < 0) viewport_h = 0;
     min_dx = -x;
     max_dx = viewport_w - (x + w);
     min_dy = -y;

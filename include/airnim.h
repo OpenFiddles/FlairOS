@@ -86,8 +86,9 @@ enum an_edge {
 
 enum an_kind { AN_KIND_FADE = 0, AN_KIND_SLIDE, AN_KIND_POP, AN_KIND_CROSSFADE };
 
-/* The offset is snapped through AirGraph's density scale, so a slide composes
-   with the same viewport scale the rest of the UI uses. */
+/* Distance is authored as a fraction of the element's own extent, so the
+   preset composes with AirGraph's dynamic viewport scaling without multiplying
+   that fraction by the panel scale a second time. */
 #define AN_PRESET_COMPOSE_VIEWPORT 0x1u
 
 struct an_preset {
@@ -128,6 +129,13 @@ int32_t an_preset_offset(an_id id, const struct an_preset *preset, int32_t span)
 void an_preset_motion(const struct an_preset *preset, int32_t progress,
                       int32_t w, int32_t h, uint32_t viewport_scale_q16,
                       struct an_motion *out);
+/* Apply a preset to a rectangle in a viewport: resolves the motion from the
+   rectangle's own size and clamps it inside the viewport. Returns 0, or -1 for
+   a missing preset/motion. */
+int an_preset_frame(const struct an_preset *preset, int32_t progress,
+                    int32_t x, int32_t y, int32_t w, int32_t h,
+                    int32_t viewport_w, int32_t viewport_h,
+                    uint32_t viewport_scale_q16, struct an_motion *out);
 /* Clamp a motion so the element's rectangle stays inside the viewport. */
 int an_motion_clamp(struct an_motion *motion, int32_t x, int32_t y,
                     int32_t w, int32_t h, int32_t viewport_w, int32_t viewport_h);

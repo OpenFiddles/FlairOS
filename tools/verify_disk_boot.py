@@ -22,6 +22,7 @@ path rather than on a log line that merely says the kernel intended to boot.
 import json
 import os
 import platform
+import re
 import shutil
 import socket
 import subprocess
@@ -189,45 +190,6 @@ def monitor(path, command, wait=0.4):
         pass
     s.close()
     return out.decode(errors="replace")
-
-
-def screendump_sequence(path, shots):
-    """Take several screendumps over one monitor connection.
-
-    shots is [(file, seconds_to_wait_after_that_dump), ...]. One connection is
-    kept open so the frame timestamps are controlled by the delays here rather
-    than by reconnecting for every capture.
-    """
-    if not os.path.exists(path):
-        raise RuntimeError("QEMU monitor socket disappeared")
-    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    s.settimeout(10)
-    s.connect(path)
-    time.sleep(0.1)
-    try:
-        s.recv(65536)
-    except Exception:
-        pass
-    try:
-        for shot, delay in shots:
-            s.sendall((f"screendump {shot}\n").encode())
-            time.sleep(0.10)   # let the dump land before the next command
-            if delay:
-                time.sleep(delay)
-    finally:
-        s.close()
-
-
-def wait_for_output(log, needle, timeout, proc):
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        output = open(log, errors="replace").read() if os.path.exists(log) else ""
-        if needle in output:
-            return True
-        if proc.poll() is not None:
-            return False
-        time.sleep(0.1)
-    return False
 
 
 def frame_delta(a, b):
@@ -516,9 +478,20 @@ def verify(image, arch, preset, width, height, timeout):
             if "flairos64: anim=rest" in output:
                 break
             time.sleep(0.12)
-        if "flairos64: anim=rest" not in (open(log, errors="replace").read()
-                                           if os.path.exists(log) else ""):
+        output = open(log, errors="replace").read() if os.path.exists(log) else ""
+        if "flairos64: anim=rest" not in output:
             return False, f"{preset}/{arch}: animation never reached its resting frame"
+        # The demo enumerates the public preset table and requests every entry
+        # by name; the log must show one start line for each enumerated index.
+        declared = re.search(r"flairos64: anim=pst count=(\d+)", output)
+        if not declared:
+            return False, f"{preset}/{arch}: the animation demo never enumerated the preset API"
+        api_count = int(declared.group(1))
+        started = {int(i) for i, _ in re.findall(
+            r"flairos64: anim=pst i=(\d+)/\d+ name=(\S+)", output)}
+        if api_count < 1 or started != set(range(api_count)):
+            return False, (f"{preset}/{arch}: preset tour requested {sorted(started)} of "
+                           f"{api_count} enumerated animations")
         time.sleep(0.4)
         monitor(sock, f"screendump {shot}", wait=0.5)
         time.sleep(0.3)
@@ -573,7 +546,8 @@ def verify(image, arch, preset, width, height, timeout):
             return False, (f"{preset}/{arch}: animation did not settle "
                            f"(final frames differ by {settle * 100:.2f}%)")
         anim_evidence = (f", anim {len(anim_frames)} frames peak delta {peak * 100:.1f}%, "
-                         f"resting frames settled {settle * 100:.2f}%")
+                         f"resting frames settled {settle * 100:.2f}%, "
+                         f"presets {api_count}/{api_count}")
 
     return True, (f"{preset}/{arch}: disk boot -> render=ok {width}x{height} "
                   f"{want_orientation}, screendump {pw}x{ph}, {colours} colours, "

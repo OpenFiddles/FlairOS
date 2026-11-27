@@ -131,6 +131,65 @@ int main(void) {
             }
         }
 
+        /* Every enumerated preset is playable by name and settles exactly on
+           its declared endpoint. */
+        {
+            unsigned int base = 3000;
+            for (i = 0; i < an_preset_count(); ++i) {
+                p = an_preset_at(i);
+                ticks = base;
+                CHECK(an_preset_play(c, p->name) == 0);
+                CHECK(an_preset_value(c, p) == p->from);
+                ticks = base + p->duration_ticks;
+                CHECK(an_preset_value(c, p) == p->to);
+                CHECK(!an_busy(c));
+                base += 200;
+            }
+        }
+
+        /* The same table resolves at every preset mode, including 4K, with the
+           geometry derived from the requested rectangle and clamped to the
+           requested viewport. */
+        {
+            static const int32_t modes[][2] = {
+                { 800, 600 }, { 1920, 1080 }, { 3840, 2160 },
+                { 480, 800 }, { 800, 480 }
+            };
+            int mi;
+            struct an_motion fm;
+            const struct an_preset *left = an_preset_lookup("slide-in-left");
+            CHECK(left != 0);
+            for (i = 0; i < an_preset_count(); ++i) {
+                p = an_preset_at(i);
+                for (mi = 0; mi < (int)(sizeof(modes) / sizeof(modes[0])); ++mi) {
+                    int32_t vw = modes[mi][0], vh = modes[mi][1];
+                    int32_t cw = vw > 900 ? 1260 : 420;
+                    int32_t chh = vw > 900 ? 450 : 150;
+                    int32_t cx = (vw - cw) / 2, cy = (vh - chh) / 2;
+                    CHECK(an_preset_frame(p, 0, cx, cy, cw, chh, vw, vh,
+                                          65536, &fm) == 0);
+                    CHECK(cx + fm.dx >= 0 && cy + fm.dy >= 0);
+                    CHECK(cx + fm.dx + cw <= vw);
+                    CHECK(cy + fm.dy + chh <= vh);
+                }
+            }
+            /* 25% of the element, not a distance tied to one panel. */
+            an_preset_frame(left, 0, 190, 225, 420, 150, 800, 600, 65536, &fm);
+            CHECK(fm.dx == 105);
+            an_preset_frame(left, 0, 1290, 810, 1260, 450, 3840, 2160, 196608, &fm);
+            CHECK(fm.dx == 315);
+
+            /* Unknown names and odd sizes degrade without touching the table. */
+            CHECK(an_preset_play(c, "") == -1);
+            CHECK(an_preset_play(c, 0) == -1);
+            CHECK(an_preset_frame(0, 500, 0, 0, 10, 10, 10, 10, 65536, &fm) == -1);
+            CHECK(an_preset_frame(left, 0, 0, 0, 1, 1, 1, 1, 65536, &fm) == 0);
+            CHECK(fm.dx == 0 && fm.dy == 0);
+            CHECK(an_preset_frame(left, 0, 0, 0, 3, 2, 3, 2, 65536, &fm) == 0);
+            CHECK(fm.dx == 0 && fm.dy == 0);
+            CHECK(an_preset_frame(left, 0, 0, 0, -10, -10, 0, 0, 65536, &fm) == 0);
+        }
+
         ticks = 1000;
         an_set_enabled(1);
         CHECK(an_preset_play(c, "fade-in") == 0);

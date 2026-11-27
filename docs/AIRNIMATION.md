@@ -91,13 +91,25 @@ the table. A caller asks for a preset by name and resolves it with
 `an_preset_motion()`:
 
 ```c
+int n = an_preset_count();                 /* enumerate the API */
+for (int i = 0; i < n; i++)
+    puts(an_preset_at(i)->name);
+
 const struct an_preset *p = an_preset_lookup("slide-in-right");
-an_preset_play(id, "slide-in-right");
+if (!p) return;                            /* unknown name: caller decides */
+if (an_preset_play(id, "slide-in-right") != 0) return;
 struct an_motion m;
-an_preset_motion(p, an_preset_value(id, p), w, h, ag_scale, &m);
-an_motion_clamp(&m, x, y, w, h, panel_w, panel_h);
-draw_at(x + m.dx, y + m.dy);           /* alpha = m.alpha */
+an_preset_frame(p, an_preset_value(id, p),
+                x, y, w, h, panel_w, panel_h, ag_scale, &m);
+draw_at(x + m.dx, y + m.dy);               /* alpha = m.alpha */
 ```
+
+`an_preset_count()` / `an_preset_at()` list the table, `an_preset_lookup()`
+and `an_preset_play()` resolve a name (both return NULL/-1 for an unknown name
+and leave the engine untouched), and `an_preset_frame()` resolves the motion
+from the requested rectangle and clamps it to the requested viewport. The same
+call works for 800x600, 1920x1080, 3840x2160, portrait and landscape panels;
+there is no panel-specific geometry in the caller.
 
 `distance_pm` is a fraction of the element, so 25% of a 100 px card is 25 px
 and 25% of the same card at 4K is 3x that: the visual fraction is identical on
@@ -130,13 +142,14 @@ rather than teaching a shell a new curve.
 
 ## Booted preset proof
 
-`ui/shells/anim_demo.c` runs a short showcase from the desktop and mobile
-shells after startup: slide/fade in, a cross-fade between two content screens,
-a pop badge, then slide/fade out. It asks for every motion by preset name and
-clamps each frame to the panel. `make verify-disk` captures successive frames
-while those phases run and requires a visible frame delta plus a settled final
-frame that still passes the colour/non-modal checks. The 800x600, 1024x768,
-1080p, 4K, 480x800 portrait and 800x480 phone-landscape images all run it.
+`ui/shells/anim_demo.c` enumerates the preset table and plays every entry by
+name, one per phase, from the desktop and mobile shells after startup. It
+resolves each frame against the card's requested rectangle and clamps it to the
+panel. `make verify-disk` captures successive frames while the tour runs,
+requires a visible frame delta and a settled final frame, and checks the serial
+log shows every enumerated index (currently 15/15) was requested on every
+animated image. The 800x600, 1024x768, 1080p, 4K, 480x800 portrait and 800x480
+phone-landscape images all run it.
 
 ## Wired into the shipping desktop
 
