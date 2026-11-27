@@ -132,6 +132,14 @@ two argument shapes per candidate method, so this is a sample, not a maximum).
 All twelve match an independent parser (`androguard` 4.1.4) on package, label and
 launcher activity.
 
+The CI job resolves versions from the F-Droid index rather than pinning files, so
+it measured a newer F-Droid client than the row above: 2.0.3 (code 2000053, three
+DEX files, 124,044 methods with code, 6,983 try blocks, 2,418 methods returned,
+0 caught). Its enabled launcher entry is the `org.fdroid.IconActivity`
+`activity-alias`, and `androguard` reports that same alias as the main activity,
+so the probe's answer is right for that build. Fennec 160.0.1, Termux 0.118.3 and
+NewPipe 0.29.3 probe the same on the runner as locally.
+
 Selected runs, verbatim from probe output:
 
 - Termux: `DataUtils.getIntFromString("12x")` throws
@@ -167,6 +175,13 @@ a failed AXML walk, and on a report without a real string return, object
 allocation or thrown-and-caught exception. `--self-test` feeds the gate ten
 damaged copies of a known-good report and requires each to be rejected, so the
 gate itself is proven able to fail.
+
+On the first run of that job (27 Nov 2026) the runner downloaded Fennec
+(129,832,312 bytes), F-Droid (12,774,751), Termux (113,880,067) and NewPipe
+(16,980,865), printed every manifest field and every string, object and
+exception line into the log, and its gate step passed. That is the difference
+between "it worked in my session" and "it works on a clean machine": the
+numbers in the log above are the runner's, not this machine's.
 
 ### Limits (stated, not implied)
 
