@@ -553,7 +553,16 @@ def verify(image, arch, preset, width, height, timeout):
         if settle > 0.005:
             return False, (f"{preset}/{arch}: animation did not settle "
                            f"(final frames differ by {settle * 100:.2f}%)")
+        # At least one captured frame must be an in-between: different from
+        # both the first captured frame and the settled end state.
+        between = [f for f in anim_frames[1:]
+                   if frame_delta(anim_frames[0], f) > 0.002 and
+                   frame_delta(f, shot) > 0.002]
+        if not between:
+            return False, (f"{preset}/{arch}: no captured frame differs from both the "
+                           "start and the settled end; the preset only snapped")
         anim_evidence = (f", anim {len(anim_frames)} frames peak delta {peak * 100:.1f}%, "
+                         f"{len(between)} in-between vs start+end, "
                          f"resting frames settled {settle * 100:.2f}%, "
                          f"presets {api_count}/{api_count}")
 

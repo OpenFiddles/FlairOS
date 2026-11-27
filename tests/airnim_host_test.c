@@ -111,8 +111,14 @@ int main(void) {
         CHECK(an_preset_at(-1) == 0);
         CHECK(an_preset_at(an_preset_count()) == 0);
         CHECK(an_preset_lookup("fade-in") == an_preset_at(0));
+        CHECK(an_preset_exists("fade-in"));
+        CHECK(an_preset_exists("crossfade"));
+        CHECK(!an_preset_exists("no-such-preset"));
+        CHECK(!an_preset_exists(""));
+        CHECK(!an_preset_exists(0));
         CHECK(an_preset_lookup("no-such-preset") == 0);
         CHECK(an_preset_lookup(0) == 0);
+        CHECK(an_preset_finished(c));   /* nothing started yet */
         for (i = 0; i < an_preset_count(); ++i) {
             p = an_preset_at(i);
             CHECK(p && p->name && p->name[0]);
@@ -139,9 +145,24 @@ int main(void) {
                 p = an_preset_at(i);
                 ticks = base;
                 CHECK(an_preset_play(c, p->name) == 0);
+                CHECK(an_preset_exists(p->name));
                 CHECK(an_preset_value(c, p) == p->from);
+                CHECK(!an_preset_finished(c));
+                /* Some sampled step is a real in-between: not the start and
+                   not the settled end. (Out-back overshoot can clamp to the
+                   end at the halfway point, so sample three positions.) */
+                {
+                    int saw_between = 0;
+                    for (int step = 1; step <= 3; ++step) {
+                        ticks = base + p->duration_ticks * (uint32_t)step / 4u;
+                        v = an_preset_value(c, p);
+                        if (v != p->from && v != p->to) saw_between = 1;
+                    }
+                    CHECK(saw_between);
+                }
                 ticks = base + p->duration_ticks;
                 CHECK(an_preset_value(c, p) == p->to);
+                CHECK(an_preset_finished(c));
                 CHECK(!an_busy(c));
                 base += 200;
             }

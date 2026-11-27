@@ -19,6 +19,7 @@
 #include "../../ported/python/flair_py.h"
 #include "../systemui/airstin_ui.h"
 #include "../../kernel/ui/shell_launcher.h"
+#include "../../include/airnim.h"
 #include "desk_windows.h"
 #ifndef FLAIROS_HOST_TEST
 #include "anim_demo.h"
@@ -190,6 +191,12 @@ static int desk_density(int32_t w, int32_t h) {
             (void)dw_rescale(st, wins, WIN_COUNT, old_w, old_h, w, h);
         else
             (void)dw_layout_from_design(st, wins, WIN_COUNT, 1280, 720, w, h);
+        /* A dense desktop's visible windows enter with the same "slide-in"
+           preset apps get when they open a window. */
+        if (dw_active(st)) {
+            for (int i = 0; i < WIN_COUNT; i++)
+                if (wins[i].open && !wins[i].minimized) dw_open(st, i);
+        }
     }
     return changed > 0;
 }
@@ -1586,9 +1593,22 @@ void shell_render(struct ag_surface *s, const struct shell_boot_info *info, int 
         if (density) gfx_transform_clear();
     }
 
-    /* Dock: order, icons, glyphs and tooltips all come from the session package */
+    /* Dock: order, icons, glyphs and tooltips all come from the session package.
+       It enters with the slide-in-bottom preset instead of appearing fully
+       formed on the first frame. */
     int32_t dw, dh, dx, dy;
+    static int dock_intro_started;
     desk_dock_geometry(w, h, &dx, &dy, &dw, &dh);
+    if (!dock_intro_started) {
+        (void)an_preset_play(an_id_str("desktop.dock.intro"), "slide-in-bottom");
+        dock_intro_started = 1;
+    }
+    {
+        const struct an_preset *dock_in = an_preset_lookup("slide-in-bottom");
+        if (dock_in)
+            dy += an_preset_offset(an_id_str("desktop.dock.intro"), dock_in,
+                                   dh + desk_ui_px(20));
+    }
     gfx_glass_panel(s, dx, dy, dw, dh, desk_ui_px(22), THEME_GLASS_LIGHT, 200u);
     if (dock_hover >= 0 && dock_hover < g_launcher.dock_count) {
         gfx_fill_round_rect(s, desk_dock_icon_x(dx, dock_hover) - desk_ui_px(4),

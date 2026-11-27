@@ -104,12 +104,14 @@ an_preset_frame(p, an_preset_value(id, p),
 draw_at(x + m.dx, y + m.dy);               /* alpha = m.alpha */
 ```
 
-`an_preset_count()` / `an_preset_at()` list the table, `an_preset_lookup()`
-and `an_preset_play()` resolve a name (both return NULL/-1 for an unknown name
-and leave the engine untouched), and `an_preset_frame()` resolves the motion
-from the requested rectangle and clamps it to the requested viewport. The same
-call works for 800x600, 1920x1080, 3840x2160, portrait and landscape panels;
-there is no panel-specific geometry in the caller.
+`an_preset_count()` / `an_preset_at()` list the table, `an_preset_exists()`
+reports whether a name is present, `an_preset_lookup()` and `an_preset_play()`
+resolve a name (both return NULL/-1 for an unknown name and leave the engine
+untouched), and `an_preset_frame()` resolves the motion from the requested
+rectangle and clamps it to the requested viewport. `an_preset_finished(id)` is
+0 while that target is producing in-between values and 1 once it has settled.
+The same call works for 800x600, 1920x1080, 3840x2160, portrait and landscape
+panels; there is no panel-specific geometry in the caller.
 
 `distance_pm` is a fraction of the element, so 25% of a 100 px card is 25 px
 and 25% of the same card at 4K is 3x that: the visual fraction is identical on
@@ -145,10 +147,13 @@ rather than teaching a shell a new curve.
 `ui/shells/anim_demo.c` enumerates the preset table and plays every entry by
 name, one per phase, from the desktop and mobile shells after startup. It
 resolves each frame against the card's requested rectangle and clamps it to the
-panel. `make verify-disk` captures successive frames while the tour runs,
-requires a visible frame delta and a settled final frame, and checks the serial
-log shows every enumerated index (currently 15/15) was requested on every
-animated image. The 800x600, 1024x768, 1080p, 4K, 480x800 portrait and 800x480
+panel. The desktop also uses presets for real UI: visible windows enter with
+`slide-in` and the dock rises with `slide-in-bottom` on first boot. `make
+verify-disk` captures successive frames while the tour runs, requires a visible
+frame delta, at least one captured in-between frame that differs from both the
+start and the settled end, a settled final frame, and checks the serial log
+shows every enumerated index (currently 15/15) was requested on every animated
+image. The 800x600, 1024x768, 1080p, 4K, 480x800 portrait and 800x480
 phone-landscape images all run it.
 
 ## Wired into the shipping desktop

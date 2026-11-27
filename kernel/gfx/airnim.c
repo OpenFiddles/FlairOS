@@ -293,6 +293,14 @@ const struct an_preset *an_preset_lookup(const char *name) {
     return 0;
 }
 
+int an_preset_exists(const char *name) {
+    return an_preset_lookup(name) != 0;
+}
+
+int an_preset_finished(an_id id) {
+    return an_busy(id) ? 0 : 1;
+}
+
 int an_preset_play_at(an_id id, const struct an_preset *preset) {
     if (!preset) return -1;
     an_play(id, preset->from, preset->to, preset->duration_ticks, preset->ease);
@@ -306,6 +314,8 @@ int an_preset_play(an_id id, const char *name) {
 }
 
 int32_t an_preset_value(an_id id, const struct an_preset *preset) {
+    /* Returns the in-between value while the slot is moving, then the exact
+       preset endpoint once the duration has elapsed. */
     int32_t v = an_value(id, preset ? preset->to : 0);
     if (v < 0) v = 0;
     if (v > AN_ONE) v = AN_ONE;

@@ -115,9 +115,14 @@ struct an_motion {
 int an_preset_count(void);
 const struct an_preset *an_preset_at(int index);
 const struct an_preset *an_preset_lookup(const char *name);
+/* 1 when a named preset exists, 0 for NULL/empty/unknown names. */
+int an_preset_exists(const char *name);
 /* Play by name. Returns 0, or -1 for an unknown name (engine untouched). */
 int an_preset_play(an_id id, const char *name);
 int an_preset_play_at(an_id id, const struct an_preset *preset);
+/* 1 once nothing is moving on this id (including before the first play),
+   0 while the requested preset is still producing in-between values. */
+int an_preset_finished(an_id id);
 /* Current progress, clamped to 0..AN_ONE. */
 int32_t an_preset_value(an_id id, const struct an_preset *preset);
 /* Offset for a slide preset: `span` at progress 0, 0 at AN_ONE. */
