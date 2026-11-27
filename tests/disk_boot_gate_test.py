@@ -49,13 +49,24 @@ def main():
     failures = 0
 
     def check(label, expect_ok, code, out):
+        """Require the exit code, and print what the verifier said either way.
+
+        The exit code alone does not show that the case was really exercised,
+        so the verifier's own output goes into the log under every case: which
+        QEMU and accelerator booted it, and for a rejection the message that
+        made it reject the image.
+        """
         nonlocal failures
         good = (code == 0) == expect_ok
         print(f"[{'ok' if good else 'FAIL'}] {label}: verifier exit {code} "
               f"({'expected pass' if expect_ok else 'expected failure'})")
+        text = out.strip()
+        if len(text) > 1200:
+            text = text[:1200].rstrip() + " ..."
+        for line in text.splitlines():
+            print("    " + line)
         if not good:
             failures += 1
-            print("    " + out.replace("\n", "\n    ")[:1500])
 
     # 0. control: the untouched image must pass (generous, since CI runs TCG
     # on a shared runner; the broken images below must still never pass)

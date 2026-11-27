@@ -49,13 +49,64 @@ def qemu_env():
     return env
 
 
-def accel_args():
+def accel_name():
+    """The accelerator the boots run under, exactly as it is passed to QEMU.
+
+    A machine can expose /dev/kvm and still have to boot under TCG (shared CI
+    runners), so the caller can force one and the log then says which one ran.
+    """
     forced = os.environ.get("FLAIROS_QEMU_ACCEL")
     if forced:
-        return ["-accel", forced]
+        return forced
     if os.access("/dev/kvm", os.R_OK | os.W_OK):
-        return ["-accel", "kvm"]
-    return ["-accel", "tcg"]
+        return "kvm"
+    return "tcg"
+
+
+def accel_args():
+    return ["-accel", accel_name()]
+
+
+def qemu_binary(arch):
+    if arch == "x86_64":
+        return os.environ.get("QEMU_DISK", "qemu-system-x86_64")
+    return os.environ.get("QEMU_AARCH64", "qemu-system-aarch64")
+
+
+_QEMU = {}
+
+
+def qemu_identity(arch):
+    """(binary, version) of the emulator that will be run, so the log names it."""
+    if arch not in _QEMU:
+        binary = qemu_binary(arch)
+        try:
+            out = subprocess.run([binary, "--version"], stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT, env=qemu_env(),
+                                 text=True, timeout=30).stdout
+            version = out.strip().splitlines()[0] if out.strip() else "unknown"
+        except (OSError, subprocess.SubprocessError) as exc:
+            version = f"unavailable ({exc})"
+        _QEMU[arch] = (binary, version.replace("QEMU emulator version ", ""))
+    return _QEMU[arch]
+
+
+def boot_banner(arch):
+    """One line naming the emulator, accelerator and firmware a boot will use.
+
+    Printed before every boot so the evidence does not rest on reading this
+    file: the log itself says which QEMU, which accelerator and which firmware
+    produced the framebuffer below it.
+    """
+    binary, version = qemu_identity(arch)
+    parts = [f"{binary} ({version})", f"accel={accel_name()}"]
+    if arch == "aarch64":
+        firmware = aarch64_firmware()
+        parts.append("firmware=" + (firmware[0] if firmware else "missing"))
+    else:
+        extra = firmware_args()
+        parts.append("bios=" + (extra[1] if extra else "default"))
+    return "disk boot with " + ", ".join(parts)
 
 
 def firmware_args():
@@ -277,7 +328,7 @@ def verify(image, arch, preset, width, height, timeout):
 
     return True, (f"{preset}/{arch}: disk boot -> render=ok {width}x{height}, "
                   f"screendump {pw}x{ph}, {colours} colours, "
-                  f"{varied * 100:.1f}% non-modal pixels")
+                  f"{varied * 100:.1f}% non-modal pixels, accel={accel_name()}")
 
 
 def image_for(preset, arch):
@@ -330,11 +381,13 @@ def main(argv):
         w, h = (int(x) for x in dims.lower().split("x"))
         arch = archs[0]
         limit = timeout if timeout is not None else (240 if arch == "aarch64" else 180)
+        print(boot_banner(arch))
         ok, message = verify(image, arch, name, w, h, limit)
         print(("[ok]   " if ok else "[FAIL] ") + message)
         return 0 if ok else 1
 
     for arch in archs:
+        print(boot_banner(arch))
         for preset in (presets or PRESETS):
             if preset not in PRESETS:
                 print(f"unknown preset: {preset}")
