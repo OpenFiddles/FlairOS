@@ -68,12 +68,8 @@ static int tf_rect(int32_t *x, int32_t *y, int32_t *w, int32_t *h) {
     return *w > 0 && *h > 0;
 }
 
-void gfx_blend_pixel(struct ag_surface *s, int32_t x, int32_t y, uint32_t rgb, uint8_t alpha) {
-    if (tf_active) {
-        x = tf_map_x(x);
-        y = tf_map_y(y);
-        if (x < tf_x0 || y < tf_y0 || x >= tf_x1 || y >= tf_y1) return;
-    }
+static void blend_raw(struct ag_surface *s, int32_t x, int32_t y,
+                      uint32_t rgb, uint8_t alpha) {
     if (!s || !s->pixels || x < 0 || y < 0 || x >= s->width || y >= s->height) return;
     uint32_t *row = (uint32_t *)((uint8_t *)s->pixels + (size_t)y * s->pitch);
     if (alpha == 255u) { row[x] = rgb & 0x00FFFFFFu; return; }
@@ -85,6 +81,32 @@ void gfx_blend_pixel(struct ag_surface *s, int32_t x, int32_t y, uint32_t rgb, u
     uint32_t g = (((rgb >> 8) & 0xFFu) * a1 + ((dst >> 8) & 0xFFu) * inv) >> 8;
     uint32_t b = ((rgb & 0xFFu) * a1 + (dst & 0xFFu) * inv) >> 8;
     row[x] = (r << 16) | (g << 8) | b;
+}
+
+void gfx_blend_pixel(struct ag_surface *s, int32_t x, int32_t y, uint32_t rgb, uint8_t alpha) {
+    if (tf_active) {
+        /* A transformed design pixel owns its whole scaled footprint. Mapping
+           only the top-left corner leaves gaps in text and rounded corners
+           (the 4K content looked washed out because of it). */
+        int32_t x0 = tf_map_x(x), y0 = tf_map_y(y);
+        int32_t x1 = tf_map_x(x + 1), y1 = tf_map_y(y + 1);
+        if (x1 <= x0) x1 = x0 + 1;
+        if (y1 <= y0) y1 = y0 + 1;
+        if (x0 < tf_x0) x0 = tf_x0;
+        if (y0 < tf_y0) y0 = tf_y0;
+        if (x1 > tf_x1) x1 = tf_x1;
+        if (y1 > tf_y1) y1 = tf_y1;
+        if (!s || !s->pixels) return;
+        if (x0 < 0) x0 = 0;
+        if (y0 < 0) y0 = 0;
+        if (x1 > s->width) x1 = s->width;
+        if (y1 > s->height) y1 = s->height;
+        for (int32_t py = y0; py < y1; py++)
+            for (int32_t px = x0; px < x1; px++)
+                blend_raw(s, px, py, rgb, alpha);
+        return;
+    }
+    blend_raw(s, x, y, rgb, alpha);
 }
 
 void gfx_fill_rect_alpha(struct ag_surface *s, int32_t x, int32_t y, int32_t w, int32_t h,

@@ -205,6 +205,15 @@ int dw_dispatch_click(struct dw_state *st, struct dw_window *wins,
     return 0;
 }
 
+int dw_layout_from_design(struct dw_state *st, struct dw_window *wins, int count,
+                          int design_w, int design_h, int panel_w, int panel_h) {
+    if (!st || !wins || count <= 0 || design_w <= 0 || design_h <= 0 ||
+        panel_w <= 0 || panel_h <= 0)
+        return -1;
+    if (!dw_active(st)) return 0;
+    return dw_rescale(st, wins, count, design_w, design_h, panel_w, panel_h);
+}
+
 int dw_rescale(struct dw_state *st, struct dw_window *wins, int count,
                int old_w, int old_h, int new_w, int new_h) {
     uint32_t scale;

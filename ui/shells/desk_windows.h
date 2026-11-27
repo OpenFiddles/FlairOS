@@ -96,4 +96,10 @@ int dw_dispatch_click(struct dw_state *st, struct dw_window *wins,
 int dw_rescale(struct dw_state *st, struct dw_window *wins, int count,
                int old_w, int old_h, int new_w, int new_h);
 
+/* First layout at a dense panel: take the shell's 1280x720 design table and
+   scale it to the panel. No-op (0) while the density mode is off, so 720p and
+   smaller modes keep their historical pixel geometry. */
+int dw_layout_from_design(struct dw_state *st, struct dw_window *wins, int count,
+                          int design_w, int design_h, int panel_w, int panel_h);
+
 #endif

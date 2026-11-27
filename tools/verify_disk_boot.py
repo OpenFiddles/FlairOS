@@ -435,7 +435,15 @@ def verify(image, arch, preset, width, height, timeout):
     # The kernel reports the orientation its preset declares; it must agree
     # with the framebuffer geometry and with the preset's own define.
     want_orientation = "portrait" if height > width else "landscape"
-    if f"flairos64: orientation={want_orientation}" not in output:
+    orientation = f"flairos64: orientation={want_orientation}"
+    # render=ok is written immediately before this line; the serial file can
+    # still hold a partial tail when the marker is first seen, so wait for the
+    # complete line instead of treating the race as a missing report.
+    orientation_deadline = time.time() + 5
+    while orientation not in output and time.time() < orientation_deadline:
+        time.sleep(0.1)
+        output = open(log, errors="replace").read() if os.path.exists(log) else ""
+    if orientation not in output:
         proc.terminate()
         if vars_copy:
             os.unlink(vars_copy)

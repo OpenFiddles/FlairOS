@@ -104,13 +104,39 @@ static int desk_dock_tile(int slot) {
     return desk_tile_index(g_launcher.dock_ids[slot]);
 }
 
+static struct dw_state *desk_dw(void);
+
+/* Panel density for the shell's own chrome and dock. AirGraph owns the
+   design-to-device math; 720p and below keep the historical pixel layout. */
+static uint32_t desk_ui_scale(void) {
+    uint32_t sc = desk_dw()->scale_q16;
+    return sc ? sc : AG_SCALE_ONE;
+}
+
+static int32_t desk_ui_px(int32_t design_px) {
+    return ag_px(design_px, desk_ui_scale());
+}
+
+static int32_t desk_ui_text_scale(int32_t base) {
+    /* Scale the font itself, not an integer density bucket: at 1.5x a base-2
+       label needs scale 3 or the menu items collide. */
+    uint32_t sc = desk_ui_scale();
+    int32_t out = (int32_t)(((uint64_t)(uint32_t)base * sc + 0x8000u) >> 16);
+    if (out < base) out = base;
+    return out;
+}
+
+static int32_t desk_dock_icon_x(int32_t dx, int i) {
+    return dx + desk_ui_px(22) + i * desk_ui_px(76);
+}
+
 static void desk_dock_geometry(int32_t w, int32_t h, int32_t *dx, int32_t *dy,
                                int32_t *dw, int32_t *dh) {
     int n = g_launcher.dock_count > 0 ? g_launcher.dock_count : 1;
-    *dw = 44 + n * 76;
-    *dh = 76;
+    *dw = desk_ui_px(44) + n * desk_ui_px(76);
+    *dh = desk_ui_px(76);
     *dx = (w - *dw) / 2;
-    *dy = h - *dh - 14;
+    *dy = h - *dh - desk_ui_px(14);
 }
 
 static const char *desk_label(const char *key, const char *fallback) {
@@ -159,8 +185,12 @@ static int desk_density(int32_t w, int32_t h) {
     old_w = st->panel_w;
     old_h = st->panel_h;
     changed = dw_configure(st, w, h);
-    if (changed > 0 && old_w > 0 && old_h > 0)
-        (void)dw_rescale(st, wins, WIN_COUNT, old_w, old_h, w, h);
+    if (changed > 0) {
+        if (old_w > 0 && old_h > 0)
+            (void)dw_rescale(st, wins, WIN_COUNT, old_w, old_h, w, h);
+        else
+            (void)dw_layout_from_design(st, wins, WIN_COUNT, 1280, 720, w, h);
+    }
     return changed > 0;
 }
 static int active_menu = -1; /* -1=none, 0=FlairOS, 1=Finder, 2=File, 3=Window, 4=View */
@@ -466,13 +496,14 @@ int shell_tick_at(uint32_t now_ticks, uint32_t ticks_per_second) {
     }
     /* Neighbor-aware Dock magnification follows the pointer continuously. */
     for (int i = 0; i < 8; ++i) {
-        int32_t center = (i * 76) + 48;
+        int32_t center = desk_ui_px(i * 76 + 48);
         int32_t distance = dock_pointer_x - center;
         int32_t target_scale = 1000;
         if (distance < 0) distance = -distance;
-        if (anim_on && distance < 156) {
-            int32_t falloff = 156 - distance;
-            target_scale += (420 * falloff * falloff) / (156 * 156);
+        if (anim_on && distance < desk_ui_px(156)) {
+            int32_t falloff = desk_ui_px(156) - distance;
+            target_scale += (420 * falloff * falloff) /
+                            (desk_ui_px(156) * desk_ui_px(156));
         }
         if (spring_advance(&dock_scale[i], &dock_velocity[i], target_scale, dt_ms)) changed = 1;
     }
@@ -803,7 +834,8 @@ int shell_handle_input(const struct input64_state *in, int32_t w, int32_t h) {
         desk_dock_geometry(w, h, &dx, &dy, &dw, &dh);
         if (hit(mx, my, dx, dy, dw, dh)) {
             for (int i = 0; i < g_launcher.dock_count && i < 8; i++) {
-                if (hit(mx, my, dx + 22 + i * 76, dy + 12, 52, 52)) { nh = i; break; }
+                if (hit(mx, my, desk_dock_icon_x(dx, i), dy + desk_ui_px(12),
+                        desk_ui_px(52), desk_ui_px(52))) { nh = i; break; }
             }
         }
         if (nh != dock_hover) {
@@ -869,10 +901,12 @@ int shell_handle_input(const struct input64_state *in, int32_t w, int32_t h) {
 
         /* 1. Dropdown menu items */
         if (active_menu >= 0) {
-            int32_t mxs[5] = {12, 118, 204, 270, 356};
-            int32_t mx0 = mxs[active_menu], my0 = 34, mw = 190, mh = 104;
+            int32_t mxs[5] = { desk_ui_px(12), desk_ui_px(118), desk_ui_px(204),
+                               desk_ui_px(270), desk_ui_px(356) };
+            int32_t mx0 = mxs[active_menu], my0 = desk_ui_px(34);
+            int32_t mw = desk_ui_px(190), mh = desk_ui_px(104);
             if (hit(mx, my, mx0, my0, mw, mh)) {
-                int row = (my - my0 - 6) / 30;
+                int row = (my - my0 - desk_ui_px(6)) / desk_ui_px(30);
                 if (active_menu == 0) {
                     if (row == 0) focus_win(WIN_PREFS);
                     else if (row == 1) open_apk_modal("/apps/sysinfo.apk");
@@ -946,17 +980,21 @@ int shell_handle_input(const struct input64_state *in, int32_t w, int32_t h) {
         }
 
         /* 2. Top Menu Bar hits */
-        if (my < 34) {
-            if (hit(mx, my, w - 246, 0, 238, 34)) {
+        if (my < desk_ui_px(34)) {
+            if (hit(mx, my, w - 246, 0, 238, desk_ui_px(34))) {
                 cc_open = !cc_open;
                 if (!cc_open) airstin_cc_set_view(CC_VIEW_ROOT);
                 active_menu = -1;
                 return 1;
             }
-            int32_t mxs[5] = {12, 118, 204, 270, 356};
-            int32_t mws[5] = {96, 80, 60, 80, 64};
+            int32_t mxs[5] = { desk_ui_px(12), desk_ui_px(118), desk_ui_px(204),
+                               desk_ui_px(270), desk_ui_px(356) };
+            int32_t mws[5] = { desk_ui_px(96), desk_ui_px(80), desk_ui_px(60),
+                               desk_ui_px(80), desk_ui_px(64) };
             for (int i = 0; i < 5; i++) {
-                if (hit(mx, my, mxs[i], 0, mws[i], 34)) { cc_open = 0; active_menu = i; return 1; }
+                if (hit(mx, my, mxs[i], 0, mws[i], desk_ui_px(34))) {
+                    cc_open = 0; active_menu = i; return 1;
+                }
             }
             return dirty;
         }
@@ -966,9 +1004,10 @@ int shell_handle_input(const struct input64_state *in, int32_t w, int32_t h) {
         desk_dock_geometry(w, h, &dx, &dy, &dw, &dh);
         if (hit(mx, my, dx, dy, dw, dh)) {
             for (int i = 0; i < g_launcher.dock_count && i < 8; i++) {
-                int32_t ix = dx + 22 + i * 76;
+                int32_t ix = desk_dock_icon_x(dx, i);
                 int ti, wid;
-                if (!hit(mx, my, ix, dy + 12, 52, 52)) continue;
+                if (!hit(mx, my, ix, dy + desk_ui_px(12),
+                         desk_ui_px(52), desk_ui_px(52))) continue;
                 ti = desk_dock_tile(i);
                 if (ti < 0) return 0;
                 wid = desk_target_window(g_launcher.tiles[ti].target);
@@ -1269,14 +1308,19 @@ void shell_render(struct ag_surface *s, const struct shell_boot_info *info, int 
         gfx_gradient_v(s, 0, 0, w, h, top_c, bot_c);
     }
 
-    /* Top macOS Menu Bar */
-    gfx_fill_rect_alpha(s, 0, 0, w, 34, THEME_GLASS_DARK, 215u);
-    gfx_fill_rect_alpha(s, 0, 34, w, 1, THEME_GLASS_BORDER, 160u);
-    gfx_draw_text_scaled(s, 16, 10, desk_label("menu.apple", "FlairOS"), THEME_TEXT_PRIMARY, 2);
-    gfx_draw_text_scaled(s, 122, 10, desk_label("menu.finder", "Finder"), active_menu == 1 ? THEME_ACCENT_BLUE : THEME_TEXT_MUTED, 2);
-    gfx_draw_text_scaled(s, 208, 10, desk_label("menu.file", "File"), active_menu == 2 ? THEME_ACCENT_BLUE : THEME_TEXT_MUTED, 2);
-    gfx_draw_text_scaled(s, 274, 10, desk_label("menu.window", "Window"), active_menu == 3 ? THEME_ACCENT_BLUE : THEME_TEXT_MUTED, 2);
-    gfx_draw_text_scaled(s, 360, 10, desk_label("menu.view", "View"), active_menu == 4 ? THEME_ACCENT_BLUE : THEME_TEXT_MUTED, 2);
+    /* Top macOS Menu Bar (AirGraph density; 1x at 720p and below) */
+    int32_t bar_h = desk_ui_px(34);
+    int32_t bar_text_y = desk_ui_px(10);
+    int32_t menu_x[5] = { desk_ui_px(16), desk_ui_px(122), desk_ui_px(208),
+                          desk_ui_px(274), desk_ui_px(360) };
+    int32_t menu_ts = desk_ui_text_scale(2);
+    gfx_fill_rect_alpha(s, 0, 0, w, bar_h, THEME_GLASS_DARK, 215u);
+    gfx_fill_rect_alpha(s, 0, bar_h, w, 1, THEME_GLASS_BORDER, 160u);
+    gfx_draw_text_scaled(s, menu_x[0], bar_text_y, desk_label("menu.apple", "FlairOS"), THEME_TEXT_PRIMARY, menu_ts);
+    gfx_draw_text_scaled(s, menu_x[1], bar_text_y, desk_label("menu.finder", "Finder"), active_menu == 1 ? THEME_ACCENT_BLUE : THEME_TEXT_MUTED, menu_ts);
+    gfx_draw_text_scaled(s, menu_x[2], bar_text_y, desk_label("menu.file", "File"), active_menu == 2 ? THEME_ACCENT_BLUE : THEME_TEXT_MUTED, menu_ts);
+    gfx_draw_text_scaled(s, menu_x[3], bar_text_y, desk_label("menu.window", "Window"), active_menu == 3 ? THEME_ACCENT_BLUE : THEME_TEXT_MUTED, menu_ts);
+    gfx_draw_text_scaled(s, menu_x[4], bar_text_y, desk_label("menu.view", "View"), active_menu == 4 ? THEME_ACCENT_BLUE : THEME_TEXT_MUTED, menu_ts);
     airstin_render_status_cluster(s, w, info->arch_name, cc_open);
 
     int tw = top_win();
@@ -1298,8 +1342,11 @@ void shell_render(struct ag_surface *s, const struct shell_boot_info *info, int 
                and clip it there so content cannot paint over chrome. */
             client = dw_client_rect(dst, win);
             design = wdraw;
-            design.w = (int32_t)(((int64_t)win->w << 16) / dst->scale_q16);
-            design.h = (int32_t)(((int64_t)win->h << 16) / dst->scale_q16);
+            /* Use the client, not the outer frame: content authored at the
+               window's bottom edge would otherwise be clipped by the scaled
+               title bar and border. */
+            design.w = (int32_t)(((int64_t)client.w << 16) / dst->scale_q16);
+            design.h = (int32_t)(((int64_t)client.h << 16) / dst->scale_q16);
             ox = client.x - (int32_t)(((int64_t)win->x * dst->scale_q16) >> 16);
             oy = client.y - (int32_t)(((int64_t)win->y * dst->scale_q16) >> 16);
             gfx_transform_set(dst->scale_q16, ox, oy, client.x, client.y,
@@ -1542,9 +1589,11 @@ void shell_render(struct ag_surface *s, const struct shell_boot_info *info, int 
     /* Dock: order, icons, glyphs and tooltips all come from the session package */
     int32_t dw, dh, dx, dy;
     desk_dock_geometry(w, h, &dx, &dy, &dw, &dh);
-    gfx_glass_panel(s, dx, dy, dw, dh, 22, THEME_GLASS_LIGHT, 200u);
+    gfx_glass_panel(s, dx, dy, dw, dh, desk_ui_px(22), THEME_GLASS_LIGHT, 200u);
     if (dock_hover >= 0 && dock_hover < g_launcher.dock_count) {
-        gfx_fill_round_rect(s, dx + 18 + dock_hover * 76, dy + 8, 60, 60, 14, THEME_GLASS_LIGHT, 160u);
+        gfx_fill_round_rect(s, desk_dock_icon_x(dx, dock_hover) - desk_ui_px(4),
+                            dy + desk_ui_px(8), desk_ui_px(60), desk_ui_px(60),
+                            desk_ui_px(14), THEME_GLASS_LIGHT, 160u);
     }
     for (int i = 0; i < g_launcher.dock_count && i < 8; i++) {
         int ti = desk_dock_tile(i);
@@ -1555,34 +1604,40 @@ void shell_render(struct ag_surface *s, const struct shell_boot_info *info, int 
         tile = &g_launcher.tiles[ti];
         icon = (tile->icon >= 0 && tile->icon < ANIM_ICON_COUNT) ? tile->icon : 0;
         f = (anim_on && dock_hover == i) ? dock_anim_frame : 0;
-        icon_size = (52 * dock_scale[i]) / 1000;
-        ix = dx + 22 + i * 76 + (52 - icon_size) / 2;
-        iy = dy + 12 + (52 - icon_size) / 2 - ((anim_on && dock_hover == i && (f & 1)) ? 3 : 0);
+        icon_size = (desk_ui_px(52) * dock_scale[i]) / 1000;
+        ix = desk_dock_icon_x(dx, i) + (desk_ui_px(52) - icon_size) / 2;
+        iy = dy + desk_ui_px(12) + (desk_ui_px(52) - icon_size) / 2 -
+             ((anim_on && dock_hover == i && (f & 1)) ? desk_ui_px(3) : 0);
         gfx_draw_bmp_scaled(s, anim_icon_bmps[icon][f], anim_icon_sizes[icon][f],
                             ix, iy, icon_size, icon_size);
         if (tile->glyph[0])
-            gfx_draw_text_scaled(s, ix + (icon_size - 24) / 2, iy + (icon_size - 16) / 2,
-                                 tile->glyph, THEME_TEXT_PRIMARY, 2);
+            gfx_draw_text_scaled(s, ix + (icon_size - desk_ui_px(24)) / 2,
+                                 iy + (icon_size - desk_ui_px(16)) / 2,
+                                 tile->glyph, THEME_TEXT_PRIMARY, desk_ui_text_scale(2));
         {
             int wid = desk_target_window(tile->target);
             if (wid >= 0 && wins[wid].open)
-                gfx_fill_round_rect(s, dx + 44 + i * 76, dy + 67, 8, 4, 2, THEME_TEXT_PRIMARY, 240u);
+                gfx_fill_round_rect(s, dx + desk_ui_px(44) + i * desk_ui_px(76),
+                                    dy + desk_ui_px(67), desk_ui_px(8),
+                                    desk_ui_px(4), desk_ui_px(2),
+                                    THEME_TEXT_PRIMARY, 240u);
         }
     }
     if (tooltips_on && dock_hover >= 0 && dock_hover < g_launcher.dock_count) {
         int ti = desk_dock_tile(dock_hover);
-        int32_t tx = dx + 10 + dock_hover * 76;
-        gfx_glass_panel(s, tx, dy - 30, 84, 24, 8, THEME_GLASS_DARK, 235u);
+        int32_t tx = dx + desk_ui_px(10) + dock_hover * desk_ui_px(76);
+        gfx_glass_panel(s, tx, dy - desk_ui_px(30), desk_ui_px(84),
+                        desk_ui_px(24), desk_ui_px(8), THEME_GLASS_DARK, 235u);
         if (ti >= 0)
-            gfx_draw_text_scaled(s, tx + 10, dy - 24, g_launcher.tiles[ti].label,
-                                 THEME_TEXT_PRIMARY, 1);
+            gfx_draw_text_scaled(s, tx + desk_ui_px(10), dy - desk_ui_px(24),
+                                 g_launcher.tiles[ti].label,
+                                 THEME_TEXT_PRIMARY, desk_ui_text_scale(1));
     }
 
     airstin_render_control_center(s, w, cc_open, cc_anim, anim_on, theme_idx);
 
     /* Active Menu Dropdown */
     if (active_menu >= 0) {
-        int32_t mxs[5] = {12, 118, 204, 270, 356};
         static const char *const item_keys[5][3] = {
             {"menu.about", "menu.sysinfo", "menu.close_all"},
             {"menu.open_root", "menu.open_apps", "menu.open_home"},
@@ -1597,12 +1652,17 @@ void shell_render(struct ag_surface *s, const struct shell_boot_info *info, int 
             {"Tile Windows", "Minimize", "Close Active"},
             {"Theme Indigo", "Theme Blue", "Theme Pink"}
         };
-        int32_t mx0 = mxs[active_menu], my0 = 34;
-        gfx_glass_panel(s, mx0, my0, 190, 104, 10, THEME_GLASS_DARK, 245u);
+        static const int32_t menu_design_x[5] = {12, 118, 204, 270, 356};
+        int32_t mx0 = desk_ui_px(menu_design_x[active_menu]);
+        int32_t my0 = desk_ui_px(34);
+        int32_t mts = desk_ui_text_scale(2);
+        gfx_glass_panel(s, mx0, my0, desk_ui_px(190), desk_ui_px(104),
+                        desk_ui_px(10), THEME_GLASS_DARK, 245u);
         for (int r = 0; r < 3; r++)
-            gfx_draw_text_scaled(s, mx0 + 14, my0 + 12 + r * 30,
+            gfx_draw_text_scaled(s, mx0 + desk_ui_px(14),
+                                 my0 + desk_ui_px(12) + r * desk_ui_px(30),
                                  desk_label(item_keys[active_menu][r], item_text[active_menu][r]),
-                                 THEME_TEXT_PRIMARY, 2);
+                                 THEME_TEXT_PRIMARY, mts);
     }
 
     if (spotlight_open || spotlight_anim_y > -24) {

@@ -133,6 +133,12 @@ int main(void) {
                             0x00CC33AAu, 255);
         CHECK(at(c.x + 60, c.y + 120) == 0x00CC33AAu);
         CHECK(at(c.x + 60 + 89, c.y + 120 + 35) == 0x00CC33AAu);
+        /* One transformed design pixel fills its 3x3 device footprint, so
+           text is solid instead of a sparse lattice of points. */
+        gfx_blend_pixel(&surface, win.x + 5, win.y + 45, 0x00FFCC00u, 255);
+        for (int32_t dy = 0; dy < 3; dy++)
+            for (int32_t dx = 0; dx < 3; dx++)
+                CHECK(at(c.x + 15 + dx, c.y + 135 + dy) == 0x00FFCC00u);
         /* Content drawn above the client top is clipped away by chrome. */
         gfx_fill_rect_alpha(&surface, win.x + 200, win.y + 4, 60, 20,
                             0x0011EE11u, 255);
@@ -188,6 +194,28 @@ int main(void) {
 
     /* A client click is not consumed by chrome. */
     CHECK(dw_click(&st, &win, slot, win.x + 400, win.y + 300) == DW_CLICK_CLIENT);
+
+    /* A first boot directly at 4K lays out the 720p table at 3x instead of
+       leaving 540 px windows stamped in the corner. */
+    {
+        struct dw_state fresh;
+        dw_init(&fresh);
+        CHECK(dw_configure(&fresh, PANEL_W, PANEL_H) == 1);
+        memcpy(scaled, shell_windows, sizeof scaled);
+        CHECK(dw_layout_from_design(&fresh, scaled, 8, 1280, 720,
+                                    PANEL_W, PANEL_H) == 0);
+        CHECK(scaled[0].w == 1620 && scaled[0].h == 1080);
+        CHECK(scaled[0].x == 108 && scaled[0].y == 156);
+        CHECK(scaled[1].x + scaled[1].w <= PANEL_W);
+        CHECK(scaled[0].y >= ag_px(34, wd_scale_q16(&fresh.wd)));
+        /* 720p and below keep the historical table untouched. */
+        dw_init(&fresh);
+        CHECK(dw_configure(&fresh, 1280, 720) == 1);
+        memcpy(scaled, shell_windows, sizeof scaled);
+        CHECK(dw_layout_from_design(&fresh, scaled, 8, 1280, 720,
+                                    1280, 720) == 0);
+        CHECK(scaled[0].w == 540 && scaled[0].h == 360);
+    }
 
     /* 720p -> 4K: every window is scaled in proportion and left on-screen. */
     memcpy(scaled, shell_windows, sizeof scaled);

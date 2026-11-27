@@ -32,8 +32,12 @@ but never logs the `ok` line.
 
 Layout scale is shared too: `kernel/ui/tv_layout.c` (1280x720 design) and
 `kernel/ui/mobile_layout.c` (480x800 design) turn panel size into a Q16 scale.
-The desktop session keeps its own window-manager coordinates; its dock, menu bar,
-dropdowns, window titles and tooltips come from `FlairDesktop.airp`.
+The desktop session uses the same AirGraph density helpers for its 1280x720
+design: a first boot at 1080p or 4K lays out the window table at 1.5x/3x before
+the first frame, and the dock, menu bar, dropdowns, window titles and tooltips
+scale with it. At 1280x720 and below the desktop keeps its historical pixel
+layout byte for byte. The dock, menu wording and window titles still come from
+`FlairDesktop.airp`.
 
 ## Kernel components that stay in the kernel
 
@@ -65,7 +69,7 @@ export PATH=$HOME/local/bin:$PATH
 export LD_LIBRARY_PATH=$HOME/local/usr/lib/x86_64-linux-gnu:$HOME/local/lib/x86_64-linux-gnu
 
 python3 tools/build_preset.py --preset tv --arch x86_64      # one preset
-make presets                                                 # all six presets, both arches
+make presets                                                 # all nine presets, both arches
 make verify-disk                                             # boots and gates every one
 ```
 
