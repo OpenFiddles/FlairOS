@@ -1,0 +1,18 @@
+{
+  "name": "mobileland",
+  "display_name": "FlairOS Mobile Landscape (iOS SpringBoard Shell)",
+  "default_arch": "x86_64",
+  "supported_arches": [
+    "x86_64",
+    "aarch64"
+  ],
+  "width": 800,
+  "height": 480,
+  "shell_source": "ui/shells/shell_mobile.c",
+  "airp_role": "AIRP_ROLE_SENDER",
+  "session_package": "mobile",
+  "defines": [
+    "FLAIROS_DEVICE_PHONE",
+    "FLAIROS_DISPLAY_LANDSCAPE"
+  ]
+}

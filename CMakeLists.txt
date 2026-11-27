@@ -212,7 +212,7 @@ add_custom_command(
     OUTPUT "${B}/kernel.elf"
     COMMAND "${FLAIROS_LD}" -m elf_i386 -nostdlib --gc-sections -T "${S}/kernel/boot/link.ld"
             -o "${B}/kernel.elf" ${KERNEL_ASM_OBJS} $<TARGET_OBJECTS:kernel_objs>
-    DEPENDS ${KERNEL_ASM_OBJS} kernel_objs "${S}/kernel/boot/link.ld"
+    DEPENDS ${KERNEL_ASM_OBJS} $<TARGET_OBJECTS:kernel_objs> "${S}/kernel/boot/link.ld"
     COMMENT "Linking kernel.elf"
     COMMAND_EXPAND_LISTS
 )

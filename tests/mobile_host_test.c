@@ -9,8 +9,9 @@
 
 /* The phone session is a package too: FlairMobile.airp carries the home-screen
    tiles, dock and every label. These tests prove the layout scale from the
-   480x800 design, and that the home screen resolves from the shipped package
-   bytes while a rejected package leaves the built-in one untouched. */
+   480x800 portrait and 800x480 landscape canvases, and that the home screen
+   resolves from the shipped package bytes while a rejected package leaves the
+   built-in one untouched. */
 
 static int failures;
 
@@ -155,6 +156,16 @@ int main(void) {
           "phone scale is the shared AirGraph ratio with the 3x session clamp");
     check(mobile_layout_px(68, 147456) == ag_px(68, 147456),
           "phone design pixels use AirGraph snapping");
+    /* --- Landscape: the 800x480 canvas, same AirGraph ratio --------------- */
+    check(mobile_layout_landscape(800, 480) == 1, "a wide panel uses the landscape canvas");
+    check(mobile_layout_landscape(480, 800) == 0, "a tall panel uses the portrait canvas");
+    check(mobile_layout_scale_q16(800, 480) == 65536, "the landscape design keeps 1x");
+    check(mobile_layout_scale_q16(1280, 720) == 98304, "1280x720 landscape scales 1.5x");
+    check(mobile_layout_scale_q16(1920, 1080) == 147456, "1920x1080 landscape scales 2.25x");
+    check(mobile_layout_scale_q16(1280, 720) ==
+              (int32_t)ag_scale_ratio_q16(1280, 720, MOBILE_LAYOUT_LANDSCAPE_W,
+                                          MOBILE_LAYOUT_LANDSCAPE_H),
+          "landscape scale is the shared AirGraph ratio for the 800x480 canvas");
     check(mobile_layout_scale_q16(320, 480) == 65536, "sub-design surfaces hold 1x");
     check(mobile_layout_scale_q16(0, 0) == 65536, "a degenerate surface holds 1x");
     check(mobile_layout_px(68, 98304) == 102, "design pixels scale");

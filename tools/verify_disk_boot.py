@@ -33,7 +33,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Every shipped preset is gated. The 4K frames need a VGA with enough video
 # memory (see qemu_command); with the default 16 MiB the std VGA reports a
 # truncated 32x1092 capture, which is why the boot below sets vgamem_mb.
-PRESETS = ("desktop", "desktop4k", "mobile", "template", "tv", "tv4k")
+PRESETS = ("desktop", "desktop1080", "desktop4k", "mobile", "mobileland",
+           "template", "tv", "tv4k")
 ARCHES = ("x86_64", "aarch64")
 
 
@@ -408,6 +409,16 @@ def verify(image, arch, preset, width, height, timeout):
             os.unlink(vars_copy)
         return False, f"{preset}/{arch}: kernel log does not identify the preset"
 
+    # The kernel reports the orientation its preset declares; it must agree
+    # with the framebuffer geometry and with the preset's own define.
+    want_orientation = "portrait" if height > width else "landscape"
+    if f"flairos64: orientation={want_orientation}" not in output:
+        proc.terminate()
+        if vars_copy:
+            os.unlink(vars_copy)
+        return False, (f"{preset}/{arch}: expected orientation={want_orientation} for "
+                       f"{width}x{height}, kernel log does not report it")
+
     # A session whose preset declares a package must report that the kernel read
     # it. Without this a shell could render on its built-in fallback and still
     # pass the framebuffer check.
@@ -450,8 +461,8 @@ def verify(image, arch, preset, width, height, timeout):
                        f"({colours} colours, {varied * 100:.1f}% non-modal pixels); "
                        "the preset was accepted only if its own resolution renders")
 
-    return True, (f"{preset}/{arch}: disk boot -> render=ok {width}x{height}, "
-                  f"screendump {pw}x{ph}, {colours} colours, "
+    return True, (f"{preset}/{arch}: disk boot -> render=ok {width}x{height} "
+                  f"{want_orientation}, screendump {pw}x{ph}, {colours} colours, "
                   f"{varied * 100:.1f}% non-modal pixels, accel={accel_name(arch)}")
 
 

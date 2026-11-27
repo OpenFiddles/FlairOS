@@ -153,6 +153,12 @@ disk-gate:
 # --- Legacy i386 reference image (opt-in) ---
 legacy: $(BUILD)/textile.img $(BUILD)/livecd.iso $(BUILD)/bootcd.iso $(BUILD)/storage.img
 
+# Boots the i386 floppy image and checks its own framebuffer at the resolution
+# and orientation the desktop reports. Uses qemu-system-i386 when present and
+# qemu-system-x86_64 otherwise (the same 32-bit machine code).
+verify-legacy: $(BUILD)/textile.img
+	python3 tools/verify_legacy_boot.py $(BUILD)/textile.img
+
 legacy-image: $(BUILD)/textile.img
 
 mobile:
@@ -679,7 +685,7 @@ acceptance: legacy-image
 clean:
 	rm -rf $(BUILD)
 
-.PHONY: presets verify-disk disk-gate legacy legacy-image run run-vnc win-demo test legacy-test acceptance clean livecd bootcd boot-media storage-image
+.PHONY: presets verify-disk disk-gate legacy verify-legacy legacy-image run run-vnc win-demo test legacy-test acceptance clean livecd bootcd boot-media storage-image
 
 # --- SDK example app (built on request, not on the disk image) ---
 $(BUILD)/hello.o: examples/hello/hello.c sdk/flareos.h | $(BUILD)

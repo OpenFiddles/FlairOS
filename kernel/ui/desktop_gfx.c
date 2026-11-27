@@ -59,7 +59,9 @@ static int display_ready;
 #define XRGB_MASK 0x00FFFFFFu
 static int display_attempted;
 static unsigned int active_profile =
-#if defined(FLAIROS_DEVICE_TV) || defined(FLAIROS_DISPLAY_4K)
+#if defined(FLAIROS_DISPLAY_4K)
+    4u;
+#elif defined(FLAIROS_DEVICE_TV)
     3u;
 #elif defined(FLAIROS_DEVICE_PHONE) || defined(FLAIROS_DEVICE_TABLET) || defined(FLAIROS_DISPLAY_PORTRAIT)
     1u;
@@ -422,6 +424,23 @@ void desktop_gfx_shutdown(void) {
     serial_str("display: returned to VGA text mode\n");
 }
 
+static void desktop_serial_u32(unsigned int value) {
+    char digits[11];
+    int n = 0;
+    if (value == 0) {
+        serial_str("0");
+        return;
+    }
+    while (value > 0 && n < 10) {
+        digits[n++] = (char)('0' + (value % 10u));
+        value /= 10u;
+    }
+    while (n > 0) {
+        char one[2] = { digits[--n], 0 };
+        serial_str(one);
+    }
+}
+
 int desktop_gfx_init(void) {
     if (display_ready)
         return 1;
@@ -511,17 +530,14 @@ int desktop_gfx_init(void) {
         if (image_length)
             serial_str("display: custom BMP wallpaper loaded\n");
     }
+    /* Report the mode the display actually came up in, not the compile-time
+       preset: a VBE/Bochs profile can select a different mode from the one a
+       preset label assumes, and that mismatch must be visible. */
     serial_str("display: AirGraph pixel desktop active (");
-#if defined(FLAIROS_DISPLAY_4K)
-    serial_str("3840x2160 4K");
-#elif defined(FLAIROS_DISPLAY_PORTRAIT)
-    serial_str("600x750 portrait");
-#elif defined(FLAIROS_DISPLAY_WIDE)
-    serial_str("1024x768 wide");
-#else
-    serial_str("800x600 landscape");
-#endif
-    serial_str(")\n");
+    desktop_serial_u32((unsigned int)display_fb.width);
+    serial_str("x");
+    desktop_serial_u32((unsigned int)display_fb.height);
+    serial_str(display_fb.width > display_fb.height ? " landscape)\n" : " portrait)\n");
     return 1;
 }
 

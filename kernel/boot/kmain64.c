@@ -262,6 +262,15 @@ void kmain64(uint64_t arg0, uint64_t arg1) {
                 hal_serial_putc('x');
                 serial_u32((uint32_t)back_surf.height);
                 hal_serial_puts("\n");
+                /* The gate pairs this with the framebuffer capture, so a shell
+                   that silently draws portrait content on a landscape panel is
+                   caught rather than only checked for pixel count. */
+                hal_serial_puts("flairos64: orientation=");
+#if defined(FLAIROS_DISPLAY_PORTRAIT)
+                hal_serial_puts("portrait\n");
+#else
+                hal_serial_puts("landscape\n");
+#endif
                 first = 0;
             }
         } else if (in.mouse_x != last_mx || in.mouse_y != last_my || in.buttons != last_btn) {

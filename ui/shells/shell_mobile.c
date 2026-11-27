@@ -34,6 +34,7 @@ enum mob_app_id {
 static struct shell_launcher g_launcher;
 static int g_launcher_ready = 0;
 static int32_t g_scale = MOBILE_LAYOUT_UNIT_Q16;
+static int m_land; /* panel wider than tall: draw the 800x480 canvas */
 
 static int mob_screen = MOB_HOME;
 static int mob_cc_open = 0;
@@ -93,6 +94,7 @@ static const char *mob_label(const char *key, const char *fallback) {
 
 static void mob_set_surface(int32_t w, int32_t h) {
     if (w <= 0 || h <= 0) return;
+    m_land = mobile_layout_landscape(w, h);
     g_scale = mobile_layout_scale_q16(w, h);
 }
 
@@ -153,29 +155,36 @@ static void mob_activate_tile(int idx) {
 
 /* --- Home screen geometry, shared by rendering and hit testing ------------ */
 #define MOB_COLS 3
+#define MOB_COLS_LANDSCAPE 4
 
-static int32_t mob_icon_size(void) { return px(68); }
+static int32_t mob_cols(void) { return m_land ? MOB_COLS_LANDSCAPE : MOB_COLS; }
+static int32_t mob_icon_size(void) { return m_land ? px(60) : px(68); }
+static int32_t mob_tile_step(void) { return m_land ? px(102) : px(114); }
+static int32_t mob_grid_top(void) { return m_land ? px(66) : px(74); }
 
 static int32_t mob_grid_gap(int32_t w) {
-    int32_t span = w - px(48) - MOB_COLS * mob_icon_size();
-    int32_t gap = span / (MOB_COLS - 1);
+    int32_t cols = mob_cols();
+    int32_t span = w - px(48) - cols * mob_icon_size();
+    int32_t gap = span / (cols - 1);
     return gap > px(6) ? gap : px(6);
 }
 
 static void mob_tile_rect(int32_t w, int idx, int32_t *x, int32_t *y) {
+    int32_t cols = mob_cols();
     int32_t isz = mob_icon_size(), gap = mob_grid_gap(w);
-    int r = idx / MOB_COLS, c = idx % MOB_COLS;
+    int r = idx / cols, c = idx % cols;
     *x = px(24) + c * (isz + gap);
-    *y = px(74) + r * px(114);
+    *y = mob_grid_top() + r * mob_tile_step();
 }
 
 static int32_t mob_grid_rows(void) {
+    int32_t cols = mob_cols();
     int n = g_launcher.tile_count > 0 ? g_launcher.tile_count : 1;
-    return (n + MOB_COLS - 1) / MOB_COLS;
+    return (n + cols - 1) / cols;
 }
 
 static int32_t mob_widget_y(void) {
-    return px(74) + mob_grid_rows() * px(114) + px(8);
+    return mob_grid_top() + mob_grid_rows() * mob_tile_step() + px(m_land ? 4 : 8);
 }
 
 static void mob_dock_rect(int32_t w, int slot, int32_t *x) {
@@ -459,12 +468,14 @@ void shell_render(struct ag_surface *s, const struct shell_boot_info *info, int 
         /* Session widget: what the shell is and how to drive it. */
         {
             int32_t wy = mob_widget_y();
-            gfx_glass_panel(s, px(18), wy, w - px(36), px(130), px(20), THEME_GLASS_DARK, 210u);
-            gfx_draw_text_scaled(s, px(34), wy + px(18), g_launcher.title, THEME_ACCENT_TEAL, tx(2));
-            gfx_draw_text_scaled(s, px(34), wy + px(50),
+            gfx_glass_panel(s, px(18), wy, w - px(36), px(m_land ? 92 : 130), px(20),
+                            THEME_GLASS_DARK, 210u);
+            gfx_draw_text_scaled(s, px(34), wy + px(m_land ? 14 : 18), g_launcher.title,
+                                 THEME_ACCENT_TEAL, tx(2));
+            gfx_draw_text_scaled(s, px(34), wy + px(m_land ? 42 : 50),
                                  mob_label("widget_title", "Full-Screen Apps Ready"),
                                  THEME_TEXT_PRIMARY, tx(2));
-            gfx_draw_text_scaled(s, px(34), wy + px(82),
+            gfx_draw_text_scaled(s, px(34), wy + px(m_land ? 70 : 82),
                                  mob_label("widget_hint", "Tap any app or top-right status"),
                                  THEME_TEXT_MUTED, tx(1));
         }
@@ -531,7 +542,8 @@ void shell_render(struct ag_surface *s, const struct shell_boot_info *info, int 
                 static const char *cl[5][4] = {{"C","+/-","%","/"},{"7","8","9","*"},
                                                {"4","5","6","-"},{"1","2","3","+"},
                                                {"0","0","BS","="}};
-                int32_t bw = (w - px(50)) / 4, bh = px(74), gx = px(16), gy = px(176) + oy;
+                int32_t bw = (w - px(50)) / 4, bh = px(m_land ? 50 : 74), gx = px(16);
+                int32_t gy = px(m_land ? 160 : 176) + oy;
                 for (int r = 0; r < 5; r++) {
                     for (int c = 0; c < 4; c++) {
                         uint32_t bg = (c == 3) ? THEME_ACCENT_ORANGE
@@ -555,7 +567,8 @@ void shell_render(struct ag_surface *s, const struct shell_boot_info *info, int 
             {
                 int row = 0, col = 0;
                 char line[40];
-                for (int i = 0; i <= mob_nlen && row < 16; i++) {
+                int max_rows = m_land ? 9 : 16;
+                for (int i = 0; i <= mob_nlen && row < max_rows; i++) {
                     char ch = (i < mob_nlen) ? mob_nbuf[i] : 0;
                     if (ch == '\n' || ch == 0 || col >= 28) {
                         if (ch == 0 && col < 28) line[col++] = '_';
