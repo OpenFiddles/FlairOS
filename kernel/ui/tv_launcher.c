@@ -44,41 +44,50 @@ static int tv_str_eq(const char *a, const char *b) {
     return *a == *b;
 }
 
-static int tv_strings_set(struct tv_strings *s, const char *key, const char *text) {
-    for (int i = 0; i < s->count; i++) {
-        if (tv_str_eq(s->items[i].key, key)) {
-            tv_text_copy(s->items[i].text, (int)sizeof(s->items[i].text), text);
+/* Built-in wording for the keys the shell itself draws. Everything else falls
+   back to a literal at its draw site. */
+static const char *const tv_builtin_keys[] = {
+    "app", "home", "sections", "focus", "status_card", "focused", "open"
+};
+static const char *const tv_builtin_text[] = {
+    "FlairTV", "HOME", "Apps   Android   AirP   Status", "10-FOOT FOCUS",
+    "AIRP + BT AUDIO", "FOCUSED", "OPEN"
+};
+#define TV_BUILTIN_COUNT ((int)(sizeof(tv_builtin_keys) / sizeof(tv_builtin_keys[0])))
+
+void tv_strings_default(struct tv_strings *out) {
+    if (!out) return;
+    out->json = 0;
+    out->len = 0;
+    out->count = 0;
+}
+
+int tv_strings_copy(const struct tv_strings *strings, const char *key,
+                    char *buf, unsigned int cap) {
+    const char *value = 0;
+    unsigned int value_len = 0;
+
+    if (!buf || cap == 0) return 0;
+    buf[0] = 0;
+    if (!strings || !key) return 0;
+
+    if (strings->json &&
+        airjson_object_get(0, strings->json, strings->len, key, &value, &value_len) == AIRJSON_OK &&
+        airjson_get_string(value, value_len, buf, cap) == AIRJSON_OK && buf[0])
+        return 1;
+
+    for (int i = 0; i < TV_BUILTIN_COUNT; i++) {
+        if (tv_str_eq(tv_builtin_keys[i], key)) {
+            tv_text_copy(buf, (int)cap, tv_builtin_text[i]);
             return 1;
         }
     }
-    if (s->count >= TV_STRINGS_MAX) return 0;
-    tv_text_copy(s->items[s->count].key, (int)sizeof(s->items[s->count].key), key);
-    tv_text_copy(s->items[s->count].text, (int)sizeof(s->items[s->count].text), text);
-    s->count++;
-    return 1;
-}
-
-void tv_strings_default(struct tv_strings *out) {
-    static const char *keys[] = { "app", "home", "sections", "focus", "status_card", "focused", "open" };
-    static const char *texts[] = {
-        "FlairTV", "HOME", "Apps   Android   AirP   Status", "10-FOOT FOCUS",
-        "AIRP + BT AUDIO", "FOCUSED", "OPEN"
-    };
-    if (!out) return;
-    out->count = 0;
-    for (int i = 0; i < (int)(sizeof(keys) / sizeof(keys[0])); i++)
-        (void)tv_strings_set(out, keys[i], texts[i]);
-}
-
-const char *tv_strings_get(const struct tv_strings *strings, const char *key) {
-    if (!strings || !key) return 0;
-    for (int i = 0; i < strings->count; i++)
-        if (tv_str_eq(strings->items[i].key, key)) return strings->items[i].text;
     return 0;
 }
 
-/* Parses strings.json over the built-in wording, so a package only has to
-   declare the keys it wants to change and an unknown key is still usable. */
+/* Validates every entry of strings.json without copying it: the layout keeps a
+   view of these bytes, so this pass is what makes an over-long or malformed
+   entry reject the package before anything is applied. */
 static int tv_strings_parse(const char *json, unsigned int len, struct tv_strings *out) {
     struct airjson_doc doc;
     int count = 0;
@@ -87,6 +96,7 @@ static int tv_strings_parse(const char *json, unsigned int len, struct tv_string
 
     if (airjson_open(&doc, json, len) != AIRJSON_OK) return 0;
     if (airjson_object_count(json, len, &count) != AIRJSON_OK || count <= 0) return 0;
+    if (count > TV_STRINGS_MAX) return 0;
     for (int i = 0; i < count; i++) {
         const char *k = 0, *v = 0;
         unsigned int klen = 0, vlen = 0;
@@ -94,8 +104,10 @@ static int tv_strings_parse(const char *json, unsigned int len, struct tv_string
         if (airjson_get_string(k, klen, key, sizeof(key)) != AIRJSON_OK) return 0;
         if (airjson_get_string(v, vlen, text, sizeof(text)) != AIRJSON_OK) return 0;
         if (!key[0] || !text[0]) return 0;
-        if (!tv_strings_set(out, key, text)) return 0;
     }
+    out->json = json;
+    out->len = len;
+    out->count = count;
     return 1;
 }
 

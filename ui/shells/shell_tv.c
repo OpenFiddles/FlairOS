@@ -64,8 +64,15 @@ static void tv_launcher_ensure(const struct shell_boot_info *info) {
 /* Text the layout declares, or empty when it declares none. The built-in
    layout always declares the keys the shell draws. */
 static const char *tv_label(const char *key) {
-    const char *text = tv_strings_get(&g_launcher.strings, key);
-    return text ? text : "";
+    static char text[TV_STRING_TEXT_MAX];
+    return tv_strings_copy(&g_launcher.strings, key, text, sizeof text) ? text : "";
+}
+
+/* The control drawer asks for every label it draws; in a TV session those come
+   from the same packaged strings.json as the shell's own labels. */
+static const char *tv_drawer_label(const char *key) {
+    static char text[TV_STRING_TEXT_MAX];
+    return tv_strings_copy(&g_launcher.strings, key, text, sizeof text) ? text : 0;
 }
 
 /* "app:N" launches an ART package by index, "airp:cast" starts the screen
@@ -120,6 +127,7 @@ int shell_handle_input(const struct input64_state *in, int32_t w, int32_t h) {
     tv_set_surface(w, h);
     airstin_ui_set_scale_q16(tv_scale_q16);
     tv_launcher_ensure(0);
+    airstin_ui_set_labels(tv_drawer_label);
     if (!in) return 0;
     if (in->key == INPUT64_KEY_UP) {
         tv_cc_open = 1;
@@ -190,6 +198,7 @@ void shell_render(struct ag_surface *s, const struct shell_boot_info *info, int 
     tv_set_surface(s->width, s->height);
     airstin_ui_set_scale_q16(tv_scale_q16);
     tv_launcher_ensure(info);
+    airstin_ui_set_labels(tv_drawer_label);
     w = s->width;
     h = s->height;
 

@@ -87,6 +87,8 @@ The last one is the real unlock: adding a staged package currently means editing
 - [x] Control drawer scaled with the layout instead of fixed pixels
       (AirStinUI draws through the TV scale; desktop/mobile keep the 1x drawer)
 - [x] TV session strings read from `strings.json`
+- [x] Control drawer wording read from the packaged strings too
+      (`cc.*`, `power.*`, `inst.*` keys; desktop/mobile keep the built-in text)
 
 ### Accessibility and theming
 

@@ -540,9 +540,9 @@ $(BUILD)/desktop_theme_host_test: tests/desktop_theme_host_test.c kernel/ui/desk
 		-ffunction-sections -fdata-sections -Wl,--gc-sections \
 		-o $@ tests/desktop_theme_host_test.c kernel/ui/desktop_theme.c kernel/pkg/airp.c kernel/pkg/airjson.c kernel/gfx/sprunkui.c
 
-$(BUILD)/tv_drawer_host_test: tests/tv_drawer_host_test.c ui/systemui/airstin_ui.c kernel/ui/tv_layout.c graphics/compositor/glass_fx.c kernel/gfx/airgraph.c kernel/gfx/font5x7.c kernel/gfx/bmp.c kernel/gfx/fb.c ui/systemui/airstin_ui.h kernel/ui/tv_layout.h | $(BUILD)
+$(BUILD)/tv_drawer_host_test: tests/tv_drawer_host_test.c ui/systemui/airstin_ui.c kernel/ui/tv_layout.c kernel/ui/tv_launcher.c kernel/pkg/airp.c kernel/pkg/airjson.c graphics/compositor/glass_fx.c kernel/gfx/airgraph.c kernel/gfx/font5x7.c kernel/gfx/bmp.c kernel/gfx/fb.c ui/systemui/airstin_ui.h kernel/ui/tv_layout.h kernel/ui/tv_launcher.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -DFLAIROS_HOST_TEST -Iinclude -Ikernel \
-		-o $@ tests/tv_drawer_host_test.c ui/systemui/airstin_ui.c kernel/ui/tv_layout.c graphics/compositor/glass_fx.c kernel/gfx/airgraph.c kernel/gfx/font5x7.c kernel/gfx/bmp.c kernel/gfx/fb.c
+		-o $@ tests/tv_drawer_host_test.c ui/systemui/airstin_ui.c kernel/ui/tv_layout.c kernel/ui/tv_launcher.c kernel/pkg/airp.c kernel/pkg/airjson.c graphics/compositor/glass_fx.c kernel/gfx/airgraph.c kernel/gfx/font5x7.c kernel/gfx/bmp.c kernel/gfx/fb.c
 
 $(BUILD)/tv_host_test: tests/tv_host_test.c kernel/ui/tv_layout.c kernel/ui/tv_launcher.c kernel/pkg/airp.c kernel/pkg/airjson.c kernel/ui/tv_layout.h kernel/ui/tv_launcher.h include/airp.h include/airjson.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -DFLAIROS_HOST_TEST -Iinclude -Ikernel \

@@ -25,6 +25,15 @@ struct airstin_installer {
 void airstin_ui_set_scale_q16(int32_t scale_q16);
 int32_t airstin_ui_scale_q16(void);
 
+/* Session-supplied wording. A session that has its own strings (the TV session,
+   from the strings.json packaged in its .airp) installs a resolver here and the
+   drawer asks it for every label; with no resolver installed — desktop and
+   mobile — the drawer draws the wording it has always drawn. The resolved text
+   is copied into the drawer's own storage, so a resolver may reuse one buffer. */
+typedef const char *(*airstin_label_fn)(const char *key);
+void airstin_ui_set_labels(airstin_label_fn fn);
+const char *airstin_ui_label(const char *key, const char *fallback);
+
 /* Drawer geometry in surface pixels, derived from the scale above. Both the
    renderer and the hit test read it, so they cannot disagree at any scale. */
 struct airstin_cc_geometry {

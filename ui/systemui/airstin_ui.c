@@ -40,6 +40,28 @@ void airstin_ui_set_scale_q16(int32_t scale_q16) {
     g_ui_scale_q16 = scale_q16;
 }
 
+static airstin_label_fn g_labels;
+
+void airstin_ui_set_labels(airstin_label_fn fn) { g_labels = fn; }
+
+/* Resolved session text, copied into a small ring so several labels can be in
+   flight in one draw call (a row's title and subtitle, for instance) while the
+   resolver itself only owns one buffer. */
+const char *airstin_ui_label(const char *key, const char *fallback) {
+    static char ring[4][64];
+    static unsigned next;
+    const char *text = (g_labels && key) ? g_labels(key) : 0;
+    char *slot;
+    int i = 0;
+
+    if (!text || !text[0]) return fallback;
+    slot = ring[next];
+    next = (next + 1u) % 4u;
+    while (text[i] && i < 63) { slot[i] = text[i]; i++; }
+    slot[i] = 0;
+    return slot;
+}
+
 /* Design units -> surface pixels. At 1.0 this is the identity, so every path
    below is bit-for-bit the old fixed-pixel drawing. */
 static int32_t ui_len(int32_t base, int32_t q16) {
@@ -226,7 +248,7 @@ void airstin_ui_init(void) {
     g_inst.active = 0;
     g_inst.installing = 0;
     g_inst.progress = 0;
-    ui_scpy(g_inst.stage, "Ready", sizeof(g_inst.stage));
+    ui_scpy(g_inst.stage, airstin_ui_label("inst.ready", "Ready"), sizeof(g_inst.stage));
 }
 
 enum cc_subview airstin_cc_view(void) { return g_cc_view; }
@@ -248,7 +270,8 @@ void airstin_ui_begin_install(const char *path, const struct apk_info *info) {
     g_inst.installing = 0;
     g_inst.progress = 0;
     ui_scpy(g_inst.path, path ? path : "", sizeof(g_inst.path));
-    ui_scpy(g_inst.stage, "Ready to install package", sizeof(g_inst.stage));
+    ui_scpy(g_inst.stage, airstin_ui_label("inst.stage_ready", "Ready to install package"),
+            sizeof(g_inst.stage));
     if (info) g_inst.info = *info;
 }
 
@@ -282,10 +305,18 @@ int airstin_ui_tick(void) {
     if (g_inst.progress < 100) {
         g_inst.progress += 15;
         if (g_inst.progress > 100) g_inst.progress = 100;
-        if (g_inst.progress < 30)      ui_scpy(g_inst.stage, "Inspecting archive...", sizeof(g_inst.stage));
-        else if (g_inst.progress < 60) ui_scpy(g_inst.stage, "Extracting DEX & .so...", sizeof(g_inst.stage));
-        else if (g_inst.progress < 90) ui_scpy(g_inst.stage, "Registering Surface...", sizeof(g_inst.stage));
-        else                           ui_scpy(g_inst.stage, "Finalizing install...", sizeof(g_inst.stage));
+        if (g_inst.progress < 30)
+            ui_scpy(g_inst.stage, airstin_ui_label("inst.inspecting", "Inspecting archive..."),
+                    sizeof(g_inst.stage));
+        else if (g_inst.progress < 60)
+            ui_scpy(g_inst.stage, airstin_ui_label("inst.extracting", "Extracting DEX & .so..."),
+                    sizeof(g_inst.stage));
+        else if (g_inst.progress < 90)
+            ui_scpy(g_inst.stage, airstin_ui_label("inst.registering", "Registering Surface..."),
+                    sizeof(g_inst.stage));
+        else
+            ui_scpy(g_inst.stage, airstin_ui_label("inst.finalizing", "Finalizing install..."),
+                    sizeof(g_inst.stage));
         return 1;
     }
     return changed;
@@ -379,10 +410,13 @@ void airstin_render_control_center(struct ag_surface *s, int32_t w, int cc_open,
         ui_round(&pen, 12, 10, 68, 26, 7, THEME_GLASS_LIGHT, 215u);
         ui_chevron_left(s, px_of(&pen, 20), py_of(&pen, 18), ui_glyph(10, pen.q16),
                         THEME_TEXT_PRIMARY);
-        ui_text(&pen, 34, 19, "Back", THEME_TEXT_PRIMARY, 1);
+        ui_text(&pen, 34, 19, airstin_ui_label("cc.back", "Back"), THEME_TEXT_PRIMARY, 1);
         {
-            const char *htitle = (g_cc_view == CC_VIEW_WIFI) ? "Wi-Fi" :
-                                 (g_cc_view == CC_VIEW_CELL ? "Cellular" : "Bluetooth");
+            const char *htitle = (g_cc_view == CC_VIEW_WIFI)
+                                     ? airstin_ui_label("cc.wifi", "Wi-Fi")
+                                     : (g_cc_view == CC_VIEW_CELL
+                                            ? airstin_ui_label("cc.cellular", "Cellular")
+                                            : airstin_ui_label("cc.bluetooth", "Bluetooth"));
             ui_text_aa(&pen, 92, 15, htitle, THEME_TEXT_PRIMARY, 2);
         }
 
@@ -390,14 +424,20 @@ void airstin_render_control_center(struct ag_surface *s, int32_t w, int cc_open,
             int w_on = ns->wifi_on && !ns->airplane_mode;
             ui_round(&pen, CC_DESIGN_W - 66, 10, 54, 26, 7,
                      w_on ? THEME_ACCENT_BLUE : THEME_GLASS_LIGHT, 225u);
-            ui_text(&pen, CC_DESIGN_W - 50, 19, w_on ? "ON" : "OFF", THEME_TEXT_PRIMARY, 1);
+            ui_text(&pen, CC_DESIGN_W - 50, 19,
+                    w_on ? airstin_ui_label("cc.on", "ON") : airstin_ui_label("cc.off", "OFF"),
+                    THEME_TEXT_PRIMARY, 1);
 
             ui_round(&pen, 12, 46, CC_DESIGN_W - 24, 62, 8, THEME_GLASS_LIGHT, 180u);
             ui_text(&pen, 20, 56,
-                    w_on ? (ns->ssid[0] ? ns->ssid : "Wi-Fi Connected") : "No Wi-Fi Radio",
+                    w_on ? (ns->ssid[0] ? ns->ssid
+                                        : airstin_ui_label("cc.wifi_connected_full", "Wi-Fi Connected"))
+                         : airstin_ui_label("cc.wifi_no_radio", "No Wi-Fi Radio"),
                     w_on ? THEME_ACCENT_TEAL : THEME_TEXT_MUTED, 1);
             ui_text(&pen, 20, 74,
-                    w_on ? (ns->wifi_ip[0] ? ns->wifi_ip : "DHCP Pending") : "Ethernet / Hardware NIC",
+                    w_on ? (ns->wifi_ip[0] ? ns->wifi_ip
+                                           : airstin_ui_label("cc.dhcp_pending", "DHCP Pending"))
+                         : airstin_ui_label("cc.ethernet_nic", "Ethernet / Hardware NIC"),
                     THEME_TEXT_MUTED, 1);
             ui_text(&pen, 20, 92, ns->tel_source[0] ? ns->tel_source : "hardware",
                     THEME_TEXT_MUTED, 1);
@@ -405,15 +445,21 @@ void airstin_render_control_center(struct ag_surface *s, int32_t w, int cc_open,
             int c_on = ns->cell_on && !ns->airplane_mode;
             ui_round(&pen, CC_DESIGN_W - 66, 10, 54, 26, 7,
                      c_on ? THEME_ACCENT_TEAL : THEME_GLASS_LIGHT, 225u);
-            ui_text(&pen, CC_DESIGN_W - 50, 19, c_on ? "ON" : "OFF", THEME_TEXT_PRIMARY, 1);
+            ui_text(&pen, CC_DESIGN_W - 50, 19,
+                    c_on ? airstin_ui_label("cc.on", "ON") : airstin_ui_label("cc.off", "OFF"),
+                    THEME_TEXT_PRIMARY, 1);
 
             ui_round(&pen, 12, 48, CC_DESIGN_W - 24, 90, 8, THEME_GLASS_LIGHT, 185u);
-            ui_text_aa(&pen, 22, 60, ns->carrier[0] ? ns->carrier : "No Cellular Modem",
+            ui_text_aa(&pen, 22, 60,
+                       ns->carrier[0] ? ns->carrier
+                                      : airstin_ui_label("cc.no_cell_modem", "No Cellular Modem"),
                        THEME_TEXT_PRIMARY, 2);
             ui_text(&pen, 22, 88, c_on && ns->cell_rat[0] ? ns->cell_rat : "--",
                     THEME_ACCENT_TEAL, 1);
             ui_text(&pen, 76, 88,
-                    c_on ? (ns->cell_roaming ? "Roaming" : "Home Network") : "No Hardware SIM",
+                    c_on ? (ns->cell_roaming ? airstin_ui_label("cc.roaming", "Roaming")
+                                             : airstin_ui_label("cc.home_network", "Home Network"))
+                         : airstin_ui_label("cc.no_sim", "No Hardware SIM"),
                     THEME_TEXT_MUTED, 1);
             ui_cell_icon(s, px_of(&pen, 22), py_of(&pen, 108), ns->cell_bars, c_on,
                          THEME_ACCENT_TEAL, pen.q16);
@@ -421,15 +467,21 @@ void airstin_render_control_center(struct ag_surface *s, int32_t w, int cc_open,
             /* CC_VIEW_BT */
             ui_round(&pen, CC_DESIGN_W - 66, 10, 54, 26, 7,
                      bt->powered ? THEME_ACCENT_BLUE : THEME_GLASS_LIGHT, 225u);
-            ui_text(&pen, CC_DESIGN_W - 50, 19, bt->powered ? "ON" : "OFF",
+            ui_text(&pen, CC_DESIGN_W - 50, 19,
+                    bt->powered ? airstin_ui_label("cc.on", "ON")
+                                : airstin_ui_label("cc.off", "OFF"),
                     THEME_TEXT_PRIMARY, 1);
 
             ui_round(&pen, 12, 46, 124, 28, 7, THEME_ACCENT_INDIGO, 215u);
-            ui_text(&pen, 26, 56, bt->scanning ? "Scanning..." : "Scan Devices",
+            ui_text(&pen, 26, 56,
+                    bt->scanning ? airstin_ui_label("cc.scanning", "Scanning...")
+                                 : airstin_ui_label("cc.scan_devices", "Scan Devices"),
                     THEME_TEXT_PRIMARY, 1);
             ui_round(&pen, 144, 46, 124, 28, 7,
                      bt->state == BT_STATE_ERROR ? THEME_ACCENT_PINK : THEME_GLASS_LIGHT, 200u);
-            ui_text(&pen, 162, 56, bt->state == BT_STATE_ERROR ? "Recover" : "Reset HCI",
+            ui_text(&pen, 162, 56,
+                    bt->state == BT_STATE_ERROR ? airstin_ui_label("cc.recover", "Recover")
+                                                : airstin_ui_label("cc.reset_hci", "Reset HCI"),
                     THEME_TEXT_PRIMARY, 1);
             ui_text(&pen, 14, 82, bt->status_text, THEME_ACCENT_TEAL, 1);
 
@@ -438,7 +490,8 @@ void airstin_render_control_center(struct ag_surface *s, int32_t w, int cc_open,
                 if (cnt == 0) {
                     ui_round(&pen, 12, 102, CC_DESIGN_W - 24, 42, 8, THEME_GLASS_LIGHT, 165u);
                     ui_text(&pen, 22, 118,
-                            bt->powered ? "Tap Scan Devices" : "Turn Bluetooth ON",
+                            bt->powered ? airstin_ui_label("cc.tap_scan", "Tap Scan Devices")
+                                        : airstin_ui_label("cc.turn_bt_on", "Turn Bluetooth ON"),
                             THEME_TEXT_MUTED, 1);
                 }
                 for (int i = 0; i < cnt && i < 4; i++) {
@@ -450,7 +503,10 @@ void airstin_render_control_center(struct ag_surface *s, int32_t w, int cc_open,
                              d->connected ? 215u : 175u);
                     ui_text(&pen, 20, ry + 10, d->name, THEME_TEXT_PRIMARY, 1);
                     ui_text(&pen, 20, ry + 26,
-                            d->connected ? "Connected" : (d->paired ? "Paired - Connect" : "Tap to Pair"),
+                            d->connected ? airstin_ui_label("cc.connected", "Connected")
+                                         : (d->paired
+                                                ? airstin_ui_label("cc.paired_connect", "Paired - Connect")
+                                                : airstin_ui_label("cc.tap_to_pair", "Tap to Pair")),
                             THEME_TEXT_MUTED, 1);
                 }
             }
@@ -459,21 +515,33 @@ void airstin_render_control_center(struct ag_surface *s, int32_t w, int cc_open,
     }
 
     /* CC_VIEW_ROOT */
-    ui_text_aa(&pen, 14, 12, "AirStinUI Control", THEME_TEXT_PRIMARY, 2);
+    ui_text_aa(&pen, 14, 12, airstin_ui_label("cc.title", "AirStinUI Control"),
+               THEME_TEXT_PRIMARY, 2);
 
     draw_cc_conn_row(&pen, 12, 42, CC_DESIGN_W - 24,
                      ns->wifi_on && !ns->airplane_mode, THEME_ACCENT_BLUE,
-                     (ns->wifi_on && !ns->airplane_mode) ? "Wi-Fi: ON" : "Wi-Fi: OFF",
-                     (ns->wifi_on && !ns->airplane_mode) ? (ns->ssid[0] ? ns->ssid : "Connected") : "No Wi-Fi");
+                     (ns->wifi_on && !ns->airplane_mode)
+                         ? airstin_ui_label("cc.wifi_on", "Wi-Fi: ON")
+                         : airstin_ui_label("cc.wifi_off", "Wi-Fi: OFF"),
+                     (ns->wifi_on && !ns->airplane_mode)
+                         ? (ns->ssid[0] ? ns->ssid : airstin_ui_label("cc.connected", "Connected"))
+                         : airstin_ui_label("cc.wifi_none", "No Wi-Fi"));
 
     draw_cc_conn_row(&pen, 12, 84, CC_DESIGN_W - 24,
                      ns->cell_on && !ns->airplane_mode, THEME_ACCENT_TEAL,
-                     (ns->cell_on && !ns->airplane_mode) ? "Cellular: ON" : "Cellular: OFF",
-                     (ns->cell_on && !ns->airplane_mode) ? (ns->carrier[0] ? ns->carrier : "Active") : "No Modem");
+                     (ns->cell_on && !ns->airplane_mode)
+                         ? airstin_ui_label("cc.cell_on", "Cellular: ON")
+                         : airstin_ui_label("cc.cell_off", "Cellular: OFF"),
+                     (ns->cell_on && !ns->airplane_mode)
+                         ? (ns->carrier[0] ? ns->carrier : airstin_ui_label("cc.cell_active", "Active"))
+                         : airstin_ui_label("cc.cell_none", "No Modem"));
 
     draw_cc_conn_row(&pen, 12, 126, CC_DESIGN_W - 24,
                      bt->powered, THEME_ACCENT_INDIGO,
-                     bt->powered ? "Bluetooth: ON" : (bt->state == BT_STATE_UNAVAILABLE ? "Bluetooth: NO HW" : "Bluetooth: OFF"),
+                     bt->powered ? airstin_ui_label("cc.bt_on", "Bluetooth: ON")
+                                 : (bt->state == BT_STATE_UNAVAILABLE
+                                        ? airstin_ui_label("cc.bt_nohw", "Bluetooth: NO HW")
+                                        : airstin_ui_label("cc.bt_off", "Bluetooth: OFF")),
                      bt->state == BT_STATE_CONNECTED ? bt->active_name : bt->status_text);
 
     /* Airplane & Motion split */
@@ -481,29 +549,35 @@ void airstin_render_control_center(struct ag_surface *s, int32_t w, int cc_open,
         int32_t hw = (CC_DESIGN_W - 30) / 2;
         ui_round(&pen, 12, 170, hw, 32, 8,
                  ns->airplane_mode ? THEME_ACCENT_ORANGE : THEME_GLASS_LIGHT, 205u);
-        ui_text(&pen, 20, 182, ns->airplane_mode ? "Airplane: ON" : "Airplane: OFF",
+        ui_text(&pen, 20, 182,
+                ns->airplane_mode ? airstin_ui_label("cc.airplane_on", "Airplane: ON")
+                                  : airstin_ui_label("cc.airplane_off", "Airplane: OFF"),
                 THEME_TEXT_PRIMARY, 1);
         ui_round(&pen, 18 + hw, 170, hw, 32, 8,
                  anim_on ? THEME_ACCENT_TEAL : THEME_GLASS_LIGHT, 205u);
-        ui_text(&pen, 26 + hw, 182, anim_on ? "Motion: ON" : "Motion: OFF",
+        ui_text(&pen, 26 + hw, 182,
+                anim_on ? airstin_ui_label("cc.motion_on", "Motion: ON")
+                        : airstin_ui_label("cc.motion_off", "Motion: OFF"),
                 THEME_TEXT_PRIMARY, 1);
     }
 
     /* Theme swatches */
     {
         int32_t sw = (CC_DESIGN_W - 36) / 3;
-        const char *cc_tn[3] = {"Indigo", "Blue", "Pink"};
+        const char *cc_tn[3] = {"cc.theme_indigo", "cc.theme_blue", "cc.theme_pink"};
+        const char *cc_tf[3] = {"Indigo", "Blue", "Pink"};
         uint32_t cc_tc[3] = {THEME_ACCENT_INDIGO, THEME_ACCENT_BLUE, THEME_ACCENT_PINK};
         for (int t = 0; t < 3; t++) {
             ui_round(&pen, 12 + t * (sw + 6), 208, sw, 30, 8, cc_tc[t],
                      theme_idx == t ? 250u : 170u);
-            ui_text(&pen, 18 + t * (sw + 6), 219, cc_tn[t], THEME_TEXT_PRIMARY, 1);
+            ui_text(&pen, 18 + t * (sw + 6), 219, airstin_ui_label(cc_tn[t], cc_tf[t]),
+                    THEME_TEXT_PRIMARY, 1);
         }
     }
 
     /* Quick Actions Tray: Search, AirP Cast, Power */
     ui_round(&pen, 12, 244, 80, 34, 8, THEME_GLASS_LIGHT, 210u);
-    ui_text(&pen, 26, 257, "Search", THEME_TEXT_PRIMARY, 1);
+    ui_text(&pen, 26, 257, airstin_ui_label("cc.search", "Search"), THEME_TEXT_PRIMARY, 1);
 
     {
         int airp_busy = (as->state == AIRP_STATE_DISCOVERING || as->state == AIRP_STATE_CONNECTED ||
@@ -511,13 +585,14 @@ void airstin_render_control_center(struct ag_surface *s, int32_t w, int cc_open,
         ui_round(&pen, 98, 244, 92, 34, 8,
                  airp_busy ? THEME_ACCENT_TEAL : THEME_GLASS_LIGHT, 215u);
         ui_text(&pen, 108, 257,
-                as->state == AIRP_STATE_IDLE ? "AirP Cast" : airp_state_name(as->state),
+                as->state == AIRP_STATE_IDLE ? airstin_ui_label("cc.cast", "AirP Cast")
+                                             : airp_state_name(as->state),
                 THEME_TEXT_PRIMARY, 1);
     }
 
     ui_round(&pen, 196, 244, 72, 34, 8,
              g_pwr.modal_open ? THEME_ACCENT_PINK : THEME_ACCENT_ORANGE, 225u);
-    ui_text(&pen, 212, 257, "Power", THEME_TEXT_PRIMARY, 1);
+    ui_text(&pen, 212, 257, airstin_ui_label("cc.power", "Power"), THEME_TEXT_PRIMARY, 1);
 
     /* Power + Hardware Telemetry Footer */
     ui_round(&pen, 12, 286, CC_DESIGN_W - 24, 40, 8, THEME_GLASS_LIGHT, 185u);
@@ -525,7 +600,10 @@ void airstin_render_control_center(struct ag_surface *s, int32_t w, int cc_open,
                     ns->battery_pct >= 0 ? ns->battery_pct : 100, ns->ac_power,
                     THEME_ACCENT_GREEN, pen.q16);
     ui_text(&pen, 56, 294,
-            ns->battery_pct >= 0 ? (ns->ac_power ? "Power: AC" : "Power: Battery") : "Power: AC (No PMIC)",
+            ns->battery_pct >= 0
+                ? (ns->ac_power ? airstin_ui_label("cc.power_ac", "Power: AC")
+                                : airstin_ui_label("cc.power_battery", "Power: Battery"))
+                : airstin_ui_label("cc.power_ac_nomic", "Power: AC (No PMIC)"),
             THEME_TEXT_PRIMARY, 1);
     ui_text(&pen, 56, 308, ns->tel_source[0] ? ns->tel_source : "hardware",
             THEME_TEXT_MUTED, 1);
@@ -663,9 +741,11 @@ void airstin_render_installer(struct ag_surface *s, int32_t w, int32_t h) {
     pen = ui_pen_at(s, dx0, dy0, q);
     gfx_fill_rect_alpha(s, 0, 0, w, h, 0x00050810u, 155u);
     gfx_glass_panel(s, dx0, dy0, dw0, dh0, ui_glyph(16, q), THEME_GLASS_DARK, 245u);
-    ui_text_aa(&pen, 20, 18, "Android Package Installer", THEME_TEXT_PRIMARY, 2);
+    ui_text_aa(&pen, 20, 18, airstin_ui_label("inst.title", "Android Package Installer"),
+               THEME_TEXT_PRIMARY, 2);
     ui_pill(&pen, 20, 50,
-            g_inst.info.is_system_app ? "SYSTEM APP" : "USER TEST APP",
+            g_inst.info.is_system_app ? airstin_ui_label("inst.system", "SYSTEM APP")
+                                      : airstin_ui_label("inst.user", "USER TEST APP"),
             g_inst.info.is_system_app ? THEME_ACCENT_BLUE : THEME_ACCENT_PINK,
             THEME_TEXT_PRIMARY, 2);
     ui_text(&pen, 20, 84, g_inst.info.app_label[0] ? g_inst.info.app_label : g_inst.path,
@@ -682,10 +762,13 @@ void airstin_render_installer(struct ag_surface *s, int32_t w, int32_t h) {
     }
 
     ui_round(&pen, 16, 236 - 42, 178, 28, 8, THEME_GLASS_LIGHT, 230u);
-    ui_text(&pen, 34, 236 - 35, "Cancel", THEME_TEXT_PRIMARY, 2);
+    ui_text(&pen, 34, 236 - 35, airstin_ui_label("inst.cancel", "Cancel"),
+            THEME_TEXT_PRIMARY, 2);
     ui_round(&pen, 28 + 178, 236 - 42, 178, 28, 8, THEME_ACCENT_BLUE, 245u);
     ui_text(&pen, 36 + 178, 236 - 35,
-            g_inst.installing ? "Installing..." : "Install & Open", THEME_TEXT_PRIMARY, 2);
+            g_inst.installing ? airstin_ui_label("inst.installing", "Installing...")
+                              : airstin_ui_label("inst.install_open", "Install & Open"),
+            THEME_TEXT_PRIMARY, 2);
 }
 
 void airstin_power_open_modal(void) {
@@ -739,10 +822,12 @@ void airstin_render_power_modal(struct ag_surface *s, int32_t w, int32_t h) {
     pen = ui_pen_at(s, mx, my, q);
     gfx_fill_rect_alpha(s, 0, 0, w, h, 0x00050810u, 155u);
     gfx_glass_panel(s, mx, my, mw, mh, ui_glyph(16, q), THEME_GLASS_DARK, 246u);
-    ui_text_aa(&pen, 20, 18, "Power & Shutdown", THEME_TEXT_PRIMARY, 2);
+    ui_text_aa(&pen, 20, 18, airstin_ui_label("power.title", "Power & Shutdown"),
+               THEME_TEXT_PRIMARY, 2);
     if (g_pwr.shutting_down) {
         ui_text(&pen, 20, 62,
-                g_pwr.forced ? "Forced hardware poweroff..." : "Graceful shutdown: syncing VFS...",
+                g_pwr.forced ? airstin_ui_label("power.forced", "Forced hardware poweroff...")
+                             : airstin_ui_label("power.graceful", "Graceful shutdown: syncing VFS..."),
                 THEME_ACCENT_ORANGE, 2);
         ui_round(&pen, 20, 104, 380 - 40, 14, 7, THEME_GLASS_LIGHT, 180u);
         {
@@ -752,17 +837,23 @@ void airstin_render_power_modal(struct ag_surface *s, int32_t w, int32_t h) {
         return;
     }
     ui_text(&pen, 20, 58,
-            g_pwr.taps == 1 ? "Armed (1/2) - Tap Shutdown again!" : "Double-tap Shutdown to power off",
+            g_pwr.taps == 1
+                ? airstin_ui_label("power.armed", "Armed (1/2) - Tap Shutdown again!")
+                : airstin_ui_label("power.tap_hint", "Double-tap Shutdown to power off"),
             g_pwr.taps == 1 ? THEME_ACCENT_ORANGE : THEME_TEXT_MUTED, 1);
-    ui_text(&pen, 20, 80, "Hold hardware Power key to force off", THEME_TEXT_MUTED, 1);
+    ui_text(&pen, 20, 80, airstin_ui_label("power.hold_hint", "Hold hardware Power key to force off"),
+            THEME_TEXT_MUTED, 1);
 
     bw = (380 - 52) / 2;
     by = 188 - 46;
     ui_round(&pen, 18, by, bw, 32, 8, THEME_GLASS_LIGHT, 225u);
-    ui_text(&pen, 48, by + 9, "Cancel", THEME_TEXT_PRIMARY, 2);
+    ui_text(&pen, 48, by + 9, airstin_ui_label("power.cancel", "Cancel"),
+            THEME_TEXT_PRIMARY, 2);
 
     ui_round(&pen, 34 + bw, by, bw, 32, 8,
              g_pwr.taps == 1 ? THEME_ACCENT_ORANGE : THEME_ACCENT_PINK, 240u);
     ui_text(&pen, 44 + bw, by + 9,
-            g_pwr.taps == 1 ? "Confirm 2/2" : "Shutdown", THEME_TEXT_PRIMARY, 2);
+            g_pwr.taps == 1 ? airstin_ui_label("power.confirm", "Confirm 2/2")
+                            : airstin_ui_label("power.shutdown", "Shutdown"),
+            THEME_TEXT_PRIMARY, 2);
 }

@@ -20,20 +20,21 @@
 #define TV_LAUNCHER_TITLE_MAX 40
 #define TV_LAUNCHER_HINT_MAX 96
 
-/* Session strings. The shell names a fixed key set, so a package can restyle
-   the wording without the kernel knowing what the wording is. */
-#define TV_STRINGS_MAX 12
-#define TV_STRING_KEY_MAX 20
-#define TV_STRING_TEXT_MAX 48
+/* Session strings. The shell and the shared drawer name a fixed key set, so a
+   package restyles the wording without the kernel knowing the words.
 
-struct tv_string {
-    char key[TV_STRING_KEY_MAX];
-    char text[TV_STRING_TEXT_MAX];
-};
+   A layout carries a *view* of the package's strings.json rather than a copy of
+   every label: those bytes already live in the image, and copying ~70 labels
+   would cost kilobytes of kernel RAM for no gain. The built-in wording lives in
+   the code that draws it, so an undeclared key keeps its default. */
+#define TV_STRINGS_MAX 96
+#define TV_STRING_KEY_MAX 24
+#define TV_STRING_TEXT_MAX 44
 
 struct tv_strings {
-    int count;
-    struct tv_string items[TV_STRINGS_MAX];
+    const char *json; /* staged strings.json, or NULL for built-in wording only */
+    unsigned int len;
+    int count;        /* validated entries in the package */
 };
 
 struct tv_launcher_tile {
@@ -63,8 +64,11 @@ struct tv_launcher_report {
 void tv_launcher_default(struct tv_launcher *out);
 void tv_strings_default(struct tv_strings *out);
 
-/* Resolved text for `key`, or NULL when the layout has no such string. */
-const char *tv_strings_get(const struct tv_strings *strings, const char *key);
+/* Copies the text for `key` into `buf` and returns 1 when the layout or the
+   built-in wording declares it; 0 means neither does. The package wins over the
+   built-in table, so partial packages only override what they name. */
+int tv_strings_copy(const struct tv_strings *strings, const char *key,
+                    char *buf, unsigned int cap);
 
 /* Reads launcher.json out of a staged FlairTV.airp. Returns 1 and fills `out`
    when the package is valid and declares at least one usable tile; otherwise

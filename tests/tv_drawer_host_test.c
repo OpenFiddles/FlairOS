@@ -3,8 +3,11 @@
 #include <string.h>
 
 #include "airgraph.h"
+#include "airjson.h"
+#include "airp.h"
 #include "../ui/systemui/airstin_ui.h"
 #include "../kernel/ui/tv_layout.h"
+#include "../kernel/ui/tv_launcher.h"
 #include "../net/service/net_service.h"
 #include "../net/bt/bt_core.h"
 #include "../net/airp/airp_net.h"
@@ -96,6 +99,132 @@ static int changed_bbox(const struct ag_surface *s, int32_t *x0, int32_t *y0,
 }
 
 static int near(int32_t a, int32_t b) { return a >= b - 2 && a <= b + 2; }
+
+static uint32_t pixel_checksum(const struct ag_surface *s) {
+    uint32_t h = 2166136261u;
+    for (int32_t y = 0; y < s->height; y++) {
+        const uint32_t *row = (const uint32_t *)((const unsigned char *)s->pixels +
+                                                (uint32_t)y * s->pitch);
+        for (int32_t x = 0; x < s->width; x++) {
+            h ^= row[x];
+            h *= 16777619u;
+        }
+    }
+    return h;
+}
+
+/* --- TV session package, built the way tools/airpkg.py writes it ---------- */
+#define PKG_CAP 16384
+
+static void put_le32(unsigned char *p, unsigned int v) {
+    p[0] = v & 0xFF; p[1] = (v >> 8) & 0xFF;
+    p[2] = (v >> 16) & 0xFF; p[3] = (v >> 24) & 0xFF;
+}
+
+static void put_le16(unsigned char *p, unsigned int v) {
+    p[0] = v & 0xFF; p[1] = (v >> 8) & 0xFF;
+}
+
+/* A resources-only component package carrying a one-tile launcher and the given
+   strings.json. Returns the package length. */
+static unsigned int build_tv_pkg(unsigned char *buf, unsigned int cap,
+                                 const char *launcher, const char *strings) {
+    const char *names[2] = { "launcher.json", "strings.json" };
+    const char *data[2] = { launcher, strings };
+    unsigned short types[2] = { AIRP_RT_UI, AIRP_RT_STRINGS };
+    unsigned int offsets[2][2];
+    unsigned int i, manifest_off, manifest_len, tab_off, tab_len, name_off, file_size;
+    const char *manifest = "{\"name\":\"FlairTV\",\"version\":\"1.0.0\"}";
+
+    manifest_len = (unsigned int)strlen(manifest);
+    manifest_off = AIRP_HEADER_V2_SIZE;
+    tab_off = manifest_off + manifest_len;
+    tab_len = 2u * AIRP_RESOURCE_SIZE;
+    name_off = tab_off + tab_len;
+
+    memset(buf, 0, cap);
+    memcpy(buf + manifest_off, manifest, manifest_len);
+    {
+        unsigned int cursor = name_off;
+        for (i = 0; i < 2; i++) {
+            offsets[i][0] = cursor;
+            memcpy(buf + cursor, names[i], strlen(names[i]) + 1);
+            cursor += (unsigned int)strlen(names[i]) + 1;
+        }
+        for (i = 0; i < 2; i++) {
+            offsets[i][1] = cursor;
+            memcpy(buf + cursor, data[i], strlen(data[i]));
+            cursor += (unsigned int)strlen(data[i]);
+        }
+        file_size = cursor;
+    }
+    for (i = 0; i < 2; i++) {
+        unsigned char *e = buf + tab_off + i * AIRP_RESOURCE_SIZE;
+        unsigned int len = (unsigned int)strlen(data[i]);
+        put_le32(e + 0, offsets[i][0]);
+        put_le32(e + 4, offsets[i][1]);
+        put_le32(e + 8, len);
+        put_le32(e + 12, airp_crc32((const unsigned char *)data[i], len));
+        put_le16(e + 16, types[i]);
+        put_le16(e + 18, AIRP_RF_REQUIRED);
+        put_le32(e + 20, 0);
+    }
+    put_le32(buf + 0, AIRP_MAGIC);
+    put_le16(buf + 4, AIRP_VERSION_V2);
+    put_le16(buf + 6, AIRP_HEADER_V2_SIZE);
+    put_le32(buf + 8, AIRP_API_LEVEL);
+    put_le32(buf + 24, AIRP_FLAG_SYSTEM | AIRP_FLAG_RESOURCES_ONLY);
+    put_le32(buf + 28, manifest_off);
+    put_le32(buf + 32, manifest_len);
+    put_le32(buf + 36, 2);
+    put_le32(buf + 40, tab_off);
+    put_le32(buf + 44, tab_len);
+    put_le32(buf + 48, AIRP_ARCH_I386);
+    put_le32(buf + 56, airp_crc32(buf + AIRP_HEADER_V2_SIZE,
+                                  file_size - AIRP_HEADER_V2_SIZE));
+    put_le32(buf + 60, file_size);
+    put_le32(buf + 52, 0);
+    put_le32(buf + 52, airp_crc32(buf, AIRP_HEADER_V2_SIZE));
+    return file_size;
+}
+
+static unsigned int read_file(const char *path, char *buf, unsigned int cap) {
+    FILE *f = fopen(path, "rb");
+    size_t n;
+    if (!f) return 0;
+    n = fread(buf, 1, cap - 1, f);
+    fclose(f);
+    buf[n] = 0;
+    return (unsigned int)n;
+}
+
+/* --- Label source under test ---------------------------------------------- */
+static struct tv_launcher g_tv;
+
+static const char *pkg_label(const char *key) {
+    static char buf[TV_STRING_TEXT_MAX];
+    return tv_strings_copy(&g_tv.strings, key, buf, sizeof buf) ? buf : 0;
+}
+
+/* Supplies exactly the built-in title and nothing else, so every other label
+   falls through to its own built-in wording: the pixels must not move. */
+static const char *literal_label(const char *key) {
+    if (key && strcmp(key, "cc.title") == 0) return "AirStinUI Control";
+    return 0;
+}
+
+static uint32_t render_checksum(int32_t w, int32_t h) {
+    struct ag_surface s;
+    uint32_t *pixels = 0;
+    uint32_t sum;
+
+    s = make_surface(w, h, &pixels);
+    if (!pixels) return 0;
+    airstin_render_control_center(&s, w, 1, tv_layout_px(24, tv_layout_scale_q16(w, h)), 0, 0);
+    sum = pixel_checksum(&s);
+    free(pixels);
+    return sum;
+}
 
 /* Sets the session scale the way the TV shell does and checks the geometry. */
 static void check_geometry(int32_t w, int32_t h, int32_t ex, int32_t ey, int32_t ew,
@@ -214,6 +343,113 @@ int main(void) {
     check(airstin_cc_handle_click(g.x + 30, g.y + 60, 1280, 0, 0, 0, 0) == 1 &&
               g_wifi_toggles == 1,
           "a click on the 720p drawer's Wi-Fi row still reaches the toggle");
+
+    /* --- Session wording: TV labels come from the package ------------------ */
+    {
+        static char launcher_json[4096];
+        static char strings_json[8192];
+        static unsigned char pkg[PKG_CAP];
+        static unsigned char bad_pkg[PKG_CAP];
+        struct tv_launcher_report report;
+        struct airjson_doc doc;
+        const char *value = 0;
+        unsigned int value_len = 0;
+        char packaged_title[TV_STRING_TEXT_MAX];
+        const char *launcher_min =
+            "{\"tv\":{\"title\":\"FlairTV\",\"tiles\":[{\"id\":\"a\",\"label\":\"A\",\"target\":\"app:0\"}]}}";
+        unsigned int len;
+        uint32_t desktop_1080, packaged_1080, literal_1080, bad_1080;
+        uint32_t desktop_4k, packaged_4k, bad_4k;
+
+        check(read_file("tv/resources/strings.json", strings_json, sizeof strings_json) > 0,
+              "shipped strings.json is readable");
+        check(read_file("tv/resources/launcher.json", launcher_json, sizeof launcher_json) > 0,
+              "shipped launcher.json is readable");
+
+        /* The value the test expects is read from the file, not hardcoded. */
+        check(airjson_open(&doc, strings_json, (unsigned int)strlen(strings_json)) == AIRJSON_OK &&
+                  airjson_root_get(&doc, "cc.title", &value, &value_len) == AIRJSON_OK &&
+                  airjson_get_string(value, value_len, packaged_title,
+                                     sizeof packaged_title) == AIRJSON_OK,
+              "the packaged strings.json declares the drawer title");
+        check(strcmp(packaged_title, "AirStinUI Control") != 0,
+              "the packaged drawer title differs from the built-in wording");
+
+        len = build_tv_pkg(pkg, PKG_CAP, launcher_json, strings_json);
+        check(tv_launcher_load_package(pkg, len, &g_tv, &report) == 1 && report.loaded,
+              "the shipped package resolves for the drawer");
+        check(strcmp(pkg_label("cc.title"), packaged_title) == 0,
+              "the drawer label resolver returns the packaged title");
+        check(strcmp(pkg_label("cc.search"), "Find") == 0,
+              "a second packaged label resolves too");
+        check(pkg_label("cc.not_declared") == 0,
+              "a key the package does not declare resolves to nothing");
+
+        /* Baseline: no provider at all, i.e. desktop and mobile. */
+        airstin_ui_set_labels(0);
+        airstin_ui_set_scale_q16(tv_layout_scale_q16(1280, 720));
+        check(render_checksum(1280, 720) == 0x7b730680u,
+              "720p desktop drawer is pixel-identical to before the label source");
+        airstin_ui_set_scale_q16(tv_layout_scale_q16(1920, 1080));
+        desktop_1080 = render_checksum(1920, 1080);
+        airstin_ui_set_scale_q16(tv_layout_scale_q16(3840, 2160));
+        desktop_4k = render_checksum(3840, 2160);
+
+        /* Same geometry and scale, but the wording now comes from the package. */
+        airstin_ui_set_labels(pkg_label);
+        airstin_ui_set_scale_q16(tv_layout_scale_q16(1920, 1080));
+        packaged_1080 = render_checksum(1920, 1080);
+        airstin_ui_set_scale_q16(tv_layout_scale_q16(3840, 2160));
+        packaged_4k = render_checksum(3840, 2160);
+        printf("     1080p checksums: desktop=%08x packaged=%08x\n",
+               (unsigned)desktop_1080, (unsigned)packaged_1080);
+        printf("     4K checksums: desktop=%08x packaged=%08x\n",
+               (unsigned)desktop_4k, (unsigned)packaged_4k);
+        check(packaged_1080 != desktop_1080,
+              "a TV session at 1080p paints packaged drawer text");
+        check(packaged_4k != desktop_4k, "a TV session at 4K paints packaged drawer text");
+
+        /* The plumbing itself changes nothing: same words in, same pixels out. */
+        airstin_ui_set_labels(literal_label);
+        airstin_ui_set_scale_q16(tv_layout_scale_q16(1920, 1080));
+        literal_1080 = render_checksum(1920, 1080);
+        check(literal_1080 == desktop_1080,
+              "resolving the built-in wording yields the unchanged drawer");
+
+        /* Geometry is untouched by any of this. */
+        airstin_ui_set_scale_q16(tv_layout_scale_q16(3840, 2160));
+        airstin_cc_geometry_for(3840, &g);
+        check(g.x == 2964 && g.y == 120 && g.w == 840 && g.h == 1008,
+              "packaged wording does not move the drawer");
+
+        /* --- A rejected package leaves labels and geometry untouched -------- */
+        {
+            struct tv_launcher before = g_tv;
+            uint32_t before_checksum = packaged_4k;
+            /* A separate buffer: the resolved layout views the accepted
+               package's bytes, exactly as the image's rodata would. */
+            len = build_tv_pkg(bad_pkg, PKG_CAP, launcher_min, "{\"cc.title\":}");
+            check(tv_launcher_load_package(bad_pkg, len, &g_tv, &report) == 0,
+                  "a malformed strings.json rejects the package");
+            check(g_tv.strings.json == before.strings.json &&
+                      g_tv.strings.len == before.strings.len &&
+                      g_tv.title[0] == before.title[0],
+                  "the rejected package leaves the resolved layout alone");
+            airstin_ui_set_labels(pkg_label);
+            airstin_ui_set_scale_q16(tv_layout_scale_q16(3840, 2160));
+            bad_4k = render_checksum(3840, 2160);
+            check(bad_4k == before_checksum,
+                  "a rejected package keeps painting the previous drawer text");
+            airstin_ui_set_scale_q16(tv_layout_scale_q16(1920, 1080));
+            bad_1080 = render_checksum(1920, 1080);
+            check(bad_1080 == packaged_1080,
+                  "and the rejected package does not shift the 1080p drawer");
+        }
+
+        /* Back to the desktop/mobile configuration for any later test. */
+        airstin_ui_set_labels(0);
+        airstin_ui_set_scale_q16(0);
+    }
 
     printf("\n%s: %d failure(s)\n", failures ? "FAILED" : "OK", failures);
     return failures ? 1 : 0;

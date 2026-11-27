@@ -14,6 +14,18 @@
 
 static int failures;
 
+/* Session strings are a view of the packaged JSON, so checks copy out what they
+   want to compare. */
+static int str_is(const struct tv_strings *s, const char *key, const char *want) {
+    char buf[TV_STRING_TEXT_MAX];
+    return tv_strings_copy(s, key, buf, sizeof buf) && strcmp(buf, want) == 0;
+}
+
+static int str_has(const struct tv_strings *s, const char *key) {
+    char buf[TV_STRING_TEXT_MAX];
+    return tv_strings_copy(s, key, buf, sizeof buf);
+}
+
 static void check(int cond, const char *what) {
     printf("%s %s\n", cond ? "PASS" : "FAIL", what);
     if (!cond)
@@ -228,24 +240,33 @@ int main(void) {
     check(tv.tiles[2].accent == 0x003B82F6u, "third tile accent comes from the package");
 
     /* --- Session strings come from the package's strings.json -------------- */
-    check(report.strings == 8, "package supplies every session string");
-    check(tv_strings_get(&tv.strings, "focus") &&
-              strcmp(tv_strings_get(&tv.strings, "focus"), "10-FOOT FOCUS") == 0,
+    {
+        struct airjson_doc sdoc;
+        int shipped_keys = 0;
+        check(airjson_open(&sdoc, strings_json, (unsigned int)strlen(strings_json)) == AIRJSON_OK &&
+                  airjson_object_count(strings_json, (unsigned int)strlen(strings_json),
+                                       &shipped_keys) == AIRJSON_OK &&
+                  shipped_keys == report.strings,
+              "package supplies every session string");
+    }
+    check(str_is(&tv.strings, "focus", "10-FOOT FOCUS"),
           "a shell label is read from the packaged strings.json");
-    check(tv_strings_get(&tv.strings, "no_signal") &&
-              strcmp(tv_strings_get(&tv.strings, "no_signal"), "No signal") == 0,
+    check(str_is(&tv.strings, "no_signal", "No signal"),
           "strings the package adds beyond the built-in keys are kept");
-    check(tv_strings_get(&tv.strings, "open") &&
-              strcmp(tv_strings_get(&tv.strings, "open"), "OPEN") == 0,
+    check(str_is(&tv.strings, "open", "OPEN"),
           "a built-in string the package repeats stays intact");
+    check(str_is(&tv.strings, "cc.title", "FlairTV Control"),
+          "the drawer's title is carried in the same strings.json");
 
     res[1].data = "{\"focus\":\"BIG FOCUS\"}";
     len = build_pkg(pkg, PKG_CAP, res, 2, AIRP_FLAG_RESOURCES_ONLY);
     check(tv_launcher_load_package(pkg, len, &tv, &report) == 1 &&
-              strcmp(tv_strings_get(&tv.strings, "focus"), "BIG FOCUS") == 0,
+              str_is(&tv.strings, "focus", "BIG FOCUS"),
           "a package string overrides the built-in wording");
-    check(strcmp(tv_strings_get(&tv.strings, "home"), "HOME") == 0,
+    check(str_is(&tv.strings, "home", "HOME"),
           "strings the package does not declare keep their built-in wording");
+    check(str_is(&tv.strings, "cc.title", "FlairTV Control") == 0,
+          "a package that declares one key does not invent the others");
 
     /* --- Rejections keep the built-in layout ------------------------------ */
     tv_launcher_default(&sentinel);
@@ -302,19 +323,23 @@ int main(void) {
               "a package without strings.json is refused");
         check(strcmp(tv.title, keep.title) == 0 &&
                   strcmp(tv.tiles[0].label, keep.tiles[0].label) == 0 &&
-                  strcmp(tv_strings_get(&tv.strings, "focus"),
-                         tv_strings_get(&keep.strings, "focus")) == 0,
+                  tv.strings.json == keep.strings.json &&
+                  tv.strings.len == keep.strings.len,
               "a rejected package leaves both layout and text untouched");
     }
-    check(tv_strings_get(&sentinel.strings, "app") &&
-              tv_strings_get(&sentinel.strings, "home") &&
-              tv_strings_get(&sentinel.strings, "sections") &&
-              tv_strings_get(&sentinel.strings, "focus") &&
-              tv_strings_get(&sentinel.strings, "status_card") &&
-              tv_strings_get(&sentinel.strings, "focused") &&
-              tv_strings_get(&sentinel.strings, "open"),
+    check(str_has(&sentinel.strings, "app") &&
+              str_has(&sentinel.strings, "home") &&
+              str_has(&sentinel.strings, "sections") &&
+              str_has(&sentinel.strings, "focus") &&
+              str_has(&sentinel.strings, "status_card") &&
+              str_has(&sentinel.strings, "focused") &&
+              str_has(&sentinel.strings, "open"),
           "the built-in layout declares every label the shell draws");
-    check(tv_strings_get(0, "app") == 0, "a missing layout has no strings");
+    {
+        char buf[TV_STRING_TEXT_MAX];
+        check(tv_strings_copy(0, "app", buf, sizeof buf) == 0,
+              "a missing layout has no strings");
+    }
 
     check(tv_launcher_load_package(0, 0, &tv, &report) == 0 && !report.loaded,
           "an unstaged session keeps the built-in layout");

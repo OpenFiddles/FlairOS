@@ -113,21 +113,49 @@ does not recognise:
 
 ### Strings
 
-`strings.json` is a flat object of key → text. The shell asks for a fixed key
-set, so a package restyles the wording without the kernel knowing the words:
+`strings.json` is a flat object of key → text, and it carries **every visible
+label in the session** — the shell's own and the control drawer's. Both ask for
+a fixed key set, so a package restyles the wording without the kernel knowing
+the words.
 
-| Key | Where it is drawn | Built-in wording |
+| Key group | Where it is drawn | Examples |
 | --- | --- | --- |
-| `app` | top-left session name | `FlairTV` |
-| `home` | home pill | `HOME` |
-| `sections` | section strip | `Apps   Android   AirP   Status` |
-| `focus` | hero badge | `10-FOOT FOCUS` |
-| `status_card` | hero status card | `AIRP + BT AUDIO` |
-| `focused` / `open` | tile state pill | `FOCUSED` / `OPEN` |
+| `app`, `home`, `sections`, `focus`, `status_card`, `focused`, `open` | shell top bar, hero and tiles | `FlairTV`, `HOME`, `10-FOOT FOCUS` |
+| `cc.*` | control drawer: title, connection rows, toggles, theme names, quick actions, footer, drill-down headers, network and Bluetooth rows | `cc.title` → `FlairTV Control`, `cc.search` → `Find`, `cc.scan_devices` → `Scan` |
+| `power.*` | power modal | `power.title` → `Power`, `power.shutdown` → `Shut Down` |
+| `inst.*` | installer prompts and stages | `inst.title` → `Package Installer`, `inst.extracting` |
 
-Keys the package adds are kept but drawn nowhere; keys it omits keep the
-built-in wording, because the package starts from the built-in string set. The
+The shipped file carries 76 keys; keys are capped at 23 characters and values
+at 43, and anything longer rejects the package rather than being truncated. The
 tile labels, title and hint come from `launcher.json`.
+
+Layering is deliberate: the package wins, the code that draws a label supplies
+the fallback, and a key the package omits keeps its built-in wording. The layout
+keeps a *view* of the packaged JSON rather than a copy of all 76 strings — those
+bytes already live in the image — so `tv_strings_copy()` resolves on demand and
+the whole `struct tv_launcher` stays small enough for a kernel static.
+
+#### How the drawer gets its wording
+
+The drawer is shared with the desktop and mobile shells, so it does not know
+about TV strings. It asks `airstin_ui_label(key, fallback)` for every label it
+draws; with no resolver installed the fallback is the wording it has always
+drawn. A TV session installs one:
+
+```c
+static const char *tv_drawer_label(const char *key) {
+    static char text[TV_STRING_TEXT_MAX];
+    return tv_strings_copy(&g_launcher.strings, key, text, sizeof text) ? text : 0;
+}
+
+airstin_ui_set_labels(tv_drawer_label);   /* TV only */
+```
+
+`airstin_ui_label` copies the resolved text into its own small ring, so a row's
+title and subtitle can both be session strings in one draw call while the
+resolver owns a single buffer. Desktop and mobile never call
+`airstin_ui_set_labels`, so their pixels and wording are unchanged — proven by a
+checksum pinned in the host test.
 
 Retiling or rewording the TV session is therefore a packaging change: edit the
 JSON, repack, reboot. No kernel rebuild to move a tile or change a label.
@@ -154,7 +182,9 @@ The loader is all-or-nothing and bounds every value:
 - `struct tv_launcher_report` carries a reason string for diagnostics.
 
 A refused package never half-applies: the shell keeps either the packaged
-layout/text or the built-in one, never a mixture.
+layout/text or the built-in one, never a mixture — including the drawer's
+wording, which keeps resolving through the previously accepted layout (or the
+built-in fallbacks when there never was one).
 
 ## Presets
 
@@ -194,7 +224,18 @@ paths rather than reporting constants back:
 - the status cluster scaling from the right edge on 4K;
 - the real hit test: a click inside the 4K drawer's Wi-Fi row toggles it, the
   same click at unscaled 720p coordinates misses, and the 720p coordinates still
-  work at 720p.
+  work at 720p;
+- drawer wording: a package built from the shipped `launcher.json` and
+  `strings.json` resolves `cc.title` to the value read out of that file, and a
+  TV session at 1080p and at 4K renders different pixels than the same drawer
+  with built-in wording (checksums differ), while geometry does not move;
+- resolving exactly the built-in wording through the label hook reproduces the
+  unchanged pixels, so the plumbing itself paints nothing new;
+- a rejected package leaves the previously resolved layout's pixels byte-for-byte
+  intact at 1080p and 4K;
+- a pinned checksum for the 720p desktop drawer (`0x7b730680`), captured from the
+  build before the label source existed, so any drift in the desktop/mobile path
+  fails the test.
 
 `make test` also builds and validates `build/FlairTV.airp`, so a broken resource
 fails the test run rather than the TV.
@@ -206,6 +247,7 @@ fails the test run rather than the TV.
 - The 64-bit TV images build and link only where `clang`, `ld.lld` and the
   linker scripts are available; the host tests cover layout, drawer, hit testing
   and package paths, not a booted 4K panel.
-- Session icons still come from `.rodata`, and the drawer's own labels
-  ("AirStinUI Control", "Search", "Power", …) are the shared SystemUI wording
-  rather than session strings.
+- Session icons still come from `.rodata`.
+- The drawer's own internal stage strings are session strings, but the dynamic
+  values beside them (SSID, IP, carrier, device names, AirP state, telemetry
+  source) still come from the services, not from the package.
