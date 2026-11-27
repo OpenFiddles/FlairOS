@@ -245,3 +245,67 @@ int32_t an_slide_offset(an_id id, int32_t open_state, int32_t span, uint32_t dur
     if (p > AN_ONE) p = AN_ONE;
     return span - (span * p) / AN_ONE;
 }
+
+/* Named motion. Durations are in 100 Hz ticks; curves reuse the engine's
+   easing so a preset cannot drift from the code path it animates. */
+static const struct an_preset g_presets[] = {
+    { "fade-in",  0,      AN_ONE, 12, AN_OUT_CUBIC },
+    { "fade-out", AN_ONE, 0,      10, AN_IN_OUT },
+    { "slide-in", 0,      AN_ONE, 16, AN_OUT_CUBIC },
+    { "slide-out", AN_ONE, 0,     14, AN_IN_OUT },
+    { "pop",      0,      AN_ONE, 14, AN_OUT_BACK },
+    { "settle",   0,      AN_ONE, 18, AN_IN_OUT },
+};
+
+int an_preset_count(void) {
+    return (int)(sizeof(g_presets) / sizeof(g_presets[0]));
+}
+
+const struct an_preset *an_preset_at(int index) {
+    if (index < 0 || index >= an_preset_count()) return 0;
+    return &g_presets[index];
+}
+
+static int an_name_eq(const char *a, const char *b) {
+    if (!a || !b) return 0;
+    while (*a && *b) {
+        if (*a != *b) return 0;
+        a++;
+        b++;
+    }
+    return *a == 0 && *b == 0;
+}
+
+const struct an_preset *an_preset_lookup(const char *name) {
+    int i;
+    if (!name) return 0;
+    for (i = 0; i < an_preset_count(); ++i)
+        if (an_name_eq(g_presets[i].name, name)) return &g_presets[i];
+    return 0;
+}
+
+int an_preset_play_at(an_id id, const struct an_preset *preset) {
+    if (!preset) return -1;
+    an_play(id, preset->from, preset->to, preset->duration_ticks, preset->ease);
+    return 0;
+}
+
+int an_preset_play(an_id id, const char *name) {
+    const struct an_preset *preset = an_preset_lookup(name);
+    if (!preset) return -1;
+    return an_preset_play_at(id, preset);
+}
+
+int32_t an_preset_value(an_id id, const struct an_preset *preset) {
+    int32_t v = an_value(id, preset ? preset->to : 0);
+    if (v < 0) v = 0;
+    if (v > AN_ONE) v = AN_ONE;
+    return v;
+}
+
+int32_t an_preset_offset(an_id id, const struct an_preset *preset, int32_t span) {
+    int32_t p;
+    if (span <= 0) return 0;
+    p = an_preset_value(id, preset);
+    return span - (span * p) / AN_ONE;
+}

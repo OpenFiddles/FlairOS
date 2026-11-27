@@ -66,6 +66,24 @@ struct wd_compositor {
     int active_id;
     int next_id;
     struct wd_rect dirty;
+    /* Display density. Unset means the legacy 1 px chrome, which keeps the
+       existing i386 reference session pixel-identical. */
+    uint32_t scale_q16;
+    int configured;
+    int panel_w, panel_h;
+};
+
+/* Chrome geometry in device pixels for the compositor's density. Window
+   arrangement stays here; WinDown does not draw, it only reserves and hit-tests
+   the regions AirGraph paints. */
+struct wd_metrics {
+    uint32_t scale_q16;
+    int32_t title_h;      /* title bar height */
+    int32_t inset;        /* left inset before the first button */
+    int32_t button_w;     /* traffic-light button width */
+    int32_t button_h;
+    int32_t button_gap;
+    int32_t grip;         /* resize corner side */
 };
 
 void wd_init(struct wd_compositor *c);
@@ -84,6 +102,18 @@ void wd_invalidate_all(struct wd_compositor *c);
 int wd_post_event(struct wd_compositor *c, int id, const struct wd_event *ev);
 int wd_poll_event(struct wd_compositor *c, int id, struct wd_event *out);
 int wd_zoom_toggle(struct wd_compositor *c, int id, int max_w, int max_h);
+
+/* Density: derive the chrome scale from the panel against a 1280x720 design
+   (1x at 720p, 1.5x at 1080p, 3x at 4K), or set the Q16 scale directly.
+   Unconfigured compositors keep the legacy 1 px chrome. */
+int wd_set_display(struct wd_compositor *c, int panel_w, int panel_h);
+int wd_set_scale_q16(struct wd_compositor *c, uint32_t scale_q16);
+uint32_t wd_scale_q16(const struct wd_compositor *c);
+struct wd_metrics wd_chrome_metrics(const struct wd_compositor *c);
+/* Adopt a new panel size, scaling every open window's geometry in proportion so
+   a 720p layout moves to 4K instead of becoming a stamp in the corner. */
+int wd_rescale_display(struct wd_compositor *c, int old_w, int old_h,
+                       int new_w, int new_h);
 int wd_composite(struct wd_compositor *c, struct ag_device *device,
                  struct ag_surface *target, int grid_cols, int grid_rows);
 

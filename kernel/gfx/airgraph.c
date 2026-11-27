@@ -482,6 +482,56 @@ void ag_alpha_blit(struct ag_surface *surface, int32_t x, int32_t y, int32_t w, 
     }
 }
 
+int ag_scale_q16_for(int32_t panel_w, int32_t panel_h,
+                     int32_t design_w, int32_t design_h, uint32_t *out) {
+    uint32_t sx, sy, scale;
+    if (!out || panel_w <= 0 || panel_h <= 0 || design_w <= 0 || design_h <= 0 ||
+        panel_w > 8192 || panel_h > 8192 || design_w > 8192 || design_h > 8192)
+        return -1;
+    sx = ((uint32_t)panel_w << 16) / (uint32_t)design_w;
+    sy = ((uint32_t)panel_h << 16) / (uint32_t)design_h;
+    scale = sx < sy ? sx : sy;
+    if (scale < AG_SCALE_ONE) scale = AG_SCALE_ONE;
+    if (scale > AG_SCALE_MAX) scale = AG_SCALE_MAX;
+    *out = scale;
+    return 0;
+}
+
+int32_t ag_px(int32_t design_px, uint32_t scale_q16) {
+    int64_t scaled;
+    if (design_px <= 0) return 0;
+    if (scale_q16 == 0u) scale_q16 = AG_SCALE_ONE;
+    scaled = ((int64_t)design_px * (int64_t)scale_q16 + (int64_t)AG_SCALE_ONE / 2) >> 16;
+    if (scaled < 1) scaled = 1;
+    if (scaled > 0x7FFFFFFF) scaled = 0x7FFFFFFF;
+    return (int32_t)scaled;
+}
+
+void ag_stroke_rect(struct ag_device *device, struct ag_surface *surface,
+                    int32_t x, int32_t y, int32_t w, int32_t h,
+                    int32_t thickness, uint32_t color) {
+    if (w <= 0 || h <= 0) return;
+    if (thickness <= 0) return;
+    if (thickness >= w / 2 || thickness >= h / 2) {
+        ag_fill_rect(device, surface, x, y, w, h, color);
+        return;
+    }
+    ag_fill_rect(device, surface, x, y, w, thickness, color);
+    ag_fill_rect(device, surface, x, y + h - thickness, w, thickness, color);
+    ag_fill_rect(device, surface, x, y + thickness, thickness,
+                 h - thickness * 2, color);
+    ag_fill_rect(device, surface, x + w - thickness, y + thickness, thickness,
+                 h - thickness * 2, color);
+}
+
+void ag_round_rect_scaled(struct ag_device *device, struct ag_surface *surface,
+                          int32_t x, int32_t y, int32_t w, int32_t h,
+                          int32_t design_radius, uint32_t scale_q16,
+                          uint32_t color) {
+    ag_round_rect(device, surface, x, y, w, h,
+                  ag_px(design_radius, scale_q16), color);
+}
+
 void ag_damage_reset(struct ag_damage *d) {
     if (!d) return;
     d->valid = 0; d->x0 = 0; d->y0 = 0; d->x1 = 0; d->y1 = 0;

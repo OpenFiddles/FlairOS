@@ -107,3 +107,78 @@ int desktop_chrome_draw(struct ag_device *device, struct ag_surface *surface,
                     title, scale, active ? 0x00E6E0E9 : 0x00938F99);
     return 0;
 }
+
+int desktop_chrome_draw_scaled(struct ag_device *device, struct ag_surface *surface,
+                               int x, int y, int width, int height,
+                               const char *title, int active,
+                               int title_h, int inset, int button_w, int button_gap) {
+    uint32_t body, header, border;
+    int radius, border_t, d, bx, scale, tw, tx, ty;
+    if (!surface || !surface->pixels || width <= 0 || height <= 0 ||
+        x < 0 || y < 0)
+        return -1;
+    if (title_h <= 0) title_h = 1;
+    if (inset <= 0) inset = 1;
+    if (button_w <= 0) button_w = 1;
+    if (button_gap < 0) button_gap = 0;
+    if (title_h >= height) title_h = height - 1;
+    if (title_h < 1) title_h = 1;
+    radius = title_h / 3;
+    if (radius < 2) radius = 2;
+    if (radius * 2 > width) radius = width / 2;
+    if (radius * 2 > height) radius = height / 2;
+    if (radius < 1) radius = 1;
+    border_t = inset / 2;
+    if (border_t < 1) border_t = 1;
+    if (border_t * 2 >= width || border_t * 2 >= height) border_t = 1;
+    body = active ? 0x002B2930 : 0x00211F26;
+    header = active ? 0x0034323A : 0x0026242B;
+    border = active ? 0x00524E5A : 0x003B383E;
+
+    ag_round_rect(device, surface, x, y, width, height, radius, border);
+    ag_round_rect(device, surface, x + border_t, y + border_t,
+                  width - border_t * 2, height - border_t * 2,
+                  radius - border_t > 0 ? radius - border_t : 1, body);
+    ag_fill_rect(device, surface, x + border_t, y + border_t,
+                 width - border_t * 2, title_h - border_t, header);
+
+    d = button_w;
+    if (d > title_h - 2) d = title_h - 2;
+    if (d < 1) d = 1;
+    bx = x + inset;
+    for (int i = 0; i < 3; ++i) {
+        static const uint32_t on[3] = {0x00F0605A, 0x00F2BE3C, 0x003CCB5B};
+        int cx = bx + d / 2;
+        if (cx + d / 2 >= x + width - border_t) break;
+        ag_round_rect(device, surface, cx - d / 2, y + (title_h - d) / 2, d, d,
+                      d / 2, active ? on[i] : 0x004A5262);
+        bx += d + button_gap;
+    }
+
+    scale = title_h / 12;
+    if (scale < 1) scale = 1;
+    tw = title_pixel_width(title, scale);
+    tx = x + (width - tw) / 2;
+    if (tx < bx) tx = bx;
+    if (tx + tw > x + width - border_t) tx = x + width - border_t - tw;
+    if (tx < x + border_t) tx = x + border_t;
+    ty = y + (title_h - 7 * scale) / 2;
+    if (ty < y) ty = y;
+    draw_title_text(device, surface, tx, ty, title, scale,
+                    active ? 0x00E6E0E9 : 0x00938F99);
+
+    /* Resize grip: a few diagonal strokes in the bottom-right corner. */
+    {
+        int g = title_h / 2;
+        if (g > width / 3) g = width / 3;
+        if (g > height / 3) g = height / 3;
+        for (int i = 1; i <= 3; ++i) {
+            int len = g / 4 * i;
+            ag_fill_rect(device, surface, x + width - border_t - len,
+                         y + height - border_t - 1, len, 1, border);
+            ag_fill_rect(device, surface, x + width - border_t - 1,
+                         y + height - border_t - len, 1, len, border);
+        }
+    }
+    return 0;
+}

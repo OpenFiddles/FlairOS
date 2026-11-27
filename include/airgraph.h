@@ -87,6 +87,37 @@ int ag_viewport_map_rect(const struct ag_viewport *, int32_t, int32_t,
                          int32_t *, int32_t *);
 int ag_get_resource_info(const struct ag_device *, struct ag_resource_info *);
 
+/* ---- Density: one design layout, every panel ----------------------------
+   Panels range from 480x800 phones to 3840x2160 TVs. Shells author geometry
+   once in design pixels and ask AirGraph for the device pixels, so strokes and
+   radii stay whole-pixel crisp instead of being stretched by the compositor. */
+#define AG_SCALE_ONE 65536u      /* 1.0 in Q16 */
+#define AG_SCALE_MAX 262144u     /* 4.0 in Q16 */
+
+/* Q16 scale for a panel against a design size: the smaller ratio, clamped to
+   [1.0, 4.0] so a large design never shrinks below its authored size and a 4K
+   panel never scales past 4x. */
+int ag_scale_q16_for(int32_t panel_w, int32_t panel_h,
+                     int32_t design_w, int32_t design_h, uint32_t *out);
+/* Design pixels to device pixels, rounded to the nearest whole pixel; a
+   positive design length never becomes 0. scale_q16 == 0 means 1.0. */
+int32_t ag_px(int32_t design_px, uint32_t scale_q16);
+
+/* Stroke a rectangle with an integer thickness, drawn inside its bounds.
+   At 1x this is a hairline; at 4K the same design thickness becomes 3-4 solid
+   pixels without fractional edges. A thickness at or above half the box
+   fills it. */
+void ag_stroke_rect(struct ag_device *, struct ag_surface *,
+                    int32_t x, int32_t y, int32_t w, int32_t h,
+                    int32_t thickness, uint32_t color);
+/* Rounded rectangle whose radius is authored in design pixels and scaled to
+   the panel, so a 4K corner is a real 4x radius rather than a stretched 1x
+   one. */
+void ag_round_rect_scaled(struct ag_device *, struct ag_surface *,
+                          int32_t x, int32_t y, int32_t w, int32_t h,
+                          int32_t design_radius, uint32_t scale_q16,
+                          uint32_t color);
+
 struct ag_damage { int valid; int32_t x0, y0, x1, y1; };
 void ag_damage_reset(struct ag_damage *d);
 void ag_damage_add(struct ag_damage *d, int32_t x, int32_t y, int32_t w, int32_t h, int32_t max_w, int32_t max_h);

@@ -102,6 +102,66 @@ int main(void) {
     CHECK(an_mix_color(0x00000000u, 0x00FFFFFFu, 500) == 0x007F7F7Fu);
     CHECK(an_lerp(10, 20, 500) == 15);
 
+    /* preset animations: a named table, lookup, play and offset */
+    {
+        an_id c = an_id_str("preset");
+        const struct an_preset *p;
+        int i, j;
+        CHECK(an_preset_count() >= 6);
+        CHECK(an_preset_at(-1) == 0);
+        CHECK(an_preset_at(an_preset_count()) == 0);
+        CHECK(an_preset_lookup("fade-in") == an_preset_at(0));
+        CHECK(an_preset_lookup("no-such-preset") == 0);
+        CHECK(an_preset_lookup(0) == 0);
+        for (i = 0; i < an_preset_count(); ++i) {
+            p = an_preset_at(i);
+            CHECK(p && p->name && p->name[0]);
+            CHECK(p->duration_ticks > 0);
+            CHECK(p->from >= 0 && p->from <= AN_ONE);
+            CHECK(p->to >= 0 && p->to <= AN_ONE);
+            CHECK(an_preset_lookup(p->name) == p);
+            for (j = 0; j < i; ++j) {
+                const struct an_preset *q = an_preset_at(j);
+                int same = 1, k = 0;
+                while (p->name[k] || q->name[k]) {
+                    if (p->name[k] != q->name[k]) { same = 0; break; }
+                    k++;
+                }
+                CHECK(!same);
+            }
+        }
+
+        ticks = 1000;
+        an_set_enabled(1);
+        CHECK(an_preset_play(c, "fade-in") == 0);
+        CHECK(an_preset_value(c, an_preset_lookup("fade-in")) == 0);
+        ticks = 1006;
+        CHECK(an_preset_value(c, an_preset_lookup("fade-in")) > 0);
+        ticks = 1012;
+        CHECK(an_preset_value(c, an_preset_lookup("fade-in")) == AN_ONE);
+        CHECK(!an_busy(c));
+        CHECK(an_preset_play(c, "bogus") == -1);
+        CHECK(an_preset_play_at(c, 0) == -1);
+
+        /* disabled animations snap to the preset's end state */
+        an_set_enabled(0);
+        CHECK(an_preset_play(c, "slide-out") == 0);
+        CHECK(an_preset_value(c, an_preset_lookup("slide-out")) == 0);
+        an_set_enabled(1);
+
+        /* slide presets drive an offset: span at progress 0, 0 at AN_ONE */
+        ticks = 2000;
+        p = an_preset_lookup("slide-in");
+        CHECK(an_preset_play_at(c, p) == 0);
+        CHECK(an_preset_offset(c, p, 300) == 300);
+        ticks = 2008;
+        CHECK(an_preset_offset(c, p, 300) > 0);
+        CHECK(an_preset_offset(c, p, 300) < 300);
+        ticks = 2016;
+        CHECK(an_preset_offset(c, p, 300) == 0);
+        CHECK(an_preset_offset(c, p, 0) == 0);
+    }
+
     /* backend selection: no backend -> CPU */
     CHECK(ag_device_init(&dev, &fb, 0) == 0);
     an_init(&dev);

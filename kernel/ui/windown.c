@@ -55,6 +55,10 @@ void wd_init(struct wd_compositor *c) {
     c->dirty.w = 0;
     c->dirty.h = 0;
     c->dirty.valid = 0;
+    c->scale_q16 = AG_SCALE_ONE;
+    c->configured = 0;
+    c->panel_w = 0;
+    c->panel_h = 0;
 }
 
 void wd_invalidate(struct wd_compositor *c, int32_t x, int32_t y, int32_t w, int32_t h) {
@@ -219,21 +223,107 @@ int wd_hit_test(const struct wd_compositor *c, int gx, int gy) {
     return -1;
 }
 
+int wd_set_display(struct wd_compositor *c, int panel_w, int panel_h) {
+    uint32_t scale;
+    if (!c || panel_w <= 0 || panel_h <= 0) return -1;
+    if (ag_scale_q16_for(panel_w, panel_h, 1280, 720, &scale) != 0) return -1;
+    c->scale_q16 = scale;
+    c->configured = 1;
+    c->panel_w = panel_w;
+    c->panel_h = panel_h;
+    wd_invalidate_all(c);
+    return 0;
+}
+
+int wd_set_scale_q16(struct wd_compositor *c, uint32_t scale_q16) {
+    if (!c || scale_q16 == 0u) return -1;
+    c->scale_q16 = scale_q16;
+    c->configured = 1;
+    wd_invalidate_all(c);
+    return 0;
+}
+
+uint32_t wd_scale_q16(const struct wd_compositor *c) {
+    return (c && c->scale_q16) ? c->scale_q16 : AG_SCALE_ONE;
+}
+
+struct wd_metrics wd_chrome_metrics(const struct wd_compositor *c) {
+    struct wd_metrics m;
+    uint32_t scale = wd_scale_q16(c);
+    m.scale_q16 = scale;
+    m.title_h = 1; m.inset = 1; m.button_w = 2; m.button_h = 1;
+    m.button_gap = 0; m.grip = 1;
+    if (!c || !c->configured) return m;
+    m.title_h = ag_px(12, scale);
+    m.inset = ag_px(8, scale);
+    m.button_w = ag_px(12, scale);
+    m.button_h = ag_px(8, scale);
+    m.button_gap = ag_px(6, scale);
+    m.grip = ag_px(10, scale);
+    return m;
+}
+
+static int wd_scale_coord(int v, int from, int to) {
+    int64_t out;
+    if (from <= 0 || to <= 0 || from == to) return v;
+    out = ((int64_t)v * (int64_t)to) / (int64_t)from;
+    if (out > 0x7FFFFFFF) out = 0x7FFFFFFF;
+    if (out < -0x7FFFFFFF) out = -0x7FFFFFFF;
+    return (int32_t)out;
+}
+
+int wd_rescale_display(struct wd_compositor *c, int old_w, int old_h,
+                       int new_w, int new_h) {
+    if (!c || old_w <= 0 || old_h <= 0 || new_w <= 0 || new_h <= 0)
+        return -1;
+    for (int i = 0; i < WINDOWN_MAX_WINDOWS; i++) {
+        struct wd_window *w = &c->windows[i];
+        if (!(w->flags & WD_FLAG_USED)) continue;
+        w->x = wd_scale_coord(w->x, old_w, new_w);
+        w->y = wd_scale_coord(w->y, old_h, new_h);
+        w->w = wd_scale_coord(w->w, old_w, new_w);
+        w->h = wd_scale_coord(w->h, old_h, new_h);
+        w->saved_x = wd_scale_coord(w->saved_x, old_w, new_w);
+        w->saved_y = wd_scale_coord(w->saved_y, old_h, new_h);
+        w->saved_w = wd_scale_coord(w->saved_w, old_w, new_w);
+        w->saved_h = wd_scale_coord(w->saved_h, old_h, new_h);
+        if (w->w < 1) w->w = 1;
+        if (w->h < 1) w->h = 1;
+    }
+    return wd_set_display(c, new_w, new_h);
+}
+
 enum wd_hit_region wd_hit_chrome(const struct wd_compositor *c, int id, int gx, int gy) {
     int slot = wd_find_slot(c, id);
     if (slot < 0) return WD_HIT_NONE;
     const struct wd_window *w = &c->windows[slot];
+    struct wd_metrics m;
     if (!(w->flags & WD_FLAG_VISIBLE) || (w->flags & WD_FLAG_MINIMIZED))
         return WD_HIT_NONE;
     if (gx < w->x || gx >= w->x + w->w || gy < w->y || gy >= w->y + w->h)
         return WD_HIT_NONE;
-    if (gy == w->y) {
-        if (gx >= w->x + 1 && gx <= w->x + 2) return WD_HIT_CLOSE;
-        if (gx >= w->x + 3 && gx <= w->x + 4) return WD_HIT_MINIMIZE;
-        if (gx >= w->x + 5 && gx <= w->x + 6) return WD_HIT_ZOOM;
+    if (!c->configured) {
+        if (gy == w->y) {
+            if (gx >= w->x + 1 && gx <= w->x + 2) return WD_HIT_CLOSE;
+            if (gx >= w->x + 3 && gx <= w->x + 4) return WD_HIT_MINIMIZE;
+            if (gx >= w->x + 5 && gx <= w->x + 6) return WD_HIT_ZOOM;
+            return WD_HIT_TITLEBAR;
+        }
+        if (gx == w->x + w->w - 1 && gy == w->y + w->h - 1)
+            return WD_HIT_RESIZE;
+        return WD_HIT_CLIENT;
+    }
+    m = wd_chrome_metrics(c);
+    if (gy < w->y + m.title_h) {
+        int32_t bx = w->x + m.inset;
+        if (gx >= bx && gx < bx + m.button_w) return WD_HIT_CLOSE;
+        bx += m.button_w + m.button_gap;
+        if (gx >= bx && gx < bx + m.button_w) return WD_HIT_MINIMIZE;
+        bx += m.button_w + m.button_gap;
+        if (gx >= bx && gx < bx + m.button_w) return WD_HIT_ZOOM;
         return WD_HIT_TITLEBAR;
     }
-    if (gx == w->x + w->w - 1 && gy == w->y + w->h - 1)
+    if (gx >= w->x + w->w - m.grip && gy >= w->y + w->h - m.grip)
         return WD_HIT_RESIZE;
     return WD_HIT_CLIENT;
 }
@@ -279,26 +369,51 @@ int wd_zoom_toggle(struct wd_compositor *c, int id, int max_w, int max_h) {
 
 int wd_composite(struct wd_compositor *c, struct ag_device *device,
                  struct ag_surface *target, int grid_cols, int grid_rows) {
+    struct wd_metrics m;
+    int32_t border;
     if (!c || !target || !target->pixels || grid_cols <= 0 || grid_rows <= 0)
         return -1;
+    m = wd_chrome_metrics(c);
+    border = (c->configured && m.inset / 2 > 0) ? m.inset / 2 : 1;
     for (int i = 0; i < c->z_count; i++) {
         const struct wd_window *w = &c->windows[c->z_order[i]];
+        int32_t px, py, right, bottom, title_h;
         if (!(w->flags & WD_FLAG_VISIBLE) || (w->flags & WD_FLAG_MINIMIZED))
             continue;
-        if (desktop_chrome_draw(device, target, grid_cols, grid_rows,
-                                w->x, w->y, w->w, w->h, w->title,
-                                w->id == c->active_id) != 0)
+        /* A configured compositor arranges windows in device pixels, so the
+           chrome is drawn 1:1 and its metrics line up with hit testing. An
+           unconfigured one keeps the legacy logical grid. */
+        if (c->configured) {
+            px = w->x;
+            py = w->y;
+            right = w->x + w->w;
+            bottom = w->y + w->h;
+            title_h = m.title_h;
+        } else {
+            px = (w->x * target->width) / grid_cols;
+            py = (w->y * target->height) / grid_rows;
+            right = ((w->x + w->w) * target->width) / grid_cols;
+            bottom = ((w->y + w->h) * target->height) / grid_rows;
+            title_h = ((w->y + 1) * target->height) / grid_rows - py;
+            if (m.title_h > title_h) title_h = m.title_h;
+        }
+        if (c->configured) {
+            if (desktop_chrome_draw_scaled(device, target, px, py,
+                                           right - px, bottom - py, w->title,
+                                           w->id == c->active_id, m.title_h,
+                                           m.inset, m.button_w,
+                                           m.button_gap) != 0)
+                return -1;
+        } else if (desktop_chrome_draw(device, target, grid_cols, grid_rows,
+                                       w->x, w->y, w->w, w->h, w->title,
+                                       w->id == c->active_id) != 0) {
             return -1;
+        }
         if (w->client_surface && w->client_surface->pixels) {
-            int32_t px = (w->x * target->width) / grid_cols;
-            int32_t py = (w->y * target->height) / grid_rows;
-            int32_t right = ((w->x + w->w) * target->width) / grid_cols;
-            int32_t bottom = ((w->y + w->h) * target->height) / grid_rows;
-            int32_t title_h = ((w->y + 1) * target->height) / grid_rows - py;
-            int32_t cx = px + 1;
+            int32_t cx = px + border;
             int32_t cy = py + title_h;
-            int32_t cw = right - px - 2;
-            int32_t ch = bottom - py - title_h - 1;
+            int32_t cw = right - px - border * 2;
+            int32_t ch = bottom - py - title_h - border;
             if (cw > 0 && ch > 0) {
                 int32_t bw = w->client_surface->width < cw ? w->client_surface->width : cw;
                 int32_t bh = w->client_surface->height < ch ? w->client_surface->height : ch;

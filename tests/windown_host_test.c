@@ -70,6 +70,65 @@ int main(void) {
     CHECK(wd_zoom_toggle(&comp, w1, 80, 24) == 0);
     CHECK(wd_zoom_toggle(&comp, w1, 80, 24) == 0);
 
+    /* Density: unconfigured keeps the legacy 1 px chrome. */
+    {
+        struct wd_metrics legacy = wd_chrome_metrics(&comp);
+        CHECK(legacy.title_h == 1 && legacy.inset == 1 && legacy.button_w == 2);
+        CHECK(legacy.button_gap == 0 && legacy.grip == 1);
+        CHECK(wd_scale_q16(&comp) == 65536u);
+    }
+
+    /* A 4K panel derives 3x chrome from a 720p design: 36 px title bar, 36 px
+       buttons, and hit regions that follow the scaled geometry. */
+    {
+        struct wd_compositor dense;
+        struct wd_metrics m;
+        wd_init(&dense);
+        CHECK(wd_set_display(&dense, 3840, 2160) == 0);
+        CHECK(wd_scale_q16(&dense) == 196608u);
+        m = wd_chrome_metrics(&dense);
+        CHECK(m.title_h == 36 && m.inset == 24 && m.button_w == 36);
+        CHECK(m.button_gap == 18 && m.grip == 30);
+        int d = wd_create_window(&dense, 4, 4, 240, 120, "4K");
+        CHECK(d > 0);
+        CHECK(wd_hit_chrome(&dense, d, 30, 8) == WD_HIT_CLOSE);
+        CHECK(wd_hit_chrome(&dense, d, 100, 8) == WD_HIT_MINIMIZE);
+        CHECK(wd_hit_chrome(&dense, d, 150, 8) == WD_HIT_ZOOM);
+        CHECK(wd_hit_chrome(&dense, d, 200, 8) == WD_HIT_TITLEBAR);
+        CHECK(wd_hit_chrome(&dense, d, 200, 60) == WD_HIT_CLIENT);
+        CHECK(wd_hit_chrome(&dense, d, 243, 123) == WD_HIT_RESIZE);
+        CHECK(wd_hit_chrome(&dense, d, 220, 60) == WD_HIT_CLIENT);
+        CHECK(wd_set_display(&dense, 0, 720) != 0);
+        CHECK(wd_set_scale_q16(&dense, 0) != 0);
+
+        /* Composite reserves the scaled title height and border, not one
+           grid row: a pixel-space window (0,0,80,60) puts its client at
+           (12,36) and blits the 40x30 surface from there. */
+        for (unsigned int i = 0; i < 320u * 200u; i++) target_pixels[i] = 0x00101828u;
+        CHECK(wd_set_surface(&dense, d, 0) == 0);
+        CHECK(wd_create_window(&dense, 0, 0, 80, 60, "Small") > 0);
+        int small = dense.active_id;
+        CHECK(wd_set_surface(&dense, small, &client) == 0);
+        CHECK(wd_composite(&dense, &device, &target, 80, 25) == 0);
+        CHECK(target_pixels[40 * 320 + 16] == 0x0022CC88u);
+        CHECK(target_pixels[30 * 320 + 16] != 0x0022CC88u);
+        /* The scaled header is drawn, not a one-pixel line. */
+        CHECK(target_pixels[30 * 320 + 15] == 0x0034323Au);
+
+        /* Adoption of a larger panel rescales open geometry instead of
+           leaving it stranded at the old coordinates. */
+        struct wd_compositor grown;
+        wd_init(&grown);
+        CHECK(wd_set_display(&grown, 1280, 720) == 0);
+        int g = wd_create_window(&grown, 100, 100, 200, 150, "Grow");
+        CHECK(g > 0);
+        CHECK(wd_rescale_display(&grown, 1280, 720, 3840, 2160) == 0);
+        CHECK(wd_scale_q16(&grown) == 196608u);
+        CHECK(wd_hit_test(&grown, 305, 305) == g);
+        CHECK(wd_hit_test(&grown, 105, 105) == -1);
+        CHECK(wd_rescale_display(&grown, 0, 720, 3840, 2160) != 0);
+    }
+
     CHECK(wd_destroy_window(&comp, w1) == 0);
     CHECK(wd_destroy_window(&comp, w2) == 0);
     CHECK(comp.active_id == -1);

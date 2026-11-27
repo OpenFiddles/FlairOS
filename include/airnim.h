@@ -70,6 +70,30 @@ int32_t an_spring_step(struct an_spring *sp, int32_t target);
 int an_spring_settled(const struct an_spring *sp);
 int32_t an_slide_offset(an_id id, int32_t open_state, int32_t span, uint32_t dur_ticks, enum an_ease ease);
 
+/* ---- Preset animations -------------------------------------------------
+   Named motion so callers do not re-pick durations and curves per call site.
+   `from`/`to` are progress endpoints in the usual 0..AN_ONE space; a fade
+   multiplies colour alpha by that progress, an offset preset subtracts it
+   from a span. Add a preset here (and a host check) rather than teaching a
+   shell a new curve. */
+struct an_preset {
+    const char *name;
+    int32_t from, to;
+    uint32_t duration_ticks;
+    enum an_ease ease;
+};
+
+int an_preset_count(void);
+const struct an_preset *an_preset_at(int index);
+const struct an_preset *an_preset_lookup(const char *name);
+/* Play by name. Returns 0, or -1 for an unknown name (engine untouched). */
+int an_preset_play(an_id id, const char *name);
+int an_preset_play_at(an_id id, const struct an_preset *preset);
+/* Current progress, clamped to 0..AN_ONE. */
+int32_t an_preset_value(an_id id, const struct an_preset *preset);
+/* Offset for a slide preset: `span` at progress 0, 0 at AN_ONE. */
+int32_t an_preset_offset(an_id id, const struct an_preset *preset, int32_t span);
+
 enum flowdrip_link {
     FLOWDRIP_LINK_NONE = 0,
     FLOWDRIP_LINK_WIFI = 1,

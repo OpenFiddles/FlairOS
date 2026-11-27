@@ -168,6 +168,43 @@ int main(void) {
     CHECK(pixel_at(pixels, 0, 0) == 0);
     CHECK(pixel_at(pixels, 2, 0) == 0x0000FF);
 
+    /* Density: 4K derives 3x from a 720p design and snaps to whole pixels,
+       while smaller panels clamp up to 1x and huge ones to 4x. */
+    {
+        uint32_t scale = 0;
+        CHECK(ag_scale_q16_for(3840, 2160, 1280, 720, &scale) == 0);
+        CHECK(scale == 196608u);
+        CHECK(ag_scale_q16_for(1024, 768, 1280, 720, &scale) == 0);
+        CHECK(scale == AG_SCALE_ONE);
+        CHECK(ag_scale_q16_for(7680, 4320, 1280, 720, &scale) == 0);
+        CHECK(scale == AG_SCALE_MAX);
+        CHECK(ag_scale_q16_for(0, 2160, 1280, 720, &scale) != 0);
+        CHECK(ag_scale_q16_for(3840, 2160, 0, 720, &scale) != 0);
+        CHECK(ag_px(12, 196608u) == 36);
+        CHECK(ag_px(1, 196608u) == 3);
+        CHECK(ag_px(10, 98304u) == 15);
+        CHECK(ag_px(0, 196608u) == 0);
+        CHECK(ag_px(1, 0u) == 1);
+    }
+    ag_clear(&s, 0);
+    ag_stroke_rect(0, &s, 0, 0, 8, 6, 1, 0x0000FF);
+    CHECK(pixel_at(pixels, 0, 0) == 0x0000FF);
+    CHECK(pixel_at(pixels, 7, 0) == 0x0000FF);
+    CHECK(pixel_at(pixels, 0, 5) == 0x0000FF);
+    CHECK(pixel_at(pixels, 4, 2) == 0);
+    ag_clear(&s, 0);
+    ag_stroke_rect(0, &s, 0, 0, 8, 6, 2, 0x0000FF);
+    CHECK(pixel_at(pixels, 1, 1) == 0x0000FF);
+    CHECK(pixel_at(pixels, 2, 2) == 0);
+    ag_clear(&s, 0);
+    ag_stroke_rect(0, &s, 0, 0, 8, 6, 4, 0x0000FF);
+    CHECK(pixel_at(pixels, 3, 3) == 0x0000FF);
+    ag_clear(&s, 0);
+    ag_round_rect_scaled(0, &s, 0, 0, 8, 6, 2, 131072u, 0x00ABCDEF);
+    CHECK(pixel_at(pixels, 0, 0) == 0);
+    CHECK(pixel_at(pixels, 4, 3) == 0x00ABCDEF);
+    CHECK(pixel_at(pixels, 4, 0) == 0x00ABCDEF);
+
     sp_theme_default(&theme);
     ui.device = 0; ui.surface = &s; ui.theme = &theme; ui.draw_text = test_text;
     ag_clear(&s, theme.color.background);
