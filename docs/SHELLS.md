@@ -108,7 +108,13 @@ renders the phone home screen from the shipped bytes (not a fixture).
 `make presets` builds every preset directory for every arch it declares — six
 presets, twelve images (an x86_64 preset also gets its Multiboot ELF and a
 raw disk image). `make verify-disk` deliberately does not build or repair them:
-an image that is missing, or older than `preset.json`, the shell source, the
-packaged resources or the loader, is reported as a failure naming the preset
-and the newer input, and the gate exits non-zero. Run `make presets` first; a
-run then describes exactly the artifacts that existed.
+an image that is missing, or older than anything that goes into it, is reported
+as a failure naming the preset and the newer input, and the gate exits non-zero.
+The freshness inputs are the whole input surface rather than a hand-kept file
+list: `arch/`, `kernel/`, `include/`, `ui/`, `net/`, `runtime/`, `graphics/`,
+`ported/`, `drivers/`, `resources/`, the preset directory, its session package,
+and the packing tools (`tools/build_preset.py`, `tools/airpkg.py`,
+`tools/make_bootdisk.py`, `tools/make_uefi_disk.py`, `tools/bootdisk/`,
+`tools/arch/`, `airp.py`). Touching a driver or a header that the image predates
+therefore names the preset and the file, with no `[ok]` line for it. Run
+`make presets` first; a run then describes exactly the artifacts that existed.
