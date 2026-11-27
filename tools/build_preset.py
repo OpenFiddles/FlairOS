@@ -203,8 +203,13 @@ if __name__ == "__main__":
     try:
         if args.all:
             run([sys.executable, os.path.join(ROOT, 'tools', 'build_apps.py')])
-            for p in ("desktop", "mobile", "tv"):
-                for a in ("x86_64", "aarch64"):
+            # Every shipped preset, not a hardcoded subset: a preset the boot
+            # gate covers must also be buildable by the same command.
+            presets = sorted(p for p in os.listdir(os.path.join(ROOT, "presets"))
+                             if os.path.exists(os.path.join(ROOT, "presets", p, "preset.json")))
+            for p in presets:
+                cfg = json.load(open(os.path.join(ROOT, "presets", p, "preset.json")))
+                for a in cfg["supported_arches"]:
                     build_one(p, a)
         else:
             build_one(args.preset, args.arch)

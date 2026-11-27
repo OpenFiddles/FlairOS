@@ -256,9 +256,10 @@ preset from its disk image and requires the kernel's own
 - All three sessions (TV, mobile, desktop) now read their launcher from a
   package; the desktop keeps its own window coordinates, and its in-window app
   content is still drawn by the shell rather than packaged.
-- The 4K images build and link, but this QEMU's default VGA cannot return a
-  3840x2160 screendump, so the boot gate covers the 720p panel; 4K is verified
-  by the host layout tests, not by a captured frame.
+- The 4K presets are gated too: the x86_64 boot sets `-global
+  VGA.vgamem_mb=64` so the std VGA can hold a 3840x2160 mode, and aarch64 uses
+  `ramfb`. Both capture a real 3840x2160 screendump after the kernel logs
+  `session=pkg-load ok`.
 - Session icons still come from `.rodata`.
 - The drawer's own internal stage strings are session strings, but the dynamic
   values beside them (SSID, IP, carrier, device names, AirP state, telemetry

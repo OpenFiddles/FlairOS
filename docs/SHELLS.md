@@ -81,11 +81,31 @@ host's own architecture).
 ok` line when the preset declares a package, and a screendump of the preset's
 exact size that is neither blank nor single-colour.
 
-The 4K presets build and link, but this QEMU's default VGA cannot return a
-3840x2160 screendump (it reports a 32-pixel-wide capture), so the automated boot
-gate covers the 1024x768, 480x800 and 1280x720 panels.
+Every shipped preset is gated, at its own resolution, on both architectures:
+
+| Preset | Panel | Package | x86_64 | aarch64 |
+| --- | --- | --- | --- | --- |
+| `desktop` | 1024x768 | `FlairDesktop.airp` | gated | gated |
+| `desktop4k` | 3840x2160 | `FlairDesktop.airp` | gated | gated |
+| `mobile` | 480x800 | `FlairMobile.airp` | gated | gated |
+| `template` | 1024x768 | `FlairDesktop.airp` | gated | gated |
+| `tv` | 1280x720 | `FlairTV.airp` | gated | gated |
+| `tv4k` | 3840x2160 | `FlairTV.airp` | gated | gated |
+
+A 4K frame needs video memory the std VGA does not have by default: with the
+16 MiB default QEMU reports a truncated `32x1092` capture for a requested
+3840x2160 mode. The gate therefore boots x86_64 with
+`-global VGA.vgamem_mb=64`, which produces a real 3840x2160 screendump; aarch64
+uses `ramfb`, which takes the mode directly. There is no preset that falls back
+to host-only checks: `make verify-disk` exits non-zero if any boot does not
+prove both the package-load line and a non-blank frame at that resolution.
 
 `make test` additionally builds all three packages and runs
 `tests/session_pkg_host_test`, which loads the shipped `build/FlairMobile.airp`,
 `build/FlairTV.airp` and `build/FlairDesktop.airp` through the real loader and
 renders the phone home screen from the shipped bytes (not a fixture).
+
+`make presets` builds every preset directory for every arch it declares — six
+presets, twelve images (an x86_64 preset also gets its Multiboot ELF and a
+raw disk image). Run it before `make verify-disk`; the gate names any missing
+image rather than passing over it.

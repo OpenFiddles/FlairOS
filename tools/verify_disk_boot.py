@@ -30,10 +30,10 @@ import tempfile
 import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-# The 4K presets build but this QEMU's default VGA cannot hand back a 3840x2160
-# screendump (it reports a 32-pixel-wide capture), so the boot gate covers the
-# three panel presets whose first frame it can actually read.
-PRESETS = ("desktop", "mobile", "tv")
+# Every shipped preset is gated. The 4K frames need a VGA with enough video
+# memory (see qemu_command); with the default 16 MiB the std VGA reports a
+# truncated 32x1092 capture, which is why the boot below sets vgamem_mb.
+PRESETS = ("desktop", "desktop4k", "mobile", "template", "tv", "tv4k")
 ARCHES = ("x86_64", "aarch64")
 
 
@@ -209,24 +209,33 @@ def read_ppm(path):
 
 
 def framebuffer_report(pixels, w, h):
-    """Return (distinct_colours, fraction_not_modal) for the captured surface."""
+    """Return (distinct_colours, fraction_not_modal) for the captured surface.
+
+    A 4K frame is 8.3M pixels; counting every one of them in a dict would cost
+    hundreds of megabytes for the same verdict, so large surfaces are sampled
+    on a uniform stride and the ratios are reported over the sample.
+    """
     stride = 3
     total = w * h
     if len(pixels) < total * stride:
         raise RuntimeError(f"PPM holds {len(pixels)} bytes, need {total * stride}")
+    step = max(1, total // 200000)
     counts = {}
-    for i in range(total):
+    sampled = 0
+    for i in range(0, total, step):
         px = pixels[i * stride:i * stride + 3]
         counts[px] = counts.get(px, 0) + 1
+        sampled += 1
     modal = max(counts.values())
-    return len(counts), 1.0 - (modal / float(total))
+    return len(counts), 1.0 - (modal / float(sampled))
 
 
 def qemu_command(arch, image, log, sock, vars_copy):
     if arch == "x86_64":
         return [os.environ.get("QEMU_DISK", "qemu-system-x86_64")] + firmware_args() + accel_args(arch) + [
             "-drive", f"file={image},format=raw,if=ide,index=0",
-            "-boot", "c", "-vga", "std", "-m", "512M",
+            "-boot", "c", "-vga", "std", "-global", "VGA.vgamem_mb=64",
+            "-m", "512M",
             "-display", "none", "-no-reboot",
             "-serial", f"file:{log}",
             "-monitor", f"unix:{sock},server=on,wait=off",

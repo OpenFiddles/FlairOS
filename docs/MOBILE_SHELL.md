@@ -173,5 +173,5 @@ Still open, and not claimed:
 - No physical phone touch hardware was exercised.
 - The shell draws only what the kernel resolves; installing or updating a
   `FlairMobile.airp` on a running device is still a boot-image concern.
-- The 4K presets cannot be screendumped by this QEMU's VGA, so only the 480x800,
-  1024x768 and 1280x720 panels are captured by the boot gate.
+- The 4K presets are gated as well, so the boot gate covers 480x800, 1024x768,
+  1280x720 and 3840x2160 on both architectures.
