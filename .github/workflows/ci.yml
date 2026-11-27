@@ -36,22 +36,32 @@ jobs:
         run: |
           for p in desktop mobile tv; do
             test -s "build-presets/$p-x86_64/flairos-$p-x86_64.mb.elf"
+            test -s "build-presets/$p-x86_64/flairos-$p-x86_64.img"
             test -s "build-presets/$p-aarch64/flairos-$p-aarch64.elf"
+            test -s "build-presets/$p-aarch64/flairos-$p-aarch64.img"
           done
 
       - name: Host tests over the shared kernel sources
         run: make test
 
-      - name: Install QEMU for the disk-boot assertion
+      - name: Install QEMU and aarch64 UEFI firmware for the disk-boot assertion
         run: |
           sudo apt-get update -qq
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq qemu-system-x86 > /dev/null
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+            qemu-system-x86 qemu-system-arm qemu-efi-aarch64 > /dev/null
+          ls -l /usr/share/AAVMF/AAVMF_CODE.fd
 
-      # Boots each preset from its raw disk image (no -kernel, no floppy, no ISO)
+      # Boots each preset from its own disk image (no -kernel, no floppy, no ISO)
       # and asserts the captured framebuffer, so a regression of the disk path
-      # fails CI instead of passing on a log line.
+      # fails CI instead of passing on a log line. Runners have no /dev/kvm, so
+      # this runs under TCG on both architectures.
       - name: Disk boot to render=ok with framebuffer assertion
         run: python3 tools/verify_disk_boot.py
+
+      # A gate that cannot fail is not a gate: damaged media and a render that
+      # never completes must all make the verifier exit nonzero.
+      - name: Prove the disk gate rejects broken images
+        run: python3 tests/disk_boot_gate_test.py
 
       - name: Upload 64-bit preset images
         if: always()

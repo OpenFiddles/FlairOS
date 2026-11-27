@@ -118,9 +118,28 @@ def build_one(preset_name, arch):
              "--entry", hex(entry)])
         print(f"[OK] {preset_name}/{arch}: {img} ({os.path.getsize(img)} bytes)")
     else:
+        # aarch64 boots through UEFI: a PE32+ loader in the EFI System
+        # Partition reads this kernel off the same disk with the firmware's
+        # own file-system protocol, so the image is self-booting on real
+        # firmware with no `-kernel` handoff.
         bin_path = os.path.join(out_dir, f"flairos-{preset_name}-{arch}.bin")
         run(["llvm-objcopy", "-O", "binary", elf, bin_path])
-        print(f"[OK] {preset_name}/{arch}: {elf} ({os.path.getsize(elf)} bytes)")
+        loader_obj = os.path.join(out_dir, "efi_loader.o")
+        handoff_obj = os.path.join(out_dir, "efi_handoff.o")
+        loader_elf = os.path.join(out_dir, "efi_loader.elf")
+        run(["clang", "--target=aarch64-none-elf", "-ffreestanding",
+             "-fno-stack-protector", "-fno-pic", "-mstrict-align",
+             "-mgeneral-regs-only", "-Os", "-Wall", "-Wextra", "-c",
+             os.path.join(ROOT, "arch/aarch64/efi_loader.c"), "-o", loader_obj])
+        run(["clang", "--target=aarch64-none-elf", "-ffreestanding", "-fno-pic",
+             "-c", os.path.join(ROOT, "arch/aarch64/efi_handoff.S"), "-o", handoff_obj])
+        run(["ld.lld", "-m", "aarch64elf", "-nostdlib", "-Ttext=0x50000000",
+             "-e", "efi_main", "-o", loader_elf, loader_obj, handoff_obj])
+        img = os.path.join(out_dir, f"flairos-{preset_name}-{arch}.img")
+        run([sys.executable, os.path.join(ROOT, "tools/make_uefi_disk.py"),
+             "--loader", loader_elf, "--kernel", elf, "--out", img])
+        print(f"[OK] {preset_name}/{arch}: {elf} ({os.path.getsize(elf)} bytes), "
+              f"{img} ({os.path.getsize(img)} bytes)")
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()

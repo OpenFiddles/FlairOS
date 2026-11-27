@@ -133,11 +133,17 @@ OBJS = $(BUILD)/hal.o \
 presets:
 	python3 tools/build_preset.py --all
 
-# Boots every preset from its disk image under QEMU and asserts the captured
-# framebuffer, so a regression of the disk path fails instead of passing on a
-# log line. Needs qemu-system-x86_64 (KVM where available, TCG otherwise).
+# Boots every preset from its own disk image under QEMU and asserts the captured
+# framebuffer, so a regression of the disk path fails instead of passing on a log
+# line. x86_64 uses its BIOS loader image, aarch64 boots its FAT-ESP image through
+# real AAVMF firmware. Works with KVM or, as on CI runners, pure TCG.
 verify-disk:
 	python3 tools/verify_disk_boot.py
+
+# Proves the disk gate can fail: missing, truncated, corrupted and never-rendering
+# images must each make the verifier exit nonzero.
+disk-gate:
+	python3 tests/disk_boot_gate_test.py
 
 # --- Legacy i386 reference image (opt-in) ---
 legacy: $(BUILD)/textile.img $(BUILD)/livecd.iso $(BUILD)/bootcd.iso $(BUILD)/storage.img
@@ -601,7 +607,7 @@ acceptance: legacy-image
 clean:
 	rm -rf $(BUILD)
 
-.PHONY: presets verify-disk legacy legacy-image run run-vnc win-demo test legacy-test acceptance clean livecd bootcd boot-media storage-image
+.PHONY: presets verify-disk disk-gate legacy legacy-image run run-vnc win-demo test legacy-test acceptance clean livecd bootcd boot-media storage-image
 
 # --- SDK example app (built on request, not on the disk image) ---
 $(BUILD)/hello.o: examples/hello/hello.c sdk/flareos.h | $(BUILD)
