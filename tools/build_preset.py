@@ -50,6 +50,25 @@ def elf_entry(path):
     return struct.unpack_from("<Q", head, 24)[0]
 
 
+REQUIRED_TOOLS = ("clang", "ld.lld", "llvm-objcopy", "nasm")
+
+
+def require_tools():
+    """Refuse before touching anything when a build tool is absent.
+
+    Without this the first failure is a child interpreter traceback from
+    airp.py or build_apps.py, which tells a reader nothing actionable.
+    """
+    import shutil
+    missing = [tool for tool in REQUIRED_TOOLS if shutil.which(tool) is None]
+    if missing:
+        raise RuntimeError(
+            "missing build tool(s): " + ", ".join(missing) + ". Building a 64-bit\n"
+            "preset needs " + ", ".join(REQUIRED_TOOLS) + ". Install them, or put them under\n"
+            "~/local/bin and add that directory to PATH. Refusing to report a build that\n"
+            "never ran.")
+
+
 def run(cmd):
     try:
         res = subprocess.run(cmd, cwd=ROOT, stdout=subprocess.PIPE,
@@ -201,6 +220,7 @@ if __name__ == "__main__":
     ap.add_argument("--all", action="store_true")
     args = ap.parse_args()
     try:
+        require_tools()
         if args.all:
             run([sys.executable, os.path.join(ROOT, 'tools', 'build_apps.py')])
             # Every shipped preset, not a hardcoded subset: a preset the boot

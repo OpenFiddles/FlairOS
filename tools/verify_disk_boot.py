@@ -369,7 +369,11 @@ def verify(image, arch, preset, width, height, timeout):
         if vars_copy:
             os.unlink(vars_copy)
         tail = "\n".join(output.strip().splitlines()[-6:])
-        return False, (f"{preset}/{arch}: never reached '{marker}' in {int(timeout)}s\n"
+        hint = ""
+        if width > 2560 or height > 1600:
+            hint = ("\n    a 4K mode needs more display video memory than the VGA "
+                    "default; check the -global VGA.vgamem_mb=64 argument")
+        return False, (f"{preset}/{arch}: never reached '{marker}' in {int(timeout)}s{hint}\n"
                        f"    serial tail:\n    {tail.replace(chr(10), chr(10) + '    ')}\n"
                        f"    qemu: {(out or b'').decode(errors='replace').strip()[:300]}")
 
