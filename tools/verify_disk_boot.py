@@ -264,39 +264,64 @@ def qemu_command(arch, image, log, sock, vars_copy):
     return cmd
 
 
-# Inputs that make a preset image what it is. The gate compares an image's mtime
-# against these so an image left over from older sources is reported as stale
-# instead of being booted and trusted.
-IMAGE_INPUTS = (
-    "tools/build_preset.py",
-    "kernel/boot/kmain64.c",
-    "kernel/ui/shell_launcher.c",
-    "kernel/ui/tv_layout.c",
-    "kernel/ui/mobile_layout.c",
+# Everything that ends up inside a preset image. An image is only accepted when
+# it is newer than the newest file under these roots, so an edit to any kernel
+# driver, shared component, header, linker script or packing tool that the last
+# build predates is reported as stale instead of being booted and trusted. The
+# roots are directories rather than a hand-maintained file list because a list
+# always lags: a new driver or header would escape it silently.
+SOURCE_ROOTS = (
+    "arch", "kernel", "include", "ui", "net", "runtime", "graphics",
+    "ported", "drivers", "resources",
 )
+TOOL_INPUTS = (
+    "tools/build_preset.py", "tools/airpkg.py", "tools/make_bootdisk.py",
+    "tools/make_uefi_disk.py", "tools/bootdisk", "tools/arch", "airp.py",
+)
+SKIP_DIRS = {".git", "build", "build-presets", "build-apps", "__pycache__", "artifacts"}
+
+
+def _walk_newest(root, newest, newest_path):
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
+        for name in filenames:
+            full = os.path.join(dirpath, name)
+            try:
+                mtime = os.path.getmtime(full)
+            except OSError:
+                continue
+            if mtime > newest[0]:
+                newest[0] = mtime
+                newest_path[0] = os.path.relpath(full, ROOT)
 
 
 def newest_input(preset):
     """(mtime, repo-relative path) of the newest input that image depends on."""
     cfg = json.load(open(os.path.join(ROOT, "presets", preset, "preset.json")))
-    paths = [f"presets/{preset}/preset.json", cfg["shell_source"]] + list(IMAGE_INPUTS)
-    package = cfg.get("session_package")
-    if package:
-        base = os.path.join(ROOT, package)
-        for dirpath, _dirnames, filenames in os.walk(base):
-            for name in filenames:
-                full = os.path.join(dirpath, name)
-                paths.append(os.path.relpath(full, ROOT))
-    newest, newest_path = 0.0, ""
-    for rel in paths:
+    newest = [0.0]
+    newest_path = [f"presets/{preset}/preset.json"]
+    roots = [os.path.join(ROOT, rel) for rel in SOURCE_ROOTS]
+    roots.append(os.path.join(ROOT, "presets", preset))
+    if cfg.get("session_package"):
+        roots.append(os.path.join(ROOT, cfg["session_package"]))
+    for root in roots:
+        if os.path.isdir(root):
+            _walk_newest(root, newest, newest_path)
+        elif os.path.exists(root):
+            mtime = os.path.getmtime(root)
+            if mtime > newest[0]:
+                newest[0] = mtime
+                newest_path[0] = os.path.relpath(root, ROOT)
+    for rel in TOOL_INPUTS:
         full = os.path.join(ROOT, rel)
-        try:
+        if os.path.isdir(full):
+            _walk_newest(full, newest, newest_path)
+        elif os.path.exists(full):
             mtime = os.path.getmtime(full)
-        except OSError:
-            continue
-        if mtime > newest:
-            newest, newest_path = mtime, rel
-    return newest, newest_path
+            if mtime > newest[0]:
+                newest[0] = mtime
+                newest_path[0] = rel
+    return newest[0], newest_path[0]
 
 
 def image_problem(preset, arch, image):
