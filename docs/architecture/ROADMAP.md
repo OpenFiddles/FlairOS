@@ -73,9 +73,19 @@ The last one is the real unlock: adding a staged package currently means editing
 - [x] `FlairDesktop.airp` built and staged at boot
 - [x] Theme resource parsed and validated with a host-tested loader
 - [ ] Theme actually applied on a bootable target
-- [ ] Launcher layout read from `launcher.json` instead of compiled-in tables
+- [x] Launcher layout read from `launcher.json` instead of compiled-in tables
+      (TV session: `FlairTV.airp` → `kernel/ui/tv_launcher.c`; the desktop
+      session still lays out its own tables)
 - [ ] Strings read from `strings.json`
 - [ ] Icons as package resources rather than `.rodata` arrays
+
+### TV session
+
+- [x] Resolution-aware ten-foot layout: one 1280x720 design scaled to 720p-4K
+- [x] `FlairTV.airp` component package carrying the launcher layout
+- [x] 4K TV preset (`presets/tv4k`, 3840x2160 @ 90 Hz)
+- [ ] Control drawer scaled with the layout instead of fixed pixels
+- [ ] TV session strings read from `strings.json`
 
 ### Accessibility and theming
 

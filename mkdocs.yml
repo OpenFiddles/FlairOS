@@ -39,6 +39,7 @@ nav:
       - Overview: ARCHITECTURE.md
       - Memory Management: MEMORY_MANAGEMENT.md
       - AirGraph: AirGraph.md
+      - TV Shell: TV_SHELL.md
   - Boot & Storage:
       - Boot Media: BOOT_MEDIA.md
       - Pancake / PCK: PANCAKE.md

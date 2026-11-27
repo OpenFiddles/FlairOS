@@ -1,0 +1,18 @@
+{
+  "name": "tv4k",
+  "display_name": "FlairOS TV 4K (10-Foot Lean-Back Shell, 3840x2160)",
+  "default_arch": "aarch64",
+  "supported_arches": ["x86_64", "aarch64"],
+  "width": 3840,
+  "height": 2160,
+  "shell_source": "ui/shells/shell_tv.c",
+  "airp_role": "AIRP_ROLE_RECEIVER",
+  "session_package": "tv",
+  "defines": [
+    "FLAIROS_DEVICE_TV",
+    "FLAIROS_DISPLAY_LANDSCAPE",
+    "FLAIROS_DISPLAY_4K",
+    "FLAIROS_4K_UHD",
+    "PRESET_TARGET_HZ=90"
+  ]
+}

@@ -57,6 +57,35 @@ def run(cmd):
         raise RuntimeError(f"Command failed ({res.returncode}): {' '.join(cmd)}")
     return res.stdout
 
+def write_session_package(name, out_dir):
+    """Packs a session component package and emits it as a C array, so a TV
+    image carries its launcher layout inside the kernel image instead of
+    needing a disk stage. The container is architecture-neutral data; the
+    loader opens it with AIRP_ARCH_ANY."""
+    base = os.path.join(ROOT, name)
+    manifest = os.path.join(base, "manifest", name + ".json")
+    launcher = os.path.join(base, "resources", "launcher.json")
+    strings = os.path.join(base, "resources", "strings.json")
+    airp = os.path.join(out_dir, "FlairTV.airp")
+    tool = os.path.join(ROOT, "tools", "airpkg.py")
+    run([sys.executable, tool, "pack", "-", airp,
+         "--name", "FlairTV", "--flags", "system,resources-only",
+         "--manifest", manifest,
+         "--resource", f"launcher.json={launcher}:ui",
+         "--resource", f"strings.json={strings}:strings"])
+    run([sys.executable, tool, "validate", airp])
+    data = open(airp, "rb").read()
+    src = os.path.join(out_dir, "session_package.c")
+    with open(src, "w") as f:
+        f.write("/* generated from %s.airp; do not edit */\n" % name)
+        f.write("const unsigned char tv_package_bytes[] = {\n")
+        for i in range(0, len(data), 16):
+            f.write("    " + ", ".join(f"0x{b:02x}" for b in data[i:i + 16]) + ",\n")
+        f.write("};\n")
+        f.write("const unsigned int tv_package_size = %du;\n" % len(data))
+    return src
+
+
 def build_one(preset_name, arch):
     pjson = os.path.join(ROOT, "presets", preset_name, "preset.json")
     if not os.path.exists(pjson):
@@ -95,6 +124,13 @@ def build_one(preset_name, arch):
         ld_emul = "aarch64elf"
 
     srcs = arch_srcs + COMMON_SRCS + [cfg["shell_source"]]
+    if cfg.get("session_package"):
+        # The TV session reads its launcher layout from a packaged resource, so
+        # the container reader and the layout modules ship with it.
+        srcs += ["kernel/pkg/airp.c", "kernel/pkg/airjson.c",
+                 "kernel/ui/tv_layout.c", "kernel/ui/tv_launcher.c"]
+        srcs.append(write_session_package(cfg["session_package"], out_dir))
+        cflags.append("-DFLAIROS_TV_PACKAGE")
     objs = []
     for src in srcs:
         obj = os.path.join(out_dir, os.path.basename(src) + ".o")

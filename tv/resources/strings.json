@@ -1,0 +1,10 @@
+{
+  "app": "FlairTV",
+  "home": "HOME",
+  "sections": "Apps   Android   AirP   Status",
+  "status_card": "AIRP + BT AUDIO",
+  "focus": "10-FOOT FOCUS",
+  "focused": "FOCUSED",
+  "open": "OPEN",
+  "no_signal": "No signal"
+}

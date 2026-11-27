@@ -1,0 +1,29 @@
+{
+  "tv": {
+    "title": "FlairTV Living Room",
+    "hint": "UP: Control Drawer  |  LEFT/RIGHT: Focus  |  ENTER: Launch",
+    "tiles": [
+      {
+        "id": "hello",
+        "label": "Hello World",
+        "subtitle": "Android APK",
+        "target": "app:0",
+        "accent": "EC4899"
+      },
+      {
+        "id": "calc",
+        "label": "DroidCalc",
+        "subtitle": "Dalvik Math",
+        "target": "app:1",
+        "accent": "F97316"
+      },
+      {
+        "id": "cast",
+        "label": "AirP Cast",
+        "subtitle": "Mirror Screen",
+        "target": "airp:cast",
+        "accent": "3B82F6"
+      }
+    ]
+  }
+}

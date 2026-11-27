@@ -399,6 +399,71 @@ int airjson_root_get(const struct airjson_doc *doc, const char *key,
     return object_lookup(doc->text, doc->len, key, value, value_len);
 }
 
+int airjson_array_count(const char *array, u32 len, int *out) {
+    u32 pos = 0;
+    int count = 0;
+    if (!array || !out)
+        return AIRJSON_ERR_SYNTAX;
+    skip_ws(array, len, &pos);
+    if (pos >= len || array[pos] != '[')
+        return AIRJSON_ERR_TYPE;
+    pos++;
+    skip_ws(array, len, &pos);
+    if (pos < len && array[pos] == ']') {
+        *out = 0;
+        return AIRJSON_OK;
+    }
+    for (;;) {
+        if (parse_value(array, len, &pos, 0) != AIRJSON_OK)
+            return AIRJSON_ERR_SYNTAX;
+        count++;
+        skip_ws(array, len, &pos);
+        if (pos < len && array[pos] == ',') {
+            pos++;
+            skip_ws(array, len, &pos);
+            continue;
+        }
+        if (pos < len && array[pos] == ']') {
+            *out = count;
+            return AIRJSON_OK;
+        }
+        return AIRJSON_ERR_SYNTAX;
+    }
+}
+
+int airjson_array_at(const char *array, u32 len, int index,
+                     const char **value, u32 *value_len) {
+    u32 pos = 0;
+    int i = 0;
+    if (!array || !value || !value_len || index < 0)
+        return AIRJSON_ERR_RANGE;
+    skip_ws(array, len, &pos);
+    if (pos >= len || array[pos] != '[')
+        return AIRJSON_ERR_TYPE;
+    pos++;
+    skip_ws(array, len, &pos);
+    if (pos < len && array[pos] == ']')
+        return AIRJSON_ERR_RANGE;
+    for (;;) {
+        u32 start = pos;
+        if (parse_value(array, len, &pos, 0) != AIRJSON_OK)
+            return AIRJSON_ERR_SYNTAX;
+        if (i == index) {
+            *value = array + start;
+            *value_len = pos - start;
+            return AIRJSON_OK;
+        }
+        i++;
+        skip_ws(array, len, &pos);
+        if (pos < len && array[pos] == ',') {
+            pos++;
+            skip_ws(array, len, &pos);
+            continue;
+        }
+        return AIRJSON_ERR_RANGE;
+    }
+}
+
 int airjson_get_int(const char *value, u32 len, int *out) {
     u32 start = 0, end = len, pos;
     int negative = 0;

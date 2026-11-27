@@ -43,6 +43,13 @@ int airjson_object_get(const struct airjson_doc *doc, const char *object,
 int airjson_root_get(const struct airjson_doc *doc, const char *key,
                      const char **value, unsigned int *value_len);
 
+/* Array iteration. `array`/`len` is the raw span of a JSON array value as
+   returned by airjson_root_get or airjson_object_get. Counts and reads are
+   re-validated against that span, so a caller never indexes past it. */
+int airjson_array_count(const char *array, unsigned int len, int *out);
+int airjson_array_at(const char *array, unsigned int len, int index,
+                     const char **value, unsigned int *value_len);
+
 /* Typed reads. airjson_get_string resolves escapes and NUL-terminates. */
 int airjson_get_int(const char *value, unsigned int len, int *out);
 int airjson_get_string(const char *value, unsigned int len, char *out, unsigned int cap);

@@ -407,6 +407,20 @@ $(BUILD)/FlairDesktop.airp: $(DESKTOP_PKG_SRCS) tools/airpkg.py | $(BUILD)
 	python3 tools/airpkg.py validate $@ --arch i386
 	test `stat -c %s $@` -le 8192
 
+# TV session component package: the ten-foot launcher layout as a resource, so
+# retiling the TV shell is a packaging change rather than a kernel rebuild. The
+# preset build embeds these same bytes into the TV kernel image.
+TV_PKG_SRCS = tv/manifest/tv.json tv/resources/launcher.json tv/resources/strings.json
+
+$(BUILD)/FlairTV.airp: $(TV_PKG_SRCS) tools/airpkg.py | $(BUILD)
+	python3 tools/airpkg.py pack - $@ \
+		--name FlairTV --flags system,resources-only --arch i386 \
+		--manifest tv/manifest/tv.json \
+		--resource 'launcher.json=tv/resources/launcher.json:ui' \
+		--resource 'strings.json=tv/resources/strings.json:strings'
+	python3 tools/airpkg.py validate $@ --arch i386
+	test `stat -c %s $@` -le 8192
+
 # Assembles the disk image using the precise structural sector positioning offsets
 $(BUILD)/textile.img: $(BUILD)/stage1.bin $(BUILD)/stage2.bin $(BUILD)/kernel.bin $(BUILD)/app.bin $(BUILD)/explorer.airp $(BUILD)/terminal.airp $(BUILD)/settings.airp $(BUILD)/notes.airp $(BUILD)/FlairDesktop.airp
 	dd if=/dev/zero of=$@ bs=512 count=2880 status=none
@@ -526,6 +540,10 @@ $(BUILD)/desktop_theme_host_test: tests/desktop_theme_host_test.c kernel/ui/desk
 		-ffunction-sections -fdata-sections -Wl,--gc-sections \
 		-o $@ tests/desktop_theme_host_test.c kernel/ui/desktop_theme.c kernel/pkg/airp.c kernel/pkg/airjson.c kernel/gfx/sprunkui.c
 
+$(BUILD)/tv_host_test: tests/tv_host_test.c kernel/ui/tv_layout.c kernel/ui/tv_launcher.c kernel/pkg/airp.c kernel/pkg/airjson.c kernel/ui/tv_layout.h kernel/ui/tv_launcher.h include/airp.h include/airjson.h | $(BUILD)
+	$(HOSTCC) -std=gnu99 -Wall -Wextra -DFLAIROS_HOST_TEST -Iinclude -Ikernel \
+		-o $@ tests/tv_host_test.c kernel/ui/tv_layout.c kernel/ui/tv_launcher.c kernel/pkg/airp.c kernel/pkg/airjson.c
+
 $(BUILD)/airjson_host_test: tests/airjson_host_test.c kernel/pkg/airjson.c include/airjson.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -Ikernel -o $@ tests/airjson_host_test.c kernel/pkg/airjson.c
 
@@ -579,7 +597,7 @@ $(BUILD)/cursor_host_test: tests/cursor_host_test.c kernel/gfx/cursor.c kernel/g
 
 # Host tests build kernel sources with the host compiler, so they describe the
 # shared code rather than either target's boot path. They gate CI.
-test: $(BUILD)/airgraph_host_test $(BUILD)/driver_host_test $(BUILD)/io_host_test $(BUILD)/fb_host_test $(BUILD)/ata_identify_host_test $(BUILD)/pmm_host_test $(BUILD)/vm_region_host_test $(BUILD)/desktop_render_host_test $(BUILD)/desktop_chrome_host_test $(BUILD)/windown_host_test $(BUILD)/task_host_test $(BUILD)/elf_host_test $(BUILD)/vfs_host_test $(BUILD)/bmp_host_test $(BUILD)/image_host_test $(BUILD)/cursor_host_test $(BUILD)/fat32_host_test $(BUILD)/airnim_host_test $(BUILD)/status_host_test $(BUILD)/sprunkui_anim_host_test $(BUILD)/airjson_host_test $(BUILD)/desktop_theme_host_test $(BUILD)/airp_host_test $(BUILD)/bt_host_test $(BUILD)/wifi_host_test $(BUILD)/wifi_join_host_test
+test: $(BUILD)/airgraph_host_test $(BUILD)/driver_host_test $(BUILD)/io_host_test $(BUILD)/fb_host_test $(BUILD)/ata_identify_host_test $(BUILD)/pmm_host_test $(BUILD)/vm_region_host_test $(BUILD)/desktop_render_host_test $(BUILD)/desktop_chrome_host_test $(BUILD)/windown_host_test $(BUILD)/task_host_test $(BUILD)/elf_host_test $(BUILD)/vfs_host_test $(BUILD)/bmp_host_test $(BUILD)/image_host_test $(BUILD)/cursor_host_test $(BUILD)/fat32_host_test $(BUILD)/airnim_host_test $(BUILD)/status_host_test $(BUILD)/sprunkui_anim_host_test $(BUILD)/airjson_host_test $(BUILD)/desktop_theme_host_test $(BUILD)/airp_host_test $(BUILD)/bt_host_test $(BUILD)/wifi_host_test $(BUILD)/wifi_join_host_test $(BUILD)/tv_host_test $(BUILD)/FlairTV.airp
 	$(BUILD)/airgraph_host_test
 	$(BUILD)/fb_host_test
 	$(BUILD)/driver_host_test
@@ -606,6 +624,7 @@ test: $(BUILD)/airgraph_host_test $(BUILD)/driver_host_test $(BUILD)/io_host_tes
 	$(BUILD)/bt_host_test
 	$(BUILD)/wifi_host_test
 	$(BUILD)/wifi_join_host_test
+	$(BUILD)/tv_host_test
 
 # i386 media and boot tests. Opt-in with the rest of the legacy line.
 legacy-test: test $(BUILD)/textile.img $(BUILD)/livecd.iso $(BUILD)/bootcd.iso

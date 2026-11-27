@@ -1,0 +1,23 @@
+{
+  "name": "FlairTV",
+  "id": "org.flairos.tv",
+  "version": "1.0.0",
+  "api_level": 2,
+  "type": "session-shell",
+  "arch": ["x86_64", "aarch64"],
+  "description": "FlairOS TV session: 10-foot home screen layout, 720p through 4K.",
+  "vendor": "OpenFiddles",
+  "entry": {
+    "modes": ["tv"],
+    "startup": "boot"
+  },
+  "resources": {
+    "launcher": "launcher.json",
+    "strings": "strings.json"
+  },
+  "permissions": [
+    "display.compose",
+    "input.pointer",
+    "input.keyboard"
+  ]
+}
