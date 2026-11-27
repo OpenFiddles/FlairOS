@@ -18,7 +18,7 @@ freecode reads this file before every change. Add anything it should always reme
 
 ## House rules
 
-- Never relax the `0x30000` linker assertion in `kernel/boot/link.ld`. Reduce static footprint instead (see `agent/ChatGPT/decisions.md`).
+- Never relax the `0x30000` linker assertion in `kernel/boot/link.ld`. Reduce static footprint instead (see `docs/DECISIONS.md`).
 - Do not claim a capability the build does not reach. Recognition, analysis and execution are separate claims.
 - AirGraph draws pixels; WinDown arranges windows. Keep them separate.
 - A `.airp` package is a container; an executable is one optional thing inside it. Spec: `docs/airp/FORMAT.md`.

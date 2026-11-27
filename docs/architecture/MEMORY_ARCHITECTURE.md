@@ -43,7 +43,7 @@ This is not arbitrary. `0x30000` is where the Settings package is staged at boot
 so kernel `.bss` growing past it would be overwritten by a package. The
 assertion is deliberately hard: the previous work on this project resolved two
 separate overflow incidents by **reducing static footprint**, not by relaxing the
-limit (see `agent/ChatGPT/decisions.md`).
+limit (see `docs/DECISIONS.md`).
 
 Current state: `__bss_end` is `0x2E8C8`, leaving about 5.9 KB.
 

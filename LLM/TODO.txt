@@ -1,1 +1,0 @@
-Hi Textile, my phone won't connect to shapes-bridge right now, but using the tools of GitLab through my account, can you start working on the network drivers? I am redoing /web/index.html on a seperate branch, don't touch that. "redo-html" branch, work on it, and when you are done, create a comment under the finished commit.

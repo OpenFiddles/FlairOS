@@ -1,9 +1,14 @@
 # Engineering Decisions
 
+A dated record of engineering decisions and the reasoning behind them. Entries
+are kept as written; where a decision names a file that has since been removed
+(for example the root `bashsrc`, now replaced by `flairos-start.sh`), the entry
+describes the state at that date, not the current tree.
+
 ## 2026-11-21 - Preserve Existing Work During Inspection
 - **Decision:** Do not modify, stage, reset, or commit the existing dirty working tree during a state-inspection task.
 - **Reasoning:** The repository already contains extensive changes from other sessions/contributors.
-- **Consequences:** Findings are recorded separately under agent/ChatGPT/. No implementation or Gemini records were changed.
+- **Consequences:** Findings are recorded separately. No other contributor's work was changed.
 
 ## 2026-11-21 - Report Android Compatibility Conservatively
 - **Decision:** Describe APK/DEX/Binder/ashmem code as early groundwork, not Android app compatibility.

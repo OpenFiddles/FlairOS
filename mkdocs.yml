@@ -47,6 +47,7 @@ nav:
       - SDK: SDK.md
       - C Library: LIBC.md
   - Project Notes:
+      - Engineering Decisions: DECISIONS.md
       - Architecture Audit: ARCHITECTURE_AUDIT.md
       - MicroPython: MICROPYTHON.md
       - ReactOS Integration Study: REACTOS_INTEGRATION.md
