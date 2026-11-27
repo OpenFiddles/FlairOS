@@ -24,6 +24,10 @@ struct wifi_bss {
     uint8_t channel;    /* 0 when no DS Parameter Set element was present */
     uint32_t security;
     int8_t rssi;        /* BT-style contract: -128 when the driver has no value */
+    /* The security element exactly as advertised (RSN preferred, otherwise the
+       WPA vendor element), so an association request can echo it. */
+    uint8_t sec_ie[64];
+    uint8_t sec_ie_len;
 };
 
 /* RSSI value meaning "the driver did not report one". */

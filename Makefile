@@ -509,6 +509,9 @@ $(BUILD)/bt_host_test: tests/bt_host_test.c tests/bt_mock_hci.c tests/bt_mock_hc
 $(BUILD)/wifi_host_test: tests/wifi_host_test.c net/wifi/wifi_ieee80211.c net/wifi/wifi_ieee80211.h net/wifi/wpa2.c net/wifi/wpa2.h net/wifi/wifi_core.c net/wifi/wifi_core.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/wifi_host_test.c net/wifi/wifi_ieee80211.c net/wifi/wpa2.c net/wifi/wifi_core.c
 
+$(BUILD)/wifi_join_host_test: tests/wifi_join_host_test.c net/wifi/wifi_ieee80211.c net/wifi/wifi_ieee80211.h net/wifi/wpa2.c net/wifi/wpa2.h net/wifi/wifi_core.c net/wifi/wifi_core.h | $(BUILD)
+	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ tests/wifi_join_host_test.c net/wifi/wifi_ieee80211.c net/wifi/wpa2.c net/wifi/wifi_core.c
+
 $(BUILD)/sprunkui_anim_host_test: tests/sprunkui_anim_host_test.c kernel/gfx/sprunkui_anim.c kernel/gfx/sprunkui.c kernel/gfx/airnim.c kernel/gfx/airgraph.c kernel/gfx/fb.c include/sprunkui.h include/airnim.h include/fb.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ -DFLAIROS_HOST_TEST tests/sprunkui_anim_host_test.c kernel/gfx/sprunkui_anim.c kernel/gfx/sprunkui.c kernel/gfx/airnim.c kernel/gfx/airgraph.c kernel/gfx/fb.c
 
@@ -576,7 +579,7 @@ $(BUILD)/cursor_host_test: tests/cursor_host_test.c kernel/gfx/cursor.c kernel/g
 
 # Host tests build kernel sources with the host compiler, so they describe the
 # shared code rather than either target's boot path. They gate CI.
-test: $(BUILD)/airgraph_host_test $(BUILD)/driver_host_test $(BUILD)/io_host_test $(BUILD)/fb_host_test $(BUILD)/ata_identify_host_test $(BUILD)/pmm_host_test $(BUILD)/vm_region_host_test $(BUILD)/desktop_render_host_test $(BUILD)/desktop_chrome_host_test $(BUILD)/windown_host_test $(BUILD)/task_host_test $(BUILD)/elf_host_test $(BUILD)/vfs_host_test $(BUILD)/bmp_host_test $(BUILD)/image_host_test $(BUILD)/cursor_host_test $(BUILD)/fat32_host_test $(BUILD)/airnim_host_test $(BUILD)/status_host_test $(BUILD)/sprunkui_anim_host_test $(BUILD)/airjson_host_test $(BUILD)/desktop_theme_host_test $(BUILD)/airp_host_test $(BUILD)/bt_host_test $(BUILD)/wifi_host_test
+test: $(BUILD)/airgraph_host_test $(BUILD)/driver_host_test $(BUILD)/io_host_test $(BUILD)/fb_host_test $(BUILD)/ata_identify_host_test $(BUILD)/pmm_host_test $(BUILD)/vm_region_host_test $(BUILD)/desktop_render_host_test $(BUILD)/desktop_chrome_host_test $(BUILD)/windown_host_test $(BUILD)/task_host_test $(BUILD)/elf_host_test $(BUILD)/vfs_host_test $(BUILD)/bmp_host_test $(BUILD)/image_host_test $(BUILD)/cursor_host_test $(BUILD)/fat32_host_test $(BUILD)/airnim_host_test $(BUILD)/status_host_test $(BUILD)/sprunkui_anim_host_test $(BUILD)/airjson_host_test $(BUILD)/desktop_theme_host_test $(BUILD)/airp_host_test $(BUILD)/bt_host_test $(BUILD)/wifi_host_test $(BUILD)/wifi_join_host_test
 	$(BUILD)/airgraph_host_test
 	$(BUILD)/fb_host_test
 	$(BUILD)/driver_host_test
@@ -602,6 +605,7 @@ test: $(BUILD)/airgraph_host_test $(BUILD)/driver_host_test $(BUILD)/io_host_tes
 	$(BUILD)/fat32_host_test
 	$(BUILD)/bt_host_test
 	$(BUILD)/wifi_host_test
+	$(BUILD)/wifi_join_host_test
 
 # i386 media and boot tests. Opt-in with the rest of the legacy line.
 legacy-test: test $(BUILD)/textile.img $(BUILD)/livecd.iso $(BUILD)/bootcd.iso

@@ -145,7 +145,9 @@ static int mock_signal(void *ctx) {
 }
 
 static const struct wifi_drv_ops mock_ops = {
-    "test adapter", mock_power, mock_scan, mock_connect, mock_disconnect, mock_signal, 0
+    "test adapter", mock_power, mock_scan, mock_connect, mock_disconnect, mock_signal,
+    0, 0, /* no raw-frame join: this adapter runs the handshake in firmware */
+    0
 };
 
 /* ---- tests ------------------------------------------------------------ */

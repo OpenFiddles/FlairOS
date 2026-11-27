@@ -51,4 +51,24 @@ int wifi_wpa2_mic_check(const uint8_t kck[16], const uint8_t *eapol, int len,
    the stored MIC is treated as zero while hashing. */
 int wifi_wpa2_eapol_mic_ok(const uint8_t kck[16], const uint8_t *eapol, int len);
 
+/* AES-128 (FIPS 197) and AES Key Wrap (RFC 3394), needed to unwrap the GTK
+   that an authenticator encrypts with the KEK in message 3 and the group-key
+   handshake. The S-box is derived from the field definition instead of a
+   table, so it is checked against the FIPS test vector rather than trusted. */
+struct wifi_aes128 {
+    uint8_t rk[176]; /* 11 round keys */
+};
+
+void wifi_aes128_setkey(struct wifi_aes128 *a, const uint8_t key[16]);
+void wifi_aes128_encrypt_block(const struct wifi_aes128 *a, const uint8_t in[16],
+                               uint8_t out[16]);
+void wifi_aes128_decrypt_block(const struct wifi_aes128 *a, const uint8_t in[16],
+                               uint8_t out[16]);
+
+/* `out_cap` must be at least len + 8 for wrap, len - 8 for unwrap. */
+int wifi_wpa2_wrap(const uint8_t kek[16], const uint8_t *plain, int len,
+                   uint8_t *out, int out_cap);
+int wifi_wpa2_unwrap(const uint8_t kek[16], const uint8_t *wrapped, int len,
+                     uint8_t *out, int out_cap);
+
 #endif

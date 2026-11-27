@@ -103,6 +103,7 @@ int wifi_parse_beacon(const uint8_t *f, int len, int8_t rssi, struct wifi_bss *o
     out->channel = 0;
     out->security = WIFI_SEC_OPEN;
     out->rssi = rssi;
+    out->sec_ie_len = 0;
     capability = rd16(f + HDR_LEN + 8 + 2);
 
     i = HDR_LEN + FIXED_LEN;
@@ -120,10 +121,22 @@ int wifi_parse_beacon(const uint8_t *f, int len, int8_t rssi, struct wifi_bss *o
             if (ielen >= 1) out->channel = v[0];
         } else if (id == IE_RSN) {
             if (parse_suites(v, ielen, oui_rsn, 1, &out->security) != 0) return -1;
+            if ((int)ielen + 2 <= (int)sizeof(out->sec_ie)) {
+                out->sec_ie[0] = id;
+                out->sec_ie[1] = ielen;
+                copy_bytes((char *)out->sec_ie + 2, v, ielen);
+                out->sec_ie_len = (uint8_t)(ielen + 2);
+            }
         } else if (id == IE_VENDOR) {
             if (ielen >= 4 && v[0] == OUI_WPA_0 && v[1] == OUI_WPA_1 &&
                 v[2] == OUI_WPA_2 && v[3] == 1u) {
                 if (parse_suites(v + 4, ielen - 4, oui_wpa, 0, &out->security) != 0) return -1;
+                if (out->sec_ie_len == 0 && (int)ielen + 2 <= (int)sizeof(out->sec_ie)) {
+                    out->sec_ie[0] = id;
+                    out->sec_ie[1] = ielen;
+                    copy_bytes((char *)out->sec_ie + 2, v, ielen);
+                    out->sec_ie_len = (uint8_t)(ielen + 2);
+                }
             }
         }
         i += 2 + (int)ielen;
