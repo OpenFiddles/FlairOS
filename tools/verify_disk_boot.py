@@ -266,7 +266,8 @@ def qemu_command(arch, image, log, sock, vars_copy):
 
 def verify(image, arch, preset, width, height, timeout):
     if not os.path.exists(image):
-        return False, f"{preset}/{arch}: missing disk image {image}"
+        return False, (f"{preset}/{arch}: missing disk image {image} "
+                       "(run `make presets`; the gate refuses to pass over an ungated preset)")
 
     work = os.path.dirname(os.path.abspath(image))
     log = os.path.join(work, f"disk-boot-{arch}.log")

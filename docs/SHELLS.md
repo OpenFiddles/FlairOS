@@ -107,5 +107,6 @@ renders the phone home screen from the shipped bytes (not a fixture).
 
 `make presets` builds every preset directory for every arch it declares — six
 presets, twelve images (an x86_64 preset also gets its Multiboot ELF and a
-raw disk image). Run it before `make verify-disk`; the gate names any missing
-image rather than passing over it.
+raw disk image). `make verify-disk` depends on it, so the gate always boots the
+images the current tree produces; a missing image is still reported as a failure
+naming the preset rather than passed over.

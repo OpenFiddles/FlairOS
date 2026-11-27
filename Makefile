@@ -136,8 +136,9 @@ presets:
 # Boots every preset from its own disk image under QEMU and asserts the captured
 # framebuffer, so a regression of the disk path fails instead of passing on a log
 # line. x86_64 uses its BIOS loader image, aarch64 boots its FAT-ESP image through
-# real AAVMF firmware. Works with KVM or, as on CI runners, pure TCG.
-verify-disk:
+# real AAVMF firmware. Works with KVM or, as on CI runners, pure TCG. Depends on
+# `presets` so the gate can never quietly run against stale or missing images.
+verify-disk: presets
 	python3 tools/verify_disk_boot.py
 
 # Proves the disk gate can fail: missing, truncated, corrupted and never-rendering
