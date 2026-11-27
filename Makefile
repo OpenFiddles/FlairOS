@@ -648,6 +648,18 @@ sdk-header-test: | $(BUILD)
 
 .PHONY: sdk-header-test
 
+# --- Inspect a real .apk with the kernel's own ZIP/DEX code ---
+# Runs on a package you already have; no fixtures, no mocks. Example:
+#   make apk-probe APK=~/storage/downloads/app.apk
+$(BUILD)/apk_probe: tools/apk_probe.c kernel/pkg/apk.c kernel/pkg/dex.c ported/developer/libs/flair_zlib/flair_zlib.c include/apk.h include/dex.h | $(BUILD)
+	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -Iported/developer/libs/flair_zlib -o $@ tools/apk_probe.c kernel/pkg/apk.c kernel/pkg/dex.c ported/developer/libs/flair_zlib/flair_zlib.c
+
+apk-probe: $(BUILD)/apk_probe
+	@test -n "$(APK)" || { echo "usage: make apk-probe APK=path/to/app.apk"; exit 2; }
+	$(BUILD)/apk_probe $(APK)
+
+.PHONY: apk-probe
+
 # --- Host test for the RAM filesystem (runs on this machine, not in the kernel) ---
 fs-test: | $(BUILD)
 	$(CC) -m32 -std=gnu99 -Wall -Wextra -Iinclude -o $(BUILD)/fs_host_test tests/fs_host_test.c
