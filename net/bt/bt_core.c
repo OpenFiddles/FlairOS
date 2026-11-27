@@ -25,7 +25,14 @@ static uint32_t profiles_for_class(enum bt_dev_class cls) {
     if (cls == BT_DEV_AUDIO) return BT_PROF_A2DP | BT_PROF_HFP;
     if (cls == BT_DEV_HID)   return BT_PROF_HID | BT_PROF_GATT;
     if (cls == BT_DEV_LE)    return BT_PROF_GATT;
+    if (cls == BT_DEV_OTHER) return 0; /* class of device says nothing usable */
     return BT_PROF_GATT;
+}
+
+static int bt_find_addr(const char *addr) {
+    for (int i = 0; i < g_dev_count; i++)
+        if (g_devs[i].used && bt_seq(g_devs[i].addr, addr)) return i;
+    return -1;
 }
 
 static int find_or_add_dev(const char *addr, const char *name, int8_t rssi, enum bt_dev_class cls) {
@@ -54,7 +61,13 @@ static void drain_hci_events(void) {
     struct bt_hci_event ev;
     while (bt_hci_read_event(&ev)) {
         if (ev.type == BT_HCI_EVT_INQUIRY) {
-            (void)find_or_add_dev(ev.addr, ev.name, ev.rssi, (enum bt_dev_class)ev.dev_class);
+            int idx = find_or_add_dev(ev.addr, ev.name, ev.rssi, (enum bt_dev_class)ev.dev_class);
+            /* Inquiry results carry no name: ask the controller for it. */
+            if (idx >= 0 && g_devs[idx].name[0] == 0) (void)bt_hci_remote_name(ev.addr);
+        } else if (ev.type == BT_HCI_EVT_NAME) {
+            int idx = bt_find_addr(ev.addr);
+            if (idx >= 0 && ev.status == 0 && ev.name[0])
+                bt_scpy(g_devs[idx].name, ev.name, sizeof(g_devs[idx].name));
         } else if (ev.type == BT_HCI_EVT_INQ_DONE) {
             g_st.scanning = 0;
             if (g_st.state == BT_STATE_SCANNING) {
@@ -212,8 +225,11 @@ int bt_core_connect(int idx) {
     g_st.active_idx = idx;
     g_st.state = BT_STATE_CONNECTED;
     g_st.reconnect_backoff = 0;
-    bt_scpy(g_st.active_name, g_devs[idx].name, sizeof(g_st.active_name));
-    bt_scpy(g_st.status_text, g_devs[idx].name, sizeof(g_st.status_text));
+    /* A controller may not have answered Remote Name Request yet, so the
+       address is the honest label until a name arrives. */
+    const char *label = g_devs[idx].name[0] ? g_devs[idx].name : g_devs[idx].addr;
+    bt_scpy(g_st.active_name, label, sizeof(g_st.active_name));
+    bt_scpy(g_st.status_text, label, sizeof(g_st.status_text));
     drain_hci_events();
     return 0;
 }

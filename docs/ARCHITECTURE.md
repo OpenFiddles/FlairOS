@@ -18,6 +18,9 @@ already implemented.
   which supplies graphics and rendering services.
 - **Applications:** AIRP is the executable application format; the C SDK exposes
   the current application-facing calls. See [SDK](SDK.md).
+- **Wireless:** a Bluetooth HCI driver, a 802.11/WPA2 WiFi driver core and their
+  host tests exist, with no board or chip driver bound yet. See
+  [Wireless](architecture/WIRELESS.md).
 - **Resources:** Pancake uses the data-only PCK bundle format. PCK files are not
   executable applications. See [Pancake / PCK](PANCAKE.md).
 

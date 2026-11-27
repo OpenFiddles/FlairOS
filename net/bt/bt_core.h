@@ -26,7 +26,8 @@ enum bt_dev_class {
     BT_DEV_AUDIO = 1,
     BT_DEV_HID   = 2,
     BT_DEV_LE    = 3,
-    BT_DEV_PHONE = 4
+    BT_DEV_PHONE = 4,
+    BT_DEV_OTHER = 5
 };
 
 struct bt_device {

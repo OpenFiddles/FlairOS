@@ -415,6 +415,7 @@ add_flairos_host_test(apk_host_test tests/apk_host_test.c kernel/pkg/apk.c)
 add_flairos_host_test(dex_host_test tests/dex_host_test.c kernel/pkg/dex.c kernel/pkg/apk.c)
 add_flairos_host_test(telemetry_bridge_test tests/telemetry_bridge_test.c net/bridge/host_bridge.c net/service/net_service.c)
 add_flairos_host_test(bt_host_test tests/bt_host_test.c tests/bt_mock_hci.c drivers/bt/bt_hci.c net/bt/bt_core.c)
+add_flairos_host_test(wifi_host_test tests/wifi_host_test.c net/wifi/wifi_ieee80211.c net/wifi/wpa2.c net/wifi/wifi_core.c)
 add_flairos_host_test(runtime64_airp_test tests/runtime64_airp_test.c tests/bt_mock_hci.c kernel/gfx/bmp.c kernel/fs/vfs.c kernel/mm/kmem64.c kernel/gfx/font5x7.c kernel/pkg/apk.c kernel/pkg/dex.c kernel/mm/binder.c kernel/mm/ashmem.c graphics/compositor/glass_fx.c runtime/art/art_bridge.c runtime/art/sandbox.c net/airp/airp_net.c drivers/bt/bt_hci.c net/bt/bt_core.c ported/developer/libs/flair_posix/flair_posix.c ported/developer/libs/flair_zlib/flair_zlib.c ported/developer/openjdk/src/jvm_class.c ported/developer/toybox/toybox_mini.c ported/developer/kilo/kilo_core.c ported/python/flair_py.c net/bridge/host_bridge.c kernel/pkg/elf64.c kernel/core/syscall64.c runtime/art/surface_flinger.c ui/shells/flair_browser.c runtime/art/dex_interp.c runtime/art/android_libs.c net/service/net_service.c ui/systemui/airstin_ui.c ui/shells/shell_desktop.c)
 
 get_property(HOST_TEST_BINS GLOBAL PROPERTY FLAIROS_HOST_TEST_BINS)
