@@ -84,11 +84,13 @@ tv/resources/strings.json  every shell label
 
 `make` packs these into `build/FlairTV.airp` — a *component* package: the
 `resources-only` flag means it is a validated container with typed resources and
-**no executable**. `kernel/ui/tv_launcher.c` reads `launcher.json` and
-`strings.json` out of a staged package with the same `airp_open` /
-`airp_find_resource` path the desktop theme uses, and `AirJSON` iteration
-(`airjson_array_count`/`airjson_array_at`, `airjson_object_count`/
-`airjson_object_at`) walks the tile array and the string map.
+**no executable**. `kernel/ui/shell_launcher.c` — shared with the phone session,
+where `SHELL_KIND_MOBILE` selects the `mobile` root object and
+`FlairMobile.airp` — reads `launcher.json` and `strings.json` out of a staged
+package with the same `airp_open` / `airp_find_resource` path the desktop theme
+uses, and `AirJSON` iteration (`airjson_array_count`/`airjson_array_at`,
+`airjson_object_count`/`airjson_object_at`) walks the tile array and the string
+map.
 
 ```json
 {
@@ -132,8 +134,8 @@ tile labels, title and hint come from `launcher.json`.
 Layering is deliberate: the package wins, the code that draws a label supplies
 the fallback, and a key the package omits keeps its built-in wording. The layout
 keeps a *view* of the packaged JSON rather than a copy of all 76 strings — those
-bytes already live in the image — so `tv_strings_copy()` resolves on demand and
-the whole `struct tv_launcher` stays small enough for a kernel static.
+bytes already live in the image — so `shell_strings_copy()` resolves on demand and
+the whole `struct shell_launcher` stays small enough for a kernel static.
 
 #### How the drawer gets its wording
 
@@ -144,8 +146,8 @@ drawn. A TV session installs one:
 
 ```c
 static const char *tv_drawer_label(const char *key) {
-    static char text[TV_STRING_TEXT_MAX];
-    return tv_strings_copy(&g_launcher.strings, key, text, sizeof text) ? text : 0;
+    static char text[SHELL_STRING_TEXT_MAX];
+    return shell_strings_copy(&g_launcher.strings, key, text, sizeof text) ? text : 0;
 }
 
 airstin_ui_set_labels(tv_drawer_label);   /* TV only */
@@ -179,7 +181,7 @@ The loader is all-or-nothing and bounds every value:
   longer than its buffer, an over-long string value, or a string map with no
   keys → the load is refused and the **built-in layout and wording stay in
   place**;
-- `struct tv_launcher_report` carries a reason string for diagnostics.
+- `struct shell_launcher_report` carries a reason string for diagnostics.
 
 A refused package never half-applies: the shell keeps either the packaged
 layout/text or the built-in one, never a mixture — including the drawer's
@@ -192,6 +194,7 @@ built-in fallbacks when there never was one).
 | --- | --- | --- |
 | `presets/tv` | 1280x720 | `FlairTV.airp` |
 | `presets/tv4k` | 3840x2160, `FLAIROS_4K_UHD`, 90 Hz | `FlairTV.airp` |
+| `presets/mobile` | 480x800, phone session (`docs/MOBILE_SHELL.md`) | `FlairMobile.airp` |
 
 Both build with `python3 tools/build_preset.py --preset tv4k --arch aarch64`
 (or `--all`).

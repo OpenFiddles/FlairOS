@@ -1,0 +1,34 @@
+{
+  "app": "FlairOS",
+  "status_pill": "ART + AirP",
+  "widget_title": "Full-Screen Apps Ready",
+  "widget_hint": "Tap any app or top-right status",
+  "home": "Home",
+
+  "files_root": "Root",
+  "files_apps": "Apps",
+  "files_home": "Home",
+  "save": "Save",
+  "notes_ready": "Ready",
+  "notes_loaded": "Loaded",
+  "notes_saved": "Saved to VFS",
+  "calc_error": "Error",
+
+  "activity_fullscreen": "FULLSCREEN ACTIVITY",
+  "activity_trigger": "Trigger Action",
+  "activity_surface": "Surface",
+  "activity_fallback": "Fallback",
+
+  "settings_title": "Mobile Settings",
+  "wifi_on": "Wi-Fi: Connected",
+  "wifi_off": "Wi-Fi: Off",
+  "cell_on": "5G Cellular: Active",
+  "cell_off": "5G Cellular: Off",
+  "airplane_on": "Airplane Mode: ON",
+  "airplane_off": "Airplane Mode: OFF",
+  "anim_on": "Animations: ON",
+  "anim_off": "Animations: OFF",
+  "theme_indigo": "Indigo",
+  "theme_blue": "Blue",
+  "theme_pink": "Pink"
+}

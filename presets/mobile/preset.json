@@ -7,5 +7,6 @@
   "height": 800,
   "shell_source": "ui/shells/shell_mobile.c",
   "airp_role": "AIRP_ROLE_SENDER",
+  "session_package": "mobile",
   "defines": ["FLAIROS_DEVICE_PHONE", "FLAIROS_DISPLAY_PORTRAIT"]
 }

@@ -421,6 +421,18 @@ $(BUILD)/FlairTV.airp: $(TV_PKG_SRCS) tools/airpkg.py | $(BUILD)
 	python3 tools/airpkg.py validate $@ --arch i386
 	test `stat -c %s $@` -le 8192
 
+# Phone session component package: home-screen tiles, dock and labels.
+MOBILE_PKG_SRCS = mobile/manifest/mobile.json mobile/resources/launcher.json mobile/resources/strings.json
+
+$(BUILD)/FlairMobile.airp: $(MOBILE_PKG_SRCS) tools/airpkg.py | $(BUILD)
+	python3 tools/airpkg.py pack - $@ \
+		--name FlairMobile --flags system,resources-only --arch i386 \
+		--manifest mobile/manifest/mobile.json \
+		--resource 'launcher.json=mobile/resources/launcher.json:ui' \
+		--resource 'strings.json=mobile/resources/strings.json:strings'
+	python3 tools/airpkg.py validate $@ --arch i386
+	test `stat -c %s $@` -le 8192
+
 # Assembles the disk image using the precise structural sector positioning offsets
 $(BUILD)/textile.img: $(BUILD)/stage1.bin $(BUILD)/stage2.bin $(BUILD)/kernel.bin $(BUILD)/app.bin $(BUILD)/explorer.airp $(BUILD)/terminal.airp $(BUILD)/settings.airp $(BUILD)/notes.airp $(BUILD)/FlairDesktop.airp
 	dd if=/dev/zero of=$@ bs=512 count=2880 status=none
@@ -540,13 +552,17 @@ $(BUILD)/desktop_theme_host_test: tests/desktop_theme_host_test.c kernel/ui/desk
 		-ffunction-sections -fdata-sections -Wl,--gc-sections \
 		-o $@ tests/desktop_theme_host_test.c kernel/ui/desktop_theme.c kernel/pkg/airp.c kernel/pkg/airjson.c kernel/gfx/sprunkui.c
 
-$(BUILD)/tv_drawer_host_test: tests/tv_drawer_host_test.c ui/systemui/airstin_ui.c kernel/ui/tv_layout.c kernel/ui/tv_launcher.c kernel/pkg/airp.c kernel/pkg/airjson.c graphics/compositor/glass_fx.c kernel/gfx/airgraph.c kernel/gfx/font5x7.c kernel/gfx/bmp.c kernel/gfx/fb.c ui/systemui/airstin_ui.h kernel/ui/tv_layout.h kernel/ui/tv_launcher.h | $(BUILD)
+$(BUILD)/tv_drawer_host_test: tests/tv_drawer_host_test.c ui/systemui/airstin_ui.c kernel/ui/tv_layout.c kernel/ui/shell_launcher.c kernel/pkg/airp.c kernel/pkg/airjson.c graphics/compositor/glass_fx.c kernel/gfx/airgraph.c kernel/gfx/font5x7.c kernel/gfx/bmp.c kernel/gfx/fb.c ui/systemui/airstin_ui.h kernel/ui/tv_layout.h kernel/ui/shell_launcher.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -DFLAIROS_HOST_TEST -Iinclude -Ikernel \
-		-o $@ tests/tv_drawer_host_test.c ui/systemui/airstin_ui.c kernel/ui/tv_layout.c kernel/ui/tv_launcher.c kernel/pkg/airp.c kernel/pkg/airjson.c graphics/compositor/glass_fx.c kernel/gfx/airgraph.c kernel/gfx/font5x7.c kernel/gfx/bmp.c kernel/gfx/fb.c
+		-o $@ tests/tv_drawer_host_test.c ui/systemui/airstin_ui.c kernel/ui/tv_layout.c kernel/ui/shell_launcher.c kernel/pkg/airp.c kernel/pkg/airjson.c graphics/compositor/glass_fx.c kernel/gfx/airgraph.c kernel/gfx/font5x7.c kernel/gfx/bmp.c kernel/gfx/fb.c
 
-$(BUILD)/tv_host_test: tests/tv_host_test.c kernel/ui/tv_layout.c kernel/ui/tv_launcher.c kernel/pkg/airp.c kernel/pkg/airjson.c kernel/ui/tv_layout.h kernel/ui/tv_launcher.h include/airp.h include/airjson.h | $(BUILD)
+$(BUILD)/tv_host_test: tests/tv_host_test.c kernel/ui/tv_layout.c kernel/ui/shell_launcher.c kernel/pkg/airp.c kernel/pkg/airjson.c kernel/ui/tv_layout.h kernel/ui/shell_launcher.h include/airp.h include/airjson.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -DFLAIROS_HOST_TEST -Iinclude -Ikernel \
-		-o $@ tests/tv_host_test.c kernel/ui/tv_layout.c kernel/ui/tv_launcher.c kernel/pkg/airp.c kernel/pkg/airjson.c
+		-o $@ tests/tv_host_test.c kernel/ui/tv_layout.c kernel/ui/shell_launcher.c kernel/pkg/airp.c kernel/pkg/airjson.c
+
+$(BUILD)/mobile_host_test: tests/mobile_host_test.c kernel/ui/mobile_layout.c kernel/ui/shell_launcher.c kernel/pkg/airp.c kernel/pkg/airjson.c kernel/ui/mobile_layout.h kernel/ui/shell_launcher.h include/airp.h include/airjson.h | $(BUILD)
+	$(HOSTCC) -std=gnu99 -Wall -Wextra -DFLAIROS_HOST_TEST -Iinclude -Ikernel \
+		-o $@ tests/mobile_host_test.c kernel/ui/mobile_layout.c kernel/ui/shell_launcher.c kernel/pkg/airp.c kernel/pkg/airjson.c
 
 $(BUILD)/airjson_host_test: tests/airjson_host_test.c kernel/pkg/airjson.c include/airjson.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -Ikernel -o $@ tests/airjson_host_test.c kernel/pkg/airjson.c
@@ -601,7 +617,7 @@ $(BUILD)/cursor_host_test: tests/cursor_host_test.c kernel/gfx/cursor.c kernel/g
 
 # Host tests build kernel sources with the host compiler, so they describe the
 # shared code rather than either target's boot path. They gate CI.
-test: $(BUILD)/airgraph_host_test $(BUILD)/driver_host_test $(BUILD)/io_host_test $(BUILD)/fb_host_test $(BUILD)/ata_identify_host_test $(BUILD)/pmm_host_test $(BUILD)/vm_region_host_test $(BUILD)/desktop_render_host_test $(BUILD)/desktop_chrome_host_test $(BUILD)/windown_host_test $(BUILD)/task_host_test $(BUILD)/elf_host_test $(BUILD)/vfs_host_test $(BUILD)/bmp_host_test $(BUILD)/image_host_test $(BUILD)/cursor_host_test $(BUILD)/fat32_host_test $(BUILD)/airnim_host_test $(BUILD)/status_host_test $(BUILD)/sprunkui_anim_host_test $(BUILD)/airjson_host_test $(BUILD)/desktop_theme_host_test $(BUILD)/airp_host_test $(BUILD)/bt_host_test $(BUILD)/wifi_host_test $(BUILD)/wifi_join_host_test $(BUILD)/tv_host_test $(BUILD)/tv_drawer_host_test $(BUILD)/FlairTV.airp
+test: $(BUILD)/airgraph_host_test $(BUILD)/driver_host_test $(BUILD)/io_host_test $(BUILD)/fb_host_test $(BUILD)/ata_identify_host_test $(BUILD)/pmm_host_test $(BUILD)/vm_region_host_test $(BUILD)/desktop_render_host_test $(BUILD)/desktop_chrome_host_test $(BUILD)/windown_host_test $(BUILD)/task_host_test $(BUILD)/elf_host_test $(BUILD)/vfs_host_test $(BUILD)/bmp_host_test $(BUILD)/image_host_test $(BUILD)/cursor_host_test $(BUILD)/fat32_host_test $(BUILD)/airnim_host_test $(BUILD)/status_host_test $(BUILD)/sprunkui_anim_host_test $(BUILD)/airjson_host_test $(BUILD)/desktop_theme_host_test $(BUILD)/airp_host_test $(BUILD)/bt_host_test $(BUILD)/wifi_host_test $(BUILD)/wifi_join_host_test $(BUILD)/tv_host_test $(BUILD)/tv_drawer_host_test $(BUILD)/mobile_host_test $(BUILD)/FlairTV.airp $(BUILD)/FlairMobile.airp
 	$(BUILD)/airgraph_host_test
 	$(BUILD)/fb_host_test
 	$(BUILD)/driver_host_test
@@ -630,6 +646,7 @@ test: $(BUILD)/airgraph_host_test $(BUILD)/driver_host_test $(BUILD)/io_host_tes
 	$(BUILD)/wifi_join_host_test
 	$(BUILD)/tv_host_test
 	$(BUILD)/tv_drawer_host_test
+	$(BUILD)/mobile_host_test
 
 # i386 media and boot tests. Opt-in with the rest of the legacy line.
 legacy-test: test $(BUILD)/textile.img $(BUILD)/livecd.iso $(BUILD)/bootcd.iso

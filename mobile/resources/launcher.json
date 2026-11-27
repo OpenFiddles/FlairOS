@@ -1,0 +1,63 @@
+{
+  "mobile": {
+    "title": "FlairOS Mobile",
+    "hint": "Tap an app  |  Top-right status  |  Bottom bar: Home",
+    "tiles": [
+      {
+        "id": "browser",
+        "label": "Browser",
+        "subtitle": "Web",
+        "target": "screen:browser",
+        "glyph": "BR",
+        "icon": 5,
+        "accent": "3B82F6"
+      },
+      {
+        "id": "files",
+        "label": "Files",
+        "subtitle": "Storage",
+        "target": "screen:files",
+        "glyph": "FN",
+        "icon": 1,
+        "accent": "10B981"
+      },
+      {
+        "id": "calc",
+        "label": "Calc",
+        "subtitle": "Math",
+        "target": "screen:calc",
+        "glyph": "CA",
+        "icon": 4,
+        "accent": "F97316"
+      },
+      {
+        "id": "notes",
+        "label": "Notes",
+        "subtitle": "Text",
+        "target": "screen:notes",
+        "glyph": "NT",
+        "icon": 3,
+        "accent": "EC4899"
+      },
+      {
+        "id": "activity",
+        "label": "Activity",
+        "subtitle": "ART",
+        "target": "screen:activity",
+        "glyph": "AP",
+        "icon": 6,
+        "accent": "A855F7"
+      },
+      {
+        "id": "settings",
+        "label": "Settings",
+        "subtitle": "System",
+        "target": "screen:settings",
+        "glyph": "ST",
+        "icon": 7,
+        "accent": "06B6D4"
+      }
+    ],
+    "dock": ["browser", "files", "activity", "settings"]
+  }
+}

@@ -15,9 +15,9 @@
 #include "../../net/bt/bt_core.h"
 #include "../systemui/airstin_ui.h"
 #include "../../kernel/ui/tv_layout.h"
-#include "../../kernel/ui/tv_launcher.h"
+#include "../../kernel/ui/shell_launcher.h"
 
-static struct tv_launcher g_launcher;
+static struct shell_launcher g_launcher;
 static int g_launcher_ready = 0;
 static int focused_tile = 0;
 static int tv_cc_open = 0;
@@ -50,11 +50,11 @@ static int tv_streq(const char *a, const char *b) {
 static void tv_launcher_ensure(const struct shell_boot_info *info) {
     if (g_launcher_ready) return;
     g_launcher_ready = 1;
-    tv_launcher_default(&g_launcher);
+    shell_launcher_default(&g_launcher, SHELL_KIND_TV);
     if (info && info->session_pkg && info->session_pkg_len) {
-        struct tv_launcher packaged;
-        struct tv_launcher_report report;
-        if (tv_launcher_load_package(info->session_pkg, info->session_pkg_len,
+        struct shell_launcher packaged;
+        struct shell_launcher_report report;
+        if (shell_launcher_load_package(info->session_pkg, info->session_pkg_len, SHELL_KIND_TV,
                                       &packaged, &report))
             g_launcher = packaged;
     }
@@ -64,15 +64,15 @@ static void tv_launcher_ensure(const struct shell_boot_info *info) {
 /* Text the layout declares, or empty when it declares none. The built-in
    layout always declares the keys the shell draws. */
 static const char *tv_label(const char *key) {
-    static char text[TV_STRING_TEXT_MAX];
-    return tv_strings_copy(&g_launcher.strings, key, text, sizeof text) ? text : "";
+    static char text[SHELL_STRING_TEXT_MAX];
+    return shell_strings_copy(&g_launcher.strings, key, text, sizeof text) ? text : "";
 }
 
 /* The control drawer asks for every label it draws; in a TV session those come
    from the same packaged strings.json as the shell's own labels. */
 static const char *tv_drawer_label(const char *key) {
-    static char text[TV_STRING_TEXT_MAX];
-    return tv_strings_copy(&g_launcher.strings, key, text, sizeof text) ? text : 0;
+    static char text[SHELL_STRING_TEXT_MAX];
+    return shell_strings_copy(&g_launcher.strings, key, text, sizeof text) ? text : 0;
 }
 
 /* "app:N" launches an ART package by index, "airp:cast" starts the screen
@@ -259,7 +259,7 @@ void shell_render(struct ag_surface *s, const struct shell_boot_info *info, int 
     tv_focus_target = rx + focused_tile * (cw + px(24));
     if (tv_focus_x <= 0) tv_focus_x = tv_focus_target;
     for (int i = 0; i < g_launcher.tile_count; i++) {
-        const struct tv_launcher_tile *tile = &g_launcher.tiles[i];
+        const struct shell_tile *tile = &g_launcher.tiles[i];
         int32_t cx = rx + i * (cw + px(24));
         gfx_glass_panel(s, cx, ry, cw, ch, px(20), THEME_GLASS_LIGHT,
                         i == focused_tile ? 235u : 195u);

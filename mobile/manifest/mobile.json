@@ -1,0 +1,25 @@
+{
+  "name": "FlairMobile",
+  "id": "org.flairos.mobile",
+  "version": "1.0.0",
+  "api_level": 2,
+  "type": "session-shell",
+  "arch": ["x86_64", "aarch64"],
+  "description": "FlairOS phone session: home screen, dock, app surfaces and their text.",
+  "vendor": "OpenFiddles",
+  "entry": {
+    "modes": ["mobile"],
+    "startup": "boot"
+  },
+  "resources": {
+    "launcher": "launcher.json",
+    "strings": "strings.json"
+  },
+  "permissions": [
+    "display.compose",
+    "input.pointer",
+    "input.keyboard",
+    "vfs.read",
+    "vfs.write"
+  ]
+}

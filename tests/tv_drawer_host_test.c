@@ -7,7 +7,7 @@
 #include "airp.h"
 #include "../ui/systemui/airstin_ui.h"
 #include "../kernel/ui/tv_layout.h"
-#include "../kernel/ui/tv_launcher.h"
+#include "../kernel/ui/shell_launcher.h"
 #include "../net/service/net_service.h"
 #include "../net/bt/bt_core.h"
 #include "../net/airp/airp_net.h"
@@ -199,11 +199,11 @@ static unsigned int read_file(const char *path, char *buf, unsigned int cap) {
 }
 
 /* --- Label source under test ---------------------------------------------- */
-static struct tv_launcher g_tv;
+static struct shell_launcher g_tv;
 
 static const char *pkg_label(const char *key) {
-    static char buf[TV_STRING_TEXT_MAX];
-    return tv_strings_copy(&g_tv.strings, key, buf, sizeof buf) ? buf : 0;
+    static char buf[SHELL_STRING_TEXT_MAX];
+    return shell_strings_copy(&g_tv.strings, key, buf, sizeof buf) ? buf : 0;
 }
 
 /* Supplies exactly the built-in title and nothing else, so every other label
@@ -350,11 +350,11 @@ int main(void) {
         static char strings_json[8192];
         static unsigned char pkg[PKG_CAP];
         static unsigned char bad_pkg[PKG_CAP];
-        struct tv_launcher_report report;
+        struct shell_launcher_report report;
         struct airjson_doc doc;
         const char *value = 0;
         unsigned int value_len = 0;
-        char packaged_title[TV_STRING_TEXT_MAX];
+        char packaged_title[SHELL_STRING_TEXT_MAX];
         const char *launcher_min =
             "{\"tv\":{\"title\":\"FlairTV\",\"tiles\":[{\"id\":\"a\",\"label\":\"A\",\"target\":\"app:0\"}]}}";
         unsigned int len;
@@ -376,7 +376,7 @@ int main(void) {
               "the packaged drawer title differs from the built-in wording");
 
         len = build_tv_pkg(pkg, PKG_CAP, launcher_json, strings_json);
-        check(tv_launcher_load_package(pkg, len, &g_tv, &report) == 1 && report.loaded,
+        check(shell_launcher_load_package(pkg, len, SHELL_KIND_TV, &g_tv, &report) == 1 && report.loaded,
               "the shipped package resolves for the drawer");
         check(strcmp(pkg_label("cc.title"), packaged_title) == 0,
               "the drawer label resolver returns the packaged title");
@@ -424,12 +424,12 @@ int main(void) {
 
         /* --- A rejected package leaves labels and geometry untouched -------- */
         {
-            struct tv_launcher before = g_tv;
+            struct shell_launcher before = g_tv;
             uint32_t before_checksum = packaged_4k;
             /* A separate buffer: the resolved layout views the accepted
                package's bytes, exactly as the image's rodata would. */
             len = build_tv_pkg(bad_pkg, PKG_CAP, launcher_min, "{\"cc.title\":}");
-            check(tv_launcher_load_package(bad_pkg, len, &g_tv, &report) == 0,
+            check(shell_launcher_load_package(bad_pkg, len, SHELL_KIND_TV, &g_tv, &report) == 0,
                   "a malformed strings.json rejects the package");
             check(g_tv.strings.json == before.strings.json &&
                       g_tv.strings.len == before.strings.len &&

@@ -74,8 +74,9 @@ The last one is the real unlock: adding a staged package currently means editing
 - [x] Theme resource parsed and validated with a host-tested loader
 - [ ] Theme actually applied on a bootable target
 - [x] Launcher layout read from `launcher.json` instead of compiled-in tables
-      (TV session: `FlairTV.airp` → `kernel/ui/tv_launcher.c`; the desktop
-      session still lays out its own tables)
+      (TV and mobile sessions: `FlairTV.airp` / `FlairMobile.airp` →
+      `kernel/ui/shell_launcher.c`; the desktop session still lays out its own
+      tables)
 - [ ] Strings read from `strings.json`
 - [ ] Icons as package resources rather than `.rodata` arrays
 
@@ -89,6 +90,17 @@ The last one is the real unlock: adding a staged package currently means editing
 - [x] TV session strings read from `strings.json`
 - [x] Control drawer wording read from the packaged strings too
       (`cc.*`, `power.*`, `inst.*` keys; desktop/mobile keep the built-in text)
+
+### Mobile session
+
+- [x] Resolution-aware phone layout: one 480x800 design scaled to 1x-3x
+      (`kernel/ui/mobile_layout.c`)
+- [x] `FlairMobile.airp` component package carrying tiles, dock and strings
+- [x] Home grid, dock order, tile labels and every screen label read from the
+      package, with built-in wording as the fallback
+- [x] Control centre drawn by the shared AirStinUI drawer, so its rect and its
+      hit test cannot disagree
+- [ ] Mobile shell strings on a booted phone panel (no display hardware yet)
 
 ### Accessibility and theming
 
