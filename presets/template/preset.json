@@ -2,10 +2,17 @@
   "name": "template",
   "display_name": "FlairOS Extensible Preset Template",
   "default_arch": "x86_64",
-  "supported_arches": ["x86_64", "aarch64"],
+  "supported_arches": [
+    "x86_64",
+    "aarch64"
+  ],
   "width": 1024,
   "height": 768,
   "shell_source": "ui/shells/shell_desktop.c",
   "airp_role": "AIRP_ROLE_DUPLEX",
-  "defines": ["FLAIROS_DEVICE_DESKTOP", "FLAIROS_DISPLAY_LANDSCAPE"]
+  "defines": [
+    "FLAIROS_DEVICE_DESKTOP",
+    "FLAIROS_DISPLAY_LANDSCAPE"
+  ],
+  "session_package": "desktop"
 }

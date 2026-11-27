@@ -13,5 +13,6 @@
     "FLAIROS_DISPLAY_LANDSCAPE",
     "FLAIROS_4K_UHD",
     "PRESET_TARGET_HZ=90"
-  ]
+  ],
+  "session_package": "desktop"
 }

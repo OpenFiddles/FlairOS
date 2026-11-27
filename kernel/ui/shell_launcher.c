@@ -56,7 +56,16 @@ static const char *const shell_builtin_text[] = {
 #define SHELL_BUILTIN_COUNT ((int)(sizeof(shell_builtin_keys) / sizeof(shell_builtin_keys[0])))
 
 const char *shell_launcher_root(enum shell_kind kind) {
-    return kind == SHELL_KIND_MOBILE ? "mobile" : "tv";
+    if (kind == SHELL_KIND_MOBILE) return "mobile";
+    if (kind == SHELL_KIND_DESKTOP) return "desktop";
+    return "tv";
+}
+
+const char *shell_string_or(const struct shell_strings *strings, const char *key,
+                            const char *fallback) {
+    static char text[SHELL_STRING_TEXT_MAX];
+    if (strings && shell_strings_copy(strings, key, text, sizeof text)) return text;
+    return fallback;
 }
 
 void shell_strings_default(struct shell_strings *out) {
@@ -159,10 +168,38 @@ static void shell_launcher_default_mobile(struct shell_launcher *out) {
     shell_set_dock(out, dock, 4);
 }
 
+static void shell_launcher_default_desktop(struct shell_launcher *out) {
+    static const char *const ids[] = { "launcher", "finder", "terminal", "notes",
+                                       "calc", "browser", "apphost", "settings" };
+    static const char *const labels[] = { "Launcher", "Finder", "Terminal", "Notes",
+                                          "Calc", "Browser", "AppHost", "Settings" };
+    static const char *const glyphs[] = { "LA", "FN", ">_", "NT", "CA", "BR", "AP", "ST" };
+    static const int icons[] = { 7, 1, 2, 3, 4, 5, 6, 0 };
+    shell_text_copy(out->title, (int)sizeof(out->title), "FlairOS Desktop");
+    shell_text_copy(out->hint, (int)sizeof(out->hint),
+                    "Click the menu bar or a dock icon  |  Spotlight: search apps");
+    out->tile_count = 0;
+    for (int i = 0; i < 8; i++) {
+        struct shell_tile *tile = &out->tiles[i];
+        shell_text_copy(tile->id, (int)sizeof(tile->id), ids[i]);
+        shell_text_copy(tile->label, (int)sizeof(tile->label), labels[i]);
+        tile->subtitle[0] = 0;
+        shell_text_copy(tile->target, (int)sizeof(tile->target), "screen:");
+        shell_text_copy(tile->target + 7, (int)sizeof(tile->target) - 7, ids[i]);
+        shell_text_copy(tile->glyph, (int)sizeof(tile->glyph), glyphs[i]);
+        tile->icon = icons[i];
+        tile->accent = shell_tile_accents[i % SHELL_DEFAULT_ACCENTS];
+        out->tile_count++;
+    }
+    shell_set_dock(out, ids, 8);
+}
+
 void shell_launcher_default(struct shell_launcher *out, enum shell_kind kind) {
     if (!out) return;
     if (kind == SHELL_KIND_MOBILE)
         shell_launcher_default_mobile(out);
+    else if (kind == SHELL_KIND_DESKTOP)
+        shell_launcher_default_desktop(out);
     else
         shell_launcher_default_tv(out);
     shell_strings_default(&out->strings);

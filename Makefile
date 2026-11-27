@@ -564,6 +564,12 @@ $(BUILD)/mobile_host_test: tests/mobile_host_test.c kernel/ui/mobile_layout.c ke
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -DFLAIROS_HOST_TEST -Iinclude -Ikernel \
 		-o $@ tests/mobile_host_test.c kernel/ui/mobile_layout.c kernel/ui/shell_launcher.c kernel/pkg/airp.c kernel/pkg/airjson.c
 
+# Runs the shipped .airp bytes through the real loader and the real phone draw
+# path, so `make test` covers the artifacts themselves and not a fixture.
+$(BUILD)/session_pkg_host_test: tests/session_pkg_host_test.c ui/shells/shell_mobile.c ui/systemui/airstin_ui.c kernel/ui/mobile_layout.c kernel/ui/shell_launcher.c kernel/pkg/airp.c kernel/pkg/airjson.c graphics/compositor/glass_fx.c kernel/gfx/airgraph.c kernel/gfx/font5x7.c kernel/gfx/bmp.c kernel/gfx/fb.c ui/shells/shell_common.h kernel/ui/shell_launcher.h | $(BUILD)
+	$(HOSTCC) -std=gnu99 -Wall -Wextra -DFLAIROS_HOST_TEST -Iinclude -Ikernel -I. \
+		-o $@ tests/session_pkg_host_test.c ui/shells/shell_mobile.c ui/systemui/airstin_ui.c kernel/ui/mobile_layout.c kernel/ui/shell_launcher.c kernel/pkg/airp.c kernel/pkg/airjson.c graphics/compositor/glass_fx.c kernel/gfx/airgraph.c kernel/gfx/font5x7.c kernel/gfx/bmp.c kernel/gfx/fb.c
+
 $(BUILD)/airjson_host_test: tests/airjson_host_test.c kernel/pkg/airjson.c include/airjson.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -Ikernel -o $@ tests/airjson_host_test.c kernel/pkg/airjson.c
 
@@ -617,7 +623,7 @@ $(BUILD)/cursor_host_test: tests/cursor_host_test.c kernel/gfx/cursor.c kernel/g
 
 # Host tests build kernel sources with the host compiler, so they describe the
 # shared code rather than either target's boot path. They gate CI.
-test: $(BUILD)/airgraph_host_test $(BUILD)/driver_host_test $(BUILD)/io_host_test $(BUILD)/fb_host_test $(BUILD)/ata_identify_host_test $(BUILD)/pmm_host_test $(BUILD)/vm_region_host_test $(BUILD)/desktop_render_host_test $(BUILD)/desktop_chrome_host_test $(BUILD)/windown_host_test $(BUILD)/task_host_test $(BUILD)/elf_host_test $(BUILD)/vfs_host_test $(BUILD)/bmp_host_test $(BUILD)/image_host_test $(BUILD)/cursor_host_test $(BUILD)/fat32_host_test $(BUILD)/airnim_host_test $(BUILD)/status_host_test $(BUILD)/sprunkui_anim_host_test $(BUILD)/airjson_host_test $(BUILD)/desktop_theme_host_test $(BUILD)/airp_host_test $(BUILD)/bt_host_test $(BUILD)/wifi_host_test $(BUILD)/wifi_join_host_test $(BUILD)/tv_host_test $(BUILD)/tv_drawer_host_test $(BUILD)/mobile_host_test $(BUILD)/FlairTV.airp $(BUILD)/FlairMobile.airp
+test: $(BUILD)/airgraph_host_test $(BUILD)/driver_host_test $(BUILD)/io_host_test $(BUILD)/fb_host_test $(BUILD)/ata_identify_host_test $(BUILD)/pmm_host_test $(BUILD)/vm_region_host_test $(BUILD)/desktop_render_host_test $(BUILD)/desktop_chrome_host_test $(BUILD)/windown_host_test $(BUILD)/task_host_test $(BUILD)/elf_host_test $(BUILD)/vfs_host_test $(BUILD)/bmp_host_test $(BUILD)/image_host_test $(BUILD)/cursor_host_test $(BUILD)/fat32_host_test $(BUILD)/airnim_host_test $(BUILD)/status_host_test $(BUILD)/sprunkui_anim_host_test $(BUILD)/airjson_host_test $(BUILD)/desktop_theme_host_test $(BUILD)/airp_host_test $(BUILD)/bt_host_test $(BUILD)/wifi_host_test $(BUILD)/wifi_join_host_test $(BUILD)/tv_host_test $(BUILD)/tv_drawer_host_test $(BUILD)/mobile_host_test $(BUILD)/session_pkg_host_test $(BUILD)/FlairTV.airp $(BUILD)/FlairMobile.airp $(BUILD)/FlairDesktop.airp
 	$(BUILD)/airgraph_host_test
 	$(BUILD)/fb_host_test
 	$(BUILD)/driver_host_test
@@ -647,6 +653,7 @@ test: $(BUILD)/airgraph_host_test $(BUILD)/driver_host_test $(BUILD)/io_host_tes
 	$(BUILD)/tv_host_test
 	$(BUILD)/tv_drawer_host_test
 	$(BUILD)/mobile_host_test
+	$(BUILD)/session_pkg_host_test $(BUILD)/FlairMobile.airp $(BUILD)/FlairTV.airp $(BUILD)/FlairDesktop.airp
 
 # i386 media and boot tests. Opt-in with the rest of the legacy line.
 legacy-test: test $(BUILD)/textile.img $(BUILD)/livecd.iso $(BUILD)/bootcd.iso

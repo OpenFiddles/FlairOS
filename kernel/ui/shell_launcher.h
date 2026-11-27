@@ -16,7 +16,7 @@
  * with typed resources and no executable. */
 
 #define SHELL_LAUNCHER_MAX_TILES 8
-#define SHELL_LAUNCHER_MAX_DOCK 4
+#define SHELL_LAUNCHER_MAX_DOCK 8
 #define SHELL_LAUNCHER_ID_MAX 16
 #define SHELL_LAUNCHER_LABEL_MAX 32
 #define SHELL_LAUNCHER_TARGET_MAX 24
@@ -40,7 +40,8 @@ struct shell_tile {
 
 enum shell_kind {
     SHELL_KIND_TV = 0,
-    SHELL_KIND_MOBILE = 1
+    SHELL_KIND_MOBILE = 1,
+    SHELL_KIND_DESKTOP = 2
 };
 
 /* A layout carries a view of the package's strings.json, not a copy: those
@@ -82,6 +83,10 @@ void shell_strings_default(struct shell_strings *out);
    overrides only what it names. */
 int shell_strings_copy(const struct shell_strings *strings, const char *key,
                        char *buf, unsigned int cap);
+/* The shell's own wording for a label: the packaged string when the session
+   has one, the code's fallback otherwise. `fallback` is never lost. */
+const char *shell_string_or(const struct shell_strings *strings, const char *key,
+                            const char *fallback);
 
 /* The JSON object a session's launcher.json keeps its layout under. */
 const char *shell_launcher_root(enum shell_kind kind);

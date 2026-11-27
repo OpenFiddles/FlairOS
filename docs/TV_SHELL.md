@@ -195,9 +195,11 @@ built-in fallbacks when there never was one).
 | `presets/tv` | 1280x720 | `FlairTV.airp` |
 | `presets/tv4k` | 3840x2160, `FLAIROS_4K_UHD`, 90 Hz | `FlairTV.airp` |
 | `presets/mobile` | 480x800, phone session (`docs/MOBILE_SHELL.md`) | `FlairMobile.airp` |
+| `presets/desktop`, `presets/desktop4k`, `presets/template` | desktop session (`docs/SHELLS.md`) | `FlairDesktop.airp` |
 
-Both build with `python3 tools/build_preset.py --preset tv4k --arch aarch64`
-(or `--all`).
+They build with `python3 tools/build_preset.py --preset tv4k --arch aarch64`
+(or `--all`); `make presets` and `make verify-disk` name the missing tool rather
+than skipping when `clang`/`ld.lld`/`nasm`/QEMU are absent.
 
 ## Verification
 
@@ -240,16 +242,23 @@ paths rather than reporting constants back:
   build before the label source existed, so any drift in the desktop/mobile path
   fails the test.
 
-`make test` also builds and validates `build/FlairTV.airp`, so a broken resource
-fails the test run rather than the TV.
+`make test` also builds and validates `build/FlairTV.airp`, and
+`tests/session_pkg_host_test` loads the packed `build/FlairTV.airp` bytes through
+the real loader.
+
+Booted proof: `python3 tools/verify_disk_boot.py --arch x86_64` starts each
+preset from its disk image and requires the kernel's own
+`session=pkg-load ok tiles=3 dock=0 strings=76` line before it accepts the
+1280x720 first frame (536 colours, 79.8% non-modal pixels under KVM here).
 
 ## Known gaps
 
-- The desktop session still lays out its own launcher tables; only the TV
-  session reads its layout from a package.
-- The 64-bit TV images build and link only where `clang`, `ld.lld` and the
-  linker scripts are available; the host tests cover layout, drawer, hit testing
-  and package paths, not a booted 4K panel.
+- All three sessions (TV, mobile, desktop) now read their launcher from a
+  package; the desktop keeps its own window coordinates, and its in-window app
+  content is still drawn by the shell rather than packaged.
+- The 4K images build and link, but this QEMU's default VGA cannot return a
+  3840x2160 screendump, so the boot gate covers the 720p panel; 4K is verified
+  by the host layout tests, not by a captured frame.
 - Session icons still come from `.rodata`.
 - The drawer's own internal stage strings are session strings, but the dynamic
   values beside them (SSID, IP, carrier, device names, AirP state, telemetry

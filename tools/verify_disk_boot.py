@@ -21,6 +21,7 @@ path rather than on a log line that merely says the kernel intended to boot.
 """
 import json
 import os
+import platform
 import shutil
 import socket
 import subprocess
@@ -29,6 +30,9 @@ import tempfile
 import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# The 4K presets build but this QEMU's default VGA cannot hand back a 3840x2160
+# screendump (it reports a 32-pixel-wide capture), so the boot gate covers the
+# three panel presets whose first frame it can actually read.
 PRESETS = ("desktop", "mobile", "tv")
 ARCHES = ("x86_64", "aarch64")
 
@@ -49,22 +53,30 @@ def qemu_env():
     return env
 
 
-def accel_name():
+def accel_name(arch="x86_64"):
     """The accelerator the boots run under, exactly as it is passed to QEMU.
 
     A machine can expose /dev/kvm and still have to boot under TCG (shared CI
     runners), so the caller can force one and the log then says which one ran.
+    KVM is only used for the host's own architecture: an aarch64 guest on an
+    x86_64 host must run TCG, and asking QEMU for kvm there is a hard error.
     """
     forced = os.environ.get("FLAIROS_QEMU_ACCEL")
     if forced:
         return forced
+    host = platform.machine().lower()
+    host_aarch64 = host in ("aarch64", "arm64")
+    if arch == "aarch64" and not host_aarch64:
+        return "tcg"
+    if arch == "x86_64" and host_aarch64:
+        return "tcg"
     if os.access("/dev/kvm", os.R_OK | os.W_OK):
         return "kvm"
     return "tcg"
 
 
-def accel_args():
-    return ["-accel", accel_name()]
+def accel_args(arch="x86_64"):
+    return ["-accel", accel_name(arch)]
 
 
 def qemu_binary(arch):
@@ -99,7 +111,13 @@ def boot_banner(arch):
     produced the framebuffer below it.
     """
     binary, version = qemu_identity(arch)
-    parts = [f"{binary} ({version})", f"accel={accel_name()}"]
+    if version.startswith("unavailable"):
+        raise RuntimeError(
+            f"{binary} is not installed or not runnable ({version}). The disk boot\n"
+            "    gate needs QEMU; install qemu-system-x86 / qemu-system-arm, or set\n"
+            "    QEMU_DISK / QEMU_AARCH64 to the binary, or put it under ~/local/bin.\n"
+            "    Refusing to report a boot that never ran.")
+    parts = [f"{binary} ({version})", f"accel={accel_name(arch)}"]
     if arch == "aarch64":
         firmware = aarch64_firmware()
         parts.append("firmware=" + (firmware[0] if firmware else "missing"))
@@ -206,7 +224,7 @@ def framebuffer_report(pixels, w, h):
 
 def qemu_command(arch, image, log, sock, vars_copy):
     if arch == "x86_64":
-        return [os.environ.get("QEMU_DISK", "qemu-system-x86_64")] + firmware_args() + accel_args() + [
+        return [os.environ.get("QEMU_DISK", "qemu-system-x86_64")] + firmware_args() + accel_args(arch) + [
             "-drive", f"file={image},format=raw,if=ide,index=0",
             "-boot", "c", "-vga", "std", "-m", "512M",
             "-display", "none", "-no-reboot",
@@ -220,7 +238,7 @@ def qemu_command(arch, image, log, sock, vars_copy):
                            "(install qemu-efi-aarch64 or set FLAIROS_AAVMF)")
     code, varsf = firmware
     cmd = ([os.environ.get("QEMU_AARCH64", "qemu-system-aarch64")] + firmware_args()
-           + accel_args() + [
+           + accel_args(arch) + [
         "-M", "virt", "-cpu", "max", "-m", "1024M", "-device", "ramfb",
         "-drive", f"if=pflash,format=raw,unit=0,readonly=on,file={code}",
     ])
@@ -303,6 +321,18 @@ def verify(image, arch, preset, width, height, timeout):
             os.unlink(vars_copy)
         return False, f"{preset}/{arch}: kernel log does not identify the preset"
 
+    # A session whose preset declares a package must report that the kernel read
+    # it. Without this a shell could render on its built-in fallback and still
+    # pass the framebuffer check.
+    packaged = preset_package(preset)
+    if packaged and "session=pkg-load ok" not in output:
+        proc.terminate()
+        if vars_copy:
+            os.unlink(vars_copy)
+        wanted = f"session=pkg-load ok tiles="
+        return False, (f"{preset}/{arch}: preset declares the {packaged} session package, "
+                       f"but the kernel log has no '{wanted}...' line")
+
     monitor(sock, f"screendump {shot}", wait=0.6)
     alive = proc.poll() is None
     monitor(sock, "quit", wait=0.2)
@@ -328,7 +358,16 @@ def verify(image, arch, preset, width, height, timeout):
 
     return True, (f"{preset}/{arch}: disk boot -> render=ok {width}x{height}, "
                   f"screendump {pw}x{ph}, {colours} colours, "
-                  f"{varied * 100:.1f}% non-modal pixels, accel={accel_name()}")
+                  f"{varied * 100:.1f}% non-modal pixels, accel={accel_name(arch)}")
+
+
+def preset_package(preset):
+    """The session package a preset declares, or None when it ships none."""
+    path = os.path.join(ROOT, "presets", preset, "preset.json")
+    try:
+        return json.load(open(path)).get("session_package")
+    except (OSError, ValueError):
+        return None
 
 
 def image_for(preset, arch):
@@ -387,7 +426,11 @@ def main(argv):
         return 0 if ok else 1
 
     for arch in archs:
-        print(boot_banner(arch))
+        try:
+            print(boot_banner(arch))
+        except RuntimeError as exc:
+            print(f"[FAIL] {exc}")
+            return 1
         for preset in (presets or PRESETS):
             if preset not in PRESETS:
                 print(f"unknown preset: {preset}")
@@ -407,4 +450,8 @@ def main(argv):
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv))
+    try:
+        sys.exit(main(sys.argv))
+    except RuntimeError as exc:
+        print(f"[FAIL] {exc}", file=sys.stderr)
+        sys.exit(1)

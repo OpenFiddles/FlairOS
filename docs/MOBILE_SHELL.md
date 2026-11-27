@@ -153,12 +153,25 @@ Verified in this environment:
   with `-Os -Wall -Wextra`.
 - `make test` builds and validates `build/FlairMobile.airp`.
 
-Not verified here, and not claimed:
+Booted proof (x86_64 under KVM and aarch64 under TCG through AAVMF):
 
-- No 64-bit phone image was linked or booted: this environment has no `clang`,
-  `ld.lld`, NAND/disk tooling or QEMU, so `make presets` and `make verify-disk`
-  cannot run. The 480x800 panel geometry and the packaged strings have therefore
-  not been seen on a real framebuffer.
+```
+flairos64: arch=x86_64 preset=mobile
+flairos64: session=pkg-load ok tiles=6 dock=4 strings=29
+flairos64: render=ok 480x800
+```
+
+`tools/verify_disk_boot.py --arch x86_64 mobile` and
+`--arch aarch64 mobile` both capture a 480x800 screendump (607/609 colours,
+88.4% non-modal pixels) and refuse it unless the kernel logged the package load.
+The toolchain (`clang`, `ld.lld`, `nasm`, QEMU) lives under `~/local/bin` here;
+when it is absent `make presets` and `make verify-disk` fail with a message
+naming the missing tool instead of skipping.
+
+Still open, and not claimed:
+
 - No physical phone touch hardware was exercised.
 - The shell draws only what the kernel resolves; installing or updating a
   `FlairMobile.airp` on a running device is still a boot-image concern.
+- The 4K presets cannot be screendumped by this QEMU's VGA, so only the 480x800,
+  1024x768 and 1280x720 panels are captured by the boot gate.

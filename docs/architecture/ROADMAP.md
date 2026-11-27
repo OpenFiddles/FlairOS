@@ -74,10 +74,13 @@ The last one is the real unlock: adding a staged package currently means editing
 - [x] Theme resource parsed and validated with a host-tested loader
 - [ ] Theme actually applied on a bootable target
 - [x] Launcher layout read from `launcher.json` instead of compiled-in tables
-      (TV and mobile sessions: `FlairTV.airp` / `FlairMobile.airp` →
-      `kernel/ui/shell_launcher.c`; the desktop session still lays out its own
-      tables)
-- [ ] Strings read from `strings.json`
+      (all session entry points: `FlairTV.airp`, `FlairMobile.airp` and
+      `FlairDesktop.airp` → `kernel/ui/shell_launcher.c`; see `docs/SHELLS.md`)
+- [x] Every session shell booted from its packaged launcher, with the kernel
+      logging `session=pkg-load ok` before the first frame
+      (`tools/verify_disk_boot.py`, x86_64 and aarch64)
+- [x] Strings read from `strings.json` for the TV, mobile and desktop chrome
+      (in-window app content still uses the shell's own literals)
 - [ ] Icons as package resources rather than `.rodata` arrays
 
 ### TV session

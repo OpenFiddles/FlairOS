@@ -123,7 +123,7 @@ static const char *BAD_ICON =
 static const char *TOO_MANY_DOCK =
     "{\"mobile\":{\"title\":\"M\",\"tiles\":["
     "{\"id\":\"a\",\"label\":\"A\",\"target\":\"screen:calc\"}],"
-    "\"dock\":[\"a\",\"a\",\"a\",\"a\",\"a\"]}}";
+    "\"dock\":[\"a\",\"a\",\"a\",\"a\",\"a\",\"a\",\"a\",\"a\",\"a\"]}}";
 
 static const char *TV_ROOT =
     "{\"tv\":{\"title\":\"FlairTV\",\"tiles\":["

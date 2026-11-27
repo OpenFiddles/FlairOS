@@ -51,13 +51,21 @@ def elf_entry(path):
 
 
 def run(cmd):
-    res = subprocess.run(cmd, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    try:
+        res = subprocess.run(cmd, cwd=ROOT, stdout=subprocess.PIPE,
+                             stderr=subprocess.STDOUT, text=True)
+    except FileNotFoundError:
+        raise RuntimeError(
+            f"{cmd[0]} is not installed or not on PATH. Building a 64-bit preset\n"
+            "needs clang, ld.lld, llvm-objcopy and nasm. Install them, or put them\n"
+            "under ~/local/bin and add that directory to PATH. Refusing to report a\n"
+            "build that never ran.")
     if res.returncode != 0:
         print(res.stdout)
         raise RuntimeError(f"Command failed ({res.returncode}): {' '.join(cmd)}")
     return res.stdout
 
-SESSION_PACKAGE_NAMES = {"tv": "FlairTV", "mobile": "FlairMobile"}
+SESSION_PACKAGE_NAMES = {"tv": "FlairTV", "mobile": "FlairMobile", "desktop": "FlairDesktop"}
 
 
 def write_session_package(name, out_dir):
@@ -106,7 +114,8 @@ def build_one(preset_name, arch):
         f"--target={target}",
         "-std=gnu99", "-ffreestanding", "-fno-pic", "-fno-stack-protector",
         "-fno-builtin", "-fno-common", "-Os", "-Wall", "-Wextra",
-        f"-I{os.path.join(ROOT, 'include')}",
+        f"-I{os.path.join(ROOT, 'include')}", f"-I{os.path.join(ROOT, 'kernel')}",
+        f"-I{ROOT}",
         f"-DFLAIROS_64BIT",
         f"-DPRESET_NAME=\"{preset_name}\"",
         f"-DPRESET_W={cfg['width']}",
@@ -191,10 +200,16 @@ if __name__ == "__main__":
     ap.add_argument("--arch", default="x86_64")
     ap.add_argument("--all", action="store_true")
     args = ap.parse_args()
-    if args.all:
-        run([sys.executable, os.path.join(ROOT, 'tools', 'build_apps.py')])
-        for p in ("desktop", "mobile", "tv"):
-            for a in ("x86_64", "aarch64"):
-                build_one(p, a)
-    else:
-        build_one(args.preset, args.arch)
+    try:
+        if args.all:
+            run([sys.executable, os.path.join(ROOT, 'tools', 'build_apps.py')])
+            for p in ("desktop", "mobile", "tv"):
+                for a in ("x86_64", "aarch64"):
+                    build_one(p, a)
+        else:
+            build_one(args.preset, args.arch)
+    except RuntimeError as exc:
+        # No traceback: the message already says which tool is missing and how
+        # to fix it, and the exit status is what stops `make presets`.
+        print(f"error: {exc}", file=sys.stderr)
+        sys.exit(1)

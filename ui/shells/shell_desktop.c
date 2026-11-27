@@ -18,6 +18,7 @@
 #include "../../net/airp/airp_net.h"
 #include "../../ported/python/flair_py.h"
 #include "../systemui/airstin_ui.h"
+#include "../../kernel/ui/shell_launcher.h"
 
 enum win_id {
     WIN_FINDER = 0,
@@ -51,6 +52,94 @@ static struct mac_win wins[WIN_COUNT] = {
     {0, 0, 0, 210,  70, 520, 350, 210,  70, 520, 350, "App Launcher"}
 };
 static int z_order[WIN_COUNT] = {WIN_LAUNCHER, WIN_BROWSER, WIN_CALC, WIN_PREFS, WIN_APK, WIN_NOTES, WIN_TERM, WIN_FINDER};
+
+/* The desktop's dock and menu wording are a resource: FlairDesktop.airp carries
+   desktop/resources/launcher.json and strings.json, and this shell only draws
+   what the kernel validated. Coordinates are this shell's own layout code; the
+   authored dock order, labels and glyphs are not. */
+static struct shell_launcher g_launcher;
+static int g_launcher_ready = 0;
+
+static void desk_apply_titles(void);
+
+static void desk_ensure(const struct shell_boot_info *info) {
+    if (g_launcher_ready) return;
+    g_launcher_ready = 1;
+    shell_launcher_default(&g_launcher, SHELL_KIND_DESKTOP);
+    if (info && info->session_pkg && info->session_pkg_len) {
+        struct shell_launcher packaged;
+        struct shell_launcher_report report;
+        if (shell_launcher_load_package(info->session_pkg, info->session_pkg_len,
+                                        SHELL_KIND_DESKTOP, &packaged, &report))
+            g_launcher = packaged;
+    }
+    desk_apply_titles();
+}
+
+static int desk_str_eq(const char *a, const char *b) {
+    while (*a && *a == *b) { a++; b++; }
+    return *a == *b;
+}
+
+static int desk_tile_index(const char *id) {
+    for (int i = 0; i < g_launcher.tile_count; i++)
+        if (desk_str_eq(g_launcher.tiles[i].id, id)) return i;
+    return -1;
+}
+
+/* Dock targets name an existing window surface, so a package can reorder the
+   dock but cannot invent a window this shell does not own. */
+static int desk_target_window(const char *target) {
+    static const struct { const char *target; int win; } map[] = {
+        { "screen:launcher", WIN_LAUNCHER }, { "screen:finder", WIN_FINDER },
+        { "screen:terminal", WIN_TERM }, { "screen:notes", WIN_NOTES },
+        { "screen:calc", WIN_CALC }, { "screen:browser", WIN_BROWSER },
+        { "screen:apphost", WIN_APK }, { "screen:settings", WIN_PREFS }
+    };
+    for (int i = 0; i < (int)(sizeof(map) / sizeof(map[0])); i++)
+        if (desk_str_eq(target, map[i].target)) return map[i].win;
+    return -1;
+}
+
+static int desk_dock_tile(int slot) {
+    if (slot < 0 || slot >= g_launcher.dock_count) return -1;
+    return desk_tile_index(g_launcher.dock_ids[slot]);
+}
+
+static void desk_dock_geometry(int32_t w, int32_t h, int32_t *dx, int32_t *dy,
+                               int32_t *dw, int32_t *dh) {
+    int n = g_launcher.dock_count > 0 ? g_launcher.dock_count : 1;
+    *dw = 44 + n * 76;
+    *dh = 76;
+    *dx = (w - *dw) / 2;
+    *dy = h - *dh - 14;
+}
+
+static const char *desk_label(const char *key, const char *fallback) {
+    return shell_string_or(&g_launcher.strings, key, fallback);
+}
+
+/* Window titles are session wording too, and the window table keeps pointers,
+   so the packaged text is copied into shell-owned storage once. */
+static char desk_titles[WIN_COUNT][SHELL_STRING_TEXT_MAX];
+
+static void desk_apply_titles(void) {
+    static const char *const keys[WIN_COUNT] = {
+        "win.finder", "win.terminal", "win.notes", "win.activity",
+        "win.settings", "win.calculator", "win.browser", "win.launcher"
+    };
+    static const char *const fallback[WIN_COUNT] = {
+        "Finder", "Terminal", "Notes", "Android Activity",
+        "System Settings", "Calculator", "FlairBrowser", "App Launcher"
+    };
+    for (int i = 0; i < WIN_COUNT; i++) {
+        int n = 0;
+        const char *text = desk_label(keys[i], fallback[i]);
+        while (text[n] && n + 1 < SHELL_STRING_TEXT_MAX) { desk_titles[i][n] = text[n]; n++; }
+        desk_titles[i][n] = 0;
+        wins[i].title = desk_titles[i];
+    }
+}
 static int dragging_win = -1;
 static int32_t drag_ox = 0, drag_oy = 0;
 static int active_menu = -1; /* -1=none, 0=FlairOS, 1=Finder, 2=File, 3=Window, 4=View */
@@ -683,12 +772,15 @@ int shell_handle_input(const struct input64_state *in, int32_t w, int32_t h) {
     int dirty = 0;
     int32_t mx = in->mouse_x, my = in->mouse_y;
 
+    desk_ensure(0);
+
     /* Track Dock hover for highlight + floating tooltip */
     {
-        int32_t dw = 648, dh = 76, dx = (w - dw) / 2, dy = h - dh - 14;
+        int32_t dw, dh, dx, dy;
         int nh = -1;
+        desk_dock_geometry(w, h, &dx, &dy, &dw, &dh);
         if (hit(mx, my, dx, dy, dw, dh)) {
-            for (int i = 0; i < 8; i++) {
+            for (int i = 0; i < g_launcher.dock_count && i < 8; i++) {
                 if (hit(mx, my, dx + 22 + i * 76, dy + 12, 52, 52)) { nh = i; break; }
             }
         }
@@ -838,18 +930,21 @@ int shell_handle_input(const struct input64_state *in, int32_t w, int32_t h) {
             return dirty;
         }
 
-        /* 3. Dock hits */
-        int32_t dw = 648, dh = 76, dx = (w - dw) / 2, dy = h - dh - 14;
+        /* 3. Dock hits: the package's dock order decides what each slot opens */
+        int32_t dw, dh, dx, dy;
+        desk_dock_geometry(w, h, &dx, &dy, &dw, &dh);
         if (hit(mx, my, dx, dy, dw, dh)) {
-            int map[8] = {WIN_LAUNCHER, WIN_FINDER, WIN_TERM, WIN_NOTES, WIN_CALC, WIN_BROWSER, WIN_APK, WIN_PREFS};
-            for (int i = 0; i < 8; i++) {
+            for (int i = 0; i < g_launcher.dock_count && i < 8; i++) {
                 int32_t ix = dx + 22 + i * 76;
-                if (hit(mx, my, ix, dy + 12, 52, 52)) {
-                    int wid = map[i];
-                    if (wid == WIN_APK && !art_am_active()) open_apk_modal("/apps/hello.apk");
-                    else focus_win(wid);
-                    return 1;
-                }
+                int ti, wid;
+                if (!hit(mx, my, ix, dy + 12, 52, 52)) continue;
+                ti = desk_dock_tile(i);
+                if (ti < 0) return 0;
+                wid = desk_target_window(g_launcher.tiles[ti].target);
+                if (wid < 0) return 0;
+                if (wid == WIN_APK && !art_am_active()) open_apk_modal("/apps/hello.apk");
+                else focus_win(wid);
+                return 1;
             }
         }
 
@@ -1105,6 +1200,7 @@ static void draw_win_frame(struct ag_surface *s, const struct mac_win *win, int 
 void shell_render(struct ag_surface *s, const struct shell_boot_info *info, int frame_idx) {
     (void)frame_idx;
     if (!s || !info) return;
+    desk_ensure(info);
     term_init_once();
     if (!notes_loaded) notes_load("/home/NOTE.TXT");
     int32_t w = s->width, h = s->height;
@@ -1126,11 +1222,11 @@ void shell_render(struct ag_surface *s, const struct shell_boot_info *info, int 
     /* Top macOS Menu Bar */
     gfx_fill_rect_alpha(s, 0, 0, w, 34, THEME_GLASS_DARK, 215u);
     gfx_fill_rect_alpha(s, 0, 34, w, 1, THEME_GLASS_BORDER, 160u);
-    gfx_draw_text_scaled(s, 16, 10, "FlairOS", THEME_TEXT_PRIMARY, 2);
-    gfx_draw_text_scaled(s, 122, 10, "Finder", active_menu == 1 ? THEME_ACCENT_BLUE : THEME_TEXT_MUTED, 2);
-    gfx_draw_text_scaled(s, 208, 10, "File", active_menu == 2 ? THEME_ACCENT_BLUE : THEME_TEXT_MUTED, 2);
-    gfx_draw_text_scaled(s, 274, 10, "Window", active_menu == 3 ? THEME_ACCENT_BLUE : THEME_TEXT_MUTED, 2);
-    gfx_draw_text_scaled(s, 360, 10, "View", active_menu == 4 ? THEME_ACCENT_BLUE : THEME_TEXT_MUTED, 2);
+    gfx_draw_text_scaled(s, 16, 10, desk_label("menu.apple", "FlairOS"), THEME_TEXT_PRIMARY, 2);
+    gfx_draw_text_scaled(s, 122, 10, desk_label("menu.finder", "Finder"), active_menu == 1 ? THEME_ACCENT_BLUE : THEME_TEXT_MUTED, 2);
+    gfx_draw_text_scaled(s, 208, 10, desk_label("menu.file", "File"), active_menu == 2 ? THEME_ACCENT_BLUE : THEME_TEXT_MUTED, 2);
+    gfx_draw_text_scaled(s, 274, 10, desk_label("menu.window", "Window"), active_menu == 3 ? THEME_ACCENT_BLUE : THEME_TEXT_MUTED, 2);
+    gfx_draw_text_scaled(s, 360, 10, desk_label("menu.view", "View"), active_menu == 4 ? THEME_ACCENT_BLUE : THEME_TEXT_MUTED, 2);
     airstin_render_status_cluster(s, w, info->arch_name, cc_open);
 
     int tw = top_win();
@@ -1235,7 +1331,9 @@ void shell_render(struct ag_surface *s, const struct shell_boot_info *info, int 
             fmt_u32((uint32_t)notes_len, nfoot + nf_l, sizeof(nfoot) - nf_l);
             gfx_draw_text_scaled(s, win->x + 16, win->y + win->h - 24, nfoot, THEME_TEXT_MUTED, 1);
         } else if (id == WIN_LAUNCHER) {
-            gfx_draw_text_scaled(s, win->x + 18, win->y + 40, "Installed & New Apps (/apps)", THEME_TEXT_MUTED, 1);
+            gfx_draw_text_scaled(s, win->x + 18, win->y + 40,
+                                 desk_label("launcher.installed", "Installed & New Apps (/apps)"),
+                                 THEME_TEXT_MUTED, 1);
             struct vfs_dirent e;
             int tile = 0;
             for (uint32_t i = 0; tile < 9 && vfs_readdir("/apps", i, &e) == 0; i++) {
@@ -1369,32 +1467,43 @@ void shell_render(struct ag_surface *s, const struct shell_boot_info *info, int 
         }
     }
 
-    /* Dock */
-    int32_t dw = 648, dh = 76, dx = (w - dw) / 2, dy = h - dh - 14;
+    /* Dock: order, icons, glyphs and tooltips all come from the session package */
+    int32_t dw, dh, dx, dy;
+    desk_dock_geometry(w, h, &dx, &dy, &dw, &dh);
     gfx_glass_panel(s, dx, dy, dw, dh, 22, THEME_GLASS_LIGHT, 200u);
-    if (dock_hover >= 0 && dock_hover < 8) {
+    if (dock_hover >= 0 && dock_hover < g_launcher.dock_count) {
         gfx_fill_round_rect(s, dx + 18 + dock_hover * 76, dy + 8, 60, 60, 14, THEME_GLASS_LIGHT, 160u);
     }
-    const char *dglyphs[8] = {"LA", "FN", ">_", "NT", "CA", "BR", "AP", "ST"};
-    for (int i = 0; i < 8; i++) {
-        int f = (anim_on && dock_hover == i) ? dock_anim_frame : 0;
-        int32_t scale = dock_scale[i];
-        int32_t icon_size = (52 * scale) / 1000;
-        int32_t ix = dx + 22 + i * 76 + (52 - icon_size) / 2;
-        int32_t iy = dy + 12 + (52 - icon_size) / 2 - ((anim_on && dock_hover == i && (f & 1)) ? 3 : 0);
-        gfx_draw_bmp_scaled(s, anim_icon_bmps[i][f], anim_icon_sizes[i][f], ix, iy, icon_size, icon_size);
-        gfx_draw_text_scaled(s, ix + (icon_size - 24) / 2, iy + (icon_size - 16) / 2, dglyphs[i], THEME_TEXT_PRIMARY, 2);
+    for (int i = 0; i < g_launcher.dock_count && i < 8; i++) {
+        int ti = desk_dock_tile(i);
+        const struct shell_tile *tile;
+        int icon, f;
+        int32_t icon_size, ix, iy;
+        if (ti < 0) continue;
+        tile = &g_launcher.tiles[ti];
+        icon = (tile->icon >= 0 && tile->icon < ANIM_ICON_COUNT) ? tile->icon : 0;
+        f = (anim_on && dock_hover == i) ? dock_anim_frame : 0;
+        icon_size = (52 * dock_scale[i]) / 1000;
+        ix = dx + 22 + i * 76 + (52 - icon_size) / 2;
+        iy = dy + 12 + (52 - icon_size) / 2 - ((anim_on && dock_hover == i && (f & 1)) ? 3 : 0);
+        gfx_draw_bmp_scaled(s, anim_icon_bmps[icon][f], anim_icon_sizes[icon][f],
+                            ix, iy, icon_size, icon_size);
+        if (tile->glyph[0])
+            gfx_draw_text_scaled(s, ix + (icon_size - 24) / 2, iy + (icon_size - 16) / 2,
+                                 tile->glyph, THEME_TEXT_PRIMARY, 2);
+        {
+            int wid = desk_target_window(tile->target);
+            if (wid >= 0 && wins[wid].open)
+                gfx_fill_round_rect(s, dx + 44 + i * 76, dy + 67, 8, 4, 2, THEME_TEXT_PRIMARY, 240u);
+        }
     }
-    int map[8] = {WIN_LAUNCHER, WIN_FINDER, WIN_TERM, WIN_NOTES, WIN_CALC, WIN_BROWSER, WIN_APK, WIN_PREFS};
-    const char *dnames[8] = {"Launcher", "Finder", "Terminal", "Notes", "Calc", "Browser", "AppHost", "Settings"};
-    for (int i = 0; i < 8; i++) {
-        if (wins[map[i]].open)
-            gfx_fill_round_rect(s, dx + 44 + i * 76, dy + 67, 8, 4, 2, THEME_TEXT_PRIMARY, 240u);
-    }
-    if (tooltips_on && dock_hover >= 0 && dock_hover < 8) {
+    if (tooltips_on && dock_hover >= 0 && dock_hover < g_launcher.dock_count) {
+        int ti = desk_dock_tile(dock_hover);
         int32_t tx = dx + 10 + dock_hover * 76;
         gfx_glass_panel(s, tx, dy - 30, 84, 24, 8, THEME_GLASS_DARK, 235u);
-        gfx_draw_text_scaled(s, tx + 10, dy - 24, dnames[dock_hover], THEME_TEXT_PRIMARY, 1);
+        if (ti >= 0)
+            gfx_draw_text_scaled(s, tx + 10, dy - 24, g_launcher.tiles[ti].label,
+                                 THEME_TEXT_PRIMARY, 1);
     }
 
     airstin_render_control_center(s, w, cc_open, cc_anim, anim_on, theme_idx);
@@ -1402,7 +1511,14 @@ void shell_render(struct ag_surface *s, const struct shell_boot_info *info, int 
     /* Active Menu Dropdown */
     if (active_menu >= 0) {
         int32_t mxs[5] = {12, 118, 204, 270, 356};
-        const char *items[5][3] = {
+        static const char *const item_keys[5][3] = {
+            {"menu.about", "menu.sysinfo", "menu.close_all"},
+            {"menu.open_root", "menu.open_apps", "menu.open_home"},
+            {"menu.new_note", "menu.new_folder", "menu.open_selected"},
+            {"menu.tile_windows", "menu.minimize", "menu.close_active"},
+            {"menu.theme_indigo", "menu.theme_blue", "menu.theme_pink"}
+        };
+        static const char *const item_text[5][3] = {
             {"About FlairOS", "System Info APK", "Close All"},
             {"Open /", "Open /apps", "Open /home"},
             {"New Note", "New Folder", "Open Selected"},
@@ -1412,7 +1528,9 @@ void shell_render(struct ag_surface *s, const struct shell_boot_info *info, int 
         int32_t mx0 = mxs[active_menu], my0 = 34;
         gfx_glass_panel(s, mx0, my0, 190, 104, 10, THEME_GLASS_DARK, 245u);
         for (int r = 0; r < 3; r++)
-            gfx_draw_text_scaled(s, mx0 + 14, my0 + 12 + r * 30, items[active_menu][r], THEME_TEXT_PRIMARY, 2);
+            gfx_draw_text_scaled(s, mx0 + 14, my0 + 12 + r * 30,
+                                 desk_label(item_keys[active_menu][r], item_text[active_menu][r]),
+                                 THEME_TEXT_PRIMARY, 2);
     }
 
     if (spotlight_open || spotlight_anim_y > -24) {
@@ -1422,7 +1540,10 @@ void shell_render(struct ag_surface *s, const struct shell_boot_info *info, int 
         if (sp_alpha > 245) sp_alpha = 245;
         gfx_glass_panel(s, sp_x, sp_y, sp_w, 220, 14, THEME_GLASS_DARK, (uint8_t)sp_alpha);
         gfx_fill_round_rect(s, sp_x + 12, sp_y + 12, sp_w - 24, 30, 8, THEME_GLASS_LIGHT, 200u);
-        gfx_draw_text_scaled(s, sp_x + 22, sp_y + 20, spotlight_q[0] ? spotlight_q : "Spotlight: type app name...", THEME_TEXT_PRIMARY, 2);
+        gfx_draw_text_scaled(s, sp_x + 22, sp_y + 20,
+                             spotlight_q[0] ? spotlight_q
+                                            : desk_label("spotlight.placeholder", "Spotlight: type app name..."),
+                             THEME_TEXT_PRIMARY, 2);
         struct vfs_dirent e;
         int row = 0;
         for (uint32_t i = 0; row < 5 && vfs_readdir("/apps", i, &e) == 0; i++) {
