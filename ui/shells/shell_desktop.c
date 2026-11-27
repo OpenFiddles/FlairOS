@@ -20,6 +20,9 @@
 #include "../systemui/airstin_ui.h"
 #include "../../kernel/ui/shell_launcher.h"
 #include "desk_windows.h"
+#ifndef FLAIROS_HOST_TEST
+#include "anim_demo.h"
+#endif
 
 enum win_id {
     WIN_FINDER = 0,
@@ -482,6 +485,9 @@ int shell_tick_at(uint32_t now_ticks, uint32_t ticks_per_second) {
     }
     if (spring_advance(&cc_anim, &cc_velocity, cc_open ? 24 : 0, dt_ms)) changed = 1;
     if (spring_advance(&spotlight_anim_y, &spotlight_anim_vy, spotlight_open ? 0 : -24, dt_ms)) changed = 1;
+#ifndef FLAIROS_HOST_TEST
+    if (shell_anim_demo_tick()) changed = 1;
+#endif
     return changed;
 }
 
@@ -1622,4 +1628,7 @@ void shell_render(struct ag_surface *s, const struct shell_boot_info *info, int 
     }
     airstin_render_installer(s, w, h);
     airstin_render_power_modal(s, w, h);
+#ifndef FLAIROS_HOST_TEST
+    shell_anim_demo_render(s);
+#endif
 }

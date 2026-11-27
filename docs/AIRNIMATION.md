@@ -73,14 +73,41 @@ available through `an_spring_*` for physics-driven motion.
 
 Named presets remove the per-call choice of duration and curve:
 
-| Preset | Progress | Ticks | Ease |
-| --- | --- | --- | --- |
-| `fade-in` | 0 → 1000 | 12 | out-cubic |
-| `fade-out` | 1000 → 0 | 10 | in-out |
-| `slide-in` | 0 → 1000 | 16 | out-cubic |
-| `slide-out` | 1000 → 0 | 14 | in-out |
-| `pop` | 0 → 1000 | 14 | out-back (overshoots) |
-| `settle` | 0 → 1000 | 18 | in-out |
+| Preset | Kind | Progress | Ticks | Ease | Direction | Distance |
+| --- | --- | --- | --- | --- | --- | --- |
+| `fade-in` | fade | 0 → 1000 | 12 | out-cubic | — | — |
+| `fade-out` | fade | 1000 → 0 | 10 | in-out | — | — |
+| `slide-in` | slide | 0 → 1000 | 16 | out-cubic | left | 25% |
+| `slide-out` | slide | 1000 → 0 | 14 | in-out | right | 25% |
+| `pop` | pop | 0 → 1000 | 14 | out-back (overshoots) | — | 80→100% scale |
+| `settle` | fade | 0 → 1000 | 18 | in-out | — | — |
+| `slide-in-left` / `-right` / `-top` / `-bottom` | slide | 0 → 1000 | 16 | out-cubic | edge | 25% of width/height |
+| `slide-out-left` / `-right` / `-top` / `-bottom` | slide | 1000 → 0 | 14 | in-out | edge | 25% of width/height |
+| `crossfade` | cross-fade | 0 → 1000 | 30 | in-out | — | two screen weights |
+
+Each preset is data, not a call-site decision: `kind`, `edge`, `distance_pm`
+(permille of the element's own extent) and `AN_PRESET_COMPOSE_VIEWPORT` live in
+the table. A caller asks for a preset by name and resolves it with
+`an_preset_motion()`:
+
+```c
+const struct an_preset *p = an_preset_lookup("slide-in-right");
+an_preset_play(id, "slide-in-right");
+struct an_motion m;
+an_preset_motion(p, an_preset_value(id, p), w, h, ag_scale, &m);
+an_motion_clamp(&m, x, y, w, h, panel_w, panel_h);
+draw_at(x + m.dx, y + m.dy);           /* alpha = m.alpha */
+```
+
+`distance_pm` is a fraction of the element, so 25% of a 100 px card is 25 px
+and 25% of the same card at 4K is 3x that: the visual fraction is identical on
+800x600, 1080p, 4K, portrait and landscape. `AN_PRESET_COMPOSE_VIEWPORT` marks
+presets whose distance is authored as a fraction of the element, so they stay
+correct when AirGraph scales the panel; the motion code must not multiply that
+fraction by the viewport scale a second time. `an_motion_clamp()` keeps the
+animated rectangle inside the panel, so a slide cannot leave the viewport.
+For a screen transition, `an_preset_motion()` returns `alpha_a`/`alpha_b` and
+`an_crossfade_rect()` draws the real pixel mix of the two content screens.
 
 ```c
 an_preset_play(an_id_str("drawer"), "slide-in");
@@ -100,6 +127,16 @@ int32_t offset = an_preset_offset(an_id_str("drawer"),
 
 Add a preset to `kernel/gfx/airnim.c` and extend `tests/airnim_host_test.c`
 rather than teaching a shell a new curve.
+
+## Booted preset proof
+
+`ui/shells/anim_demo.c` runs a short showcase from the desktop and mobile
+shells after startup: slide/fade in, a cross-fade between two content screens,
+a pop badge, then slide/fade out. It asks for every motion by preset name and
+clamps each frame to the panel. `make verify-disk` captures successive frames
+while those phases run and requires a visible frame delta plus a settled final
+frame that still passes the colour/non-modal checks. The 800x600, 1024x768,
+1080p, 4K, 480x800 portrait and 800x480 phone-landscape images all run it.
 
 ## Wired into the shipping desktop
 
@@ -153,7 +190,8 @@ pixel, a close click at the scaled button centre, a title-bar drag, and a
 | --- | --- |
 | Density scale, `ag_px`, strokes, scaled radii | `tests/airgraph_host_test.c` |
 | Legacy and 4K chrome metrics, hit regions, scaled composite, display adoption | `tests/windown_host_test.c` |
-| Preset table, lookup, play, disabled snap, offsets | `tests/airnim_host_test.c` |
+| Preset table, lookup, play, disabled snap, offsets, timing/easing | `tests/airnim_host_test.c` |
+| Direction, distance fraction, viewport clamping, cross-fade mix | `tests/airnim_host_test.c` |
 | Animated widgets on top of the engine | `tests/sprunkui_anim_host_test.c` |
 | Shipping desktop density, scaled clicks, preset open, 4K rescale | `tests/desk_windows_host_test.c` |
 

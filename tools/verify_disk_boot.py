@@ -33,8 +33,12 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Every shipped preset is gated. The 4K frames need a VGA with enough video
 # memory (see qemu_command); with the default 16 MiB the std VGA reports a
 # truncated 32x1092 capture, which is why the boot below sets vgamem_mb.
-PRESETS = ("desktop", "desktop1080", "desktop4k", "mobile", "mobileland",
-           "template", "tv", "tv4k")
+PRESETS = ("desktop", "desktop800", "desktop1080", "desktop4k", "mobile",
+           "mobileland", "template", "tv", "tv4k")
+# Presets whose shell plays the Airnimation preset showcase on startup. Their
+# boot must show changing frames during the animation and a settled final one.
+ANIMATED_PRESETS = ("desktop", "desktop800", "desktop1080", "desktop4k",
+                    "mobile", "mobileland")
 ARCHES = ("x86_64", "aarch64")
 
 
@@ -185,6 +189,63 @@ def monitor(path, command, wait=0.4):
         pass
     s.close()
     return out.decode(errors="replace")
+
+
+def screendump_sequence(path, shots):
+    """Take several screendumps over one monitor connection.
+
+    shots is [(file, seconds_to_wait_after_that_dump), ...]. One connection is
+    kept open so the frame timestamps are controlled by the delays here rather
+    than by reconnecting for every capture.
+    """
+    if not os.path.exists(path):
+        raise RuntimeError("QEMU monitor socket disappeared")
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    s.settimeout(10)
+    s.connect(path)
+    time.sleep(0.1)
+    try:
+        s.recv(65536)
+    except Exception:
+        pass
+    try:
+        for shot, delay in shots:
+            s.sendall((f"screendump {shot}\n").encode())
+            time.sleep(0.10)   # let the dump land before the next command
+            if delay:
+                time.sleep(delay)
+    finally:
+        s.close()
+
+
+def wait_for_output(log, needle, timeout, proc):
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        output = open(log, errors="replace").read() if os.path.exists(log) else ""
+        if needle in output:
+            return True
+        if proc.poll() is not None:
+            return False
+        time.sleep(0.1)
+    return False
+
+
+def frame_delta(a, b):
+    """Fraction of sampled pixels that differ visibly between two captures."""
+    aw, ah, ap = read_ppm(a)
+    bw, bh, bp = read_ppm(b)
+    if (aw, ah) != (bw, bh):
+        raise RuntimeError(f"frame sizes differ: {a} is {aw}x{ah}, {b} is {bw}x{bh}")
+    total = aw * ah
+    step = max(1, total // 200000)
+    changed = sampled = 0
+    for i in range(0, total, step):
+        ao = i * 3
+        if (abs(ap[ao] - bp[ao]) > 8 or abs(ap[ao + 1] - bp[ao + 1]) > 8 or
+                abs(ap[ao + 2] - bp[ao + 2]) > 8):
+            changed += 1
+        sampled += 1
+    return changed / float(sampled or 1)
 
 
 def read_ppm(path):
@@ -431,7 +492,39 @@ def verify(image, arch, preset, width, height, timeout):
         return False, (f"{preset}/{arch}: preset declares the {packaged} session package, "
                        f"but the kernel log has no '{wanted}...' line")
 
-    monitor(sock, f"screendump {shot}", wait=0.6)
+    anim_frames = []
+    settled = None
+    if preset in ANIMATED_PRESETS:
+        # Capture at the kernel's own animation phase markers. This is a
+        # timestamp, not a wall-clock guess, so it works whether the host's
+        # timer runs at 100 Hz or faster.
+        settled = os.path.join(work, f"disk-boot-{arch}-settled.ppm")
+        for path in (shot, settled):
+            try:
+                os.unlink(path)
+            except FileNotFoundError:
+                pass
+        # Capture successive animation frames as fast as the monitor allows
+        # until the kernel reports its resting phase. This does not assume a
+        # particular timer rate, so it works under KVM and TCG alike.
+        deadline = time.time() + 20
+        while time.time() < deadline and proc.poll() is None:
+            path = os.path.join(work, f"disk-boot-{arch}-anim{len(anim_frames)}.ppm")
+            anim_frames.append(path)
+            monitor(sock, f"screendump {path}", wait=0.2)
+            output = open(log, errors="replace").read() if os.path.exists(log) else ""
+            if "flairos64: anim=rest" in output:
+                break
+            time.sleep(0.12)
+        if "flairos64: anim=rest" not in (open(log, errors="replace").read()
+                                           if os.path.exists(log) else ""):
+            return False, f"{preset}/{arch}: animation never reached its resting frame"
+        time.sleep(0.4)
+        monitor(sock, f"screendump {shot}", wait=0.5)
+        time.sleep(0.3)
+        monitor(sock, f"screendump {settled}", wait=0.3)
+    else:
+        monitor(sock, f"screendump {shot}", wait=0.6)
     alive = proc.poll() is None
     monitor(sock, "quit", wait=0.2)
     try:
@@ -461,9 +554,31 @@ def verify(image, arch, preset, width, height, timeout):
                        f"({colours} colours, {varied * 100:.1f}% non-modal pixels); "
                        "the preset was accepted only if its own resolution renders")
 
+    anim_evidence = ""
+    if preset in ANIMATED_PRESETS:
+        missing = [p for p in anim_frames + [settled] if not os.path.exists(p)]
+        if missing:
+            return False, f"{preset}/{arch}: animation capture missing: {missing}"
+        if len(anim_frames) < 2:
+            return False, f"{preset}/{arch}: only {len(anim_frames)} animation frame(s) captured"
+        deltas = [frame_delta(anim_frames[i], anim_frames[i + 1])
+                  for i in range(len(anim_frames) - 1)]
+        peak = max(deltas)
+        settle = frame_delta(shot, settled)
+        if peak < 0.002:
+            return False, (f"{preset}/{arch}: Airnimation frames never changed "
+                           f"(peak {peak * 100:.2f}% across {len(anim_frames)} frames); "
+                           "the booted image is not playing the preset showcase")
+        if settle > 0.005:
+            return False, (f"{preset}/{arch}: animation did not settle "
+                           f"(final frames differ by {settle * 100:.2f}%)")
+        anim_evidence = (f", anim {len(anim_frames)} frames peak delta {peak * 100:.1f}%, "
+                         f"resting frames settled {settle * 100:.2f}%")
+
     return True, (f"{preset}/{arch}: disk boot -> render=ok {width}x{height} "
                   f"{want_orientation}, screendump {pw}x{ph}, {colours} colours, "
-                  f"{varied * 100:.1f}% non-modal pixels, accel={accel_name(arch)}")
+                  f"{varied * 100:.1f}% non-modal pixels{anim_evidence}, "
+                  f"accel={accel_name(arch)}")
 
 
 def preset_package(preset):

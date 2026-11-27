@@ -160,9 +160,9 @@ def build_one(preset_name, arch):
         # The desktop session arranges windows through WinDown's density
         # metrics, draws scaling chrome through AirGraph and animates window
         # opens with an Airnimation preset, so those layers ship in the image.
-        srcs += ["ui/shells/desk_windows.c", "kernel/ui/windown.c",
-                 "kernel/ui/desktop_chrome.c", "kernel/gfx/airgraph.c",
-                 "kernel/gfx/airnim.c", "kernel/gfx/fb.c"]
+        srcs += ["ui/shells/desk_windows.c", "ui/shells/anim_demo.c",
+                 "kernel/ui/windown.c", "kernel/ui/desktop_chrome.c",
+                 "kernel/gfx/airgraph.c", "kernel/gfx/airnim.c", "kernel/gfx/fb.c"]
     if cfg.get("session_package"):
         # A session shell (TV, mobile) reads its home screen from a packaged
         # resource, so the container reader, the layout modules and the shared
@@ -170,7 +170,8 @@ def build_one(preset_name, arch):
         for extra in ("kernel/pkg/airp.c", "kernel/pkg/airjson.c",
                       "kernel/ui/tv_layout.c", "kernel/ui/mobile_layout.c",
                       "kernel/ui/shell_launcher.c", "kernel/gfx/airgraph.c",
-                      "kernel/gfx/fb.c"):
+                      "kernel/gfx/airnim.c", "kernel/gfx/fb.c",
+                      "ui/shells/anim_demo.c"):
             if extra not in srcs:
                 srcs.append(extra)
         srcs.append(write_session_package(cfg["session_package"], out_dir))

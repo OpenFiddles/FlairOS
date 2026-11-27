@@ -76,11 +76,39 @@ int32_t an_slide_offset(an_id id, int32_t open_state, int32_t span, uint32_t dur
    multiplies colour alpha by that progress, an offset preset subtracts it
    from a span. Add a preset here (and a host check) rather than teaching a
    shell a new curve. */
+enum an_edge {
+    AN_EDGE_NONE = 0,
+    AN_EDGE_LEFT,
+    AN_EDGE_RIGHT,
+    AN_EDGE_TOP,
+    AN_EDGE_BOTTOM
+};
+
+enum an_kind { AN_KIND_FADE = 0, AN_KIND_SLIDE, AN_KIND_POP, AN_KIND_CROSSFADE };
+
+/* The offset is snapped through AirGraph's density scale, so a slide composes
+   with the same viewport scale the rest of the UI uses. */
+#define AN_PRESET_COMPOSE_VIEWPORT 0x1u
+
 struct an_preset {
     const char *name;
-    int32_t from, to;
-    uint32_t duration_ticks;
+    enum an_kind kind;
+    int32_t from, to;          /* progress endpoints, 0..AN_ONE */
+    uint32_t duration_ticks;    /* 100 Hz ticks */
     enum an_ease ease;
+    enum an_edge edge;          /* direction for slides */
+    int32_t distance_pm;        /* permille of the element's own extent */
+    uint32_t flags;             /* AN_PRESET_COMPOSE_VIEWPORT */
+};
+
+/* Resolved motion for one frame. dx/dy are offsets from the element's resting
+   position, alpha is 0..AN_ONE, scale_pm is 1000 at rest, and alpha_a/alpha_b
+   are the two content-screen weights for a cross-fade. */
+struct an_motion {
+    int32_t dx, dy;
+    int32_t alpha;
+    int32_t scale_pm;
+    int32_t alpha_a, alpha_b;
 };
 
 int an_preset_count(void);
@@ -93,6 +121,21 @@ int an_preset_play_at(an_id id, const struct an_preset *preset);
 int32_t an_preset_value(an_id id, const struct an_preset *preset);
 /* Offset for a slide preset: `span` at progress 0, 0 at AN_ONE. */
 int32_t an_preset_offset(an_id id, const struct an_preset *preset, int32_t span);
+
+/* Resolve a preset for one frame. `progress` is its current an_preset_value().
+   w/h are the element's own size, so distance is a fraction of the element;
+   viewport_scale_q16 is only consulted by AN_PRESET_COMPOSE_VIEWPORT. */
+void an_preset_motion(const struct an_preset *preset, int32_t progress,
+                      int32_t w, int32_t h, uint32_t viewport_scale_q16,
+                      struct an_motion *out);
+/* Clamp a motion so the element's rectangle stays inside the viewport. */
+int an_motion_clamp(struct an_motion *motion, int32_t x, int32_t y,
+                    int32_t w, int32_t h, int32_t viewport_w, int32_t viewport_h);
+/* Cross-fade two content screens: draw `from_rgb`, then `to_rgb` at the
+   preset's progress. The midpoint is a real pixel blend, not an instant swap. */
+void an_crossfade_rect(struct ag_device *device, struct ag_surface *surface,
+                       int32_t x, int32_t y, int32_t w, int32_t h,
+                       uint32_t from_rgb, uint32_t to_rgb, int32_t progress);
 
 enum flowdrip_link {
     FLOWDRIP_LINK_NONE = 0,

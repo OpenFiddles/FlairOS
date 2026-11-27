@@ -80,6 +80,8 @@ void hal_serial_puts(const char *s) {
     }
 }
 
+/* TSC/1024 counter, reported on the same 1 MHz scale as the counter unit the
+   HAL has always exposed. Airnimation converts this to 100 Hz ticks. */
 u32 hal_timer_freq_hz(void) { return 1000000u; }
 u32 hal_timer_ticks(void) {
     u32 lo, hi;

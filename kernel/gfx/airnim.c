@@ -249,12 +249,21 @@ int32_t an_slide_offset(an_id id, int32_t open_state, int32_t span, uint32_t dur
 /* Named motion. Durations are in 100 Hz ticks; curves reuse the engine's
    easing so a preset cannot drift from the code path it animates. */
 static const struct an_preset g_presets[] = {
-    { "fade-in",  0,      AN_ONE, 12, AN_OUT_CUBIC },
-    { "fade-out", AN_ONE, 0,      10, AN_IN_OUT },
-    { "slide-in", 0,      AN_ONE, 16, AN_OUT_CUBIC },
-    { "slide-out", AN_ONE, 0,     14, AN_IN_OUT },
-    { "pop",      0,      AN_ONE, 14, AN_OUT_BACK },
-    { "settle",   0,      AN_ONE, 18, AN_IN_OUT },
+    { "fade-in",        AN_KIND_FADE,       0,     AN_ONE, 12, AN_OUT_CUBIC, AN_EDGE_NONE,   0, AN_PRESET_COMPOSE_VIEWPORT },
+    { "fade-out",       AN_KIND_FADE,       AN_ONE, 0,     10, AN_IN_OUT,    AN_EDGE_NONE,   0, AN_PRESET_COMPOSE_VIEWPORT },
+    { "slide-in",       AN_KIND_SLIDE,      0,     AN_ONE, 16, AN_OUT_CUBIC, AN_EDGE_LEFT, 250, AN_PRESET_COMPOSE_VIEWPORT },
+    { "slide-out",      AN_KIND_SLIDE,      AN_ONE, 0,     14, AN_IN_OUT,    AN_EDGE_RIGHT, 250, AN_PRESET_COMPOSE_VIEWPORT },
+    { "pop",            AN_KIND_POP,        0,     AN_ONE, 14, AN_OUT_BACK,  AN_EDGE_NONE,   0, AN_PRESET_COMPOSE_VIEWPORT },
+    { "settle",         AN_KIND_FADE,       0,     AN_ONE, 18, AN_IN_OUT,    AN_EDGE_NONE,   0, AN_PRESET_COMPOSE_VIEWPORT },
+    { "slide-in-left",  AN_KIND_SLIDE,      0,     AN_ONE, 16, AN_OUT_CUBIC, AN_EDGE_LEFT, 250, AN_PRESET_COMPOSE_VIEWPORT },
+    { "slide-in-right", AN_KIND_SLIDE,      0,     AN_ONE, 16, AN_OUT_CUBIC, AN_EDGE_RIGHT, 250, AN_PRESET_COMPOSE_VIEWPORT },
+    { "slide-in-top",   AN_KIND_SLIDE,      0,     AN_ONE, 16, AN_OUT_CUBIC, AN_EDGE_TOP,  250, AN_PRESET_COMPOSE_VIEWPORT },
+    { "slide-in-bottom",AN_KIND_SLIDE,      0,     AN_ONE, 16, AN_OUT_CUBIC, AN_EDGE_BOTTOM, 250, AN_PRESET_COMPOSE_VIEWPORT },
+    { "slide-out-left", AN_KIND_SLIDE,      AN_ONE, 0,     14, AN_IN_OUT,    AN_EDGE_LEFT, 250, AN_PRESET_COMPOSE_VIEWPORT },
+    { "slide-out-right",AN_KIND_SLIDE,      AN_ONE, 0,     14, AN_IN_OUT,    AN_EDGE_RIGHT, 250, AN_PRESET_COMPOSE_VIEWPORT },
+    { "slide-out-top",  AN_KIND_SLIDE,      AN_ONE, 0,     14, AN_IN_OUT,    AN_EDGE_TOP,  250, AN_PRESET_COMPOSE_VIEWPORT },
+    { "slide-out-bottom",AN_KIND_SLIDE,     AN_ONE, 0,     14, AN_IN_OUT,    AN_EDGE_BOTTOM, 250, AN_PRESET_COMPOSE_VIEWPORT },
+    { "crossfade",      AN_KIND_CROSSFADE,  0,     AN_ONE, 30, AN_IN_OUT,    AN_EDGE_NONE,   0, AN_PRESET_COMPOSE_VIEWPORT },
 };
 
 int an_preset_count(void) {
@@ -308,4 +317,89 @@ int32_t an_preset_offset(an_id id, const struct an_preset *preset, int32_t span)
     if (span <= 0) return 0;
     p = an_preset_value(id, preset);
     return span - (span * p) / AN_ONE;
+}
+
+void an_preset_motion(const struct an_preset *preset, int32_t progress,
+                      int32_t w, int32_t h, uint32_t viewport_scale_q16,
+                      struct an_motion *out) {
+    int32_t p, remaining, extent, distance, offset;
+    if (!out) return;
+    out->dx = out->dy = 0;
+    out->alpha = AN_ONE;
+    out->scale_pm = 1000;
+    out->alpha_a = AN_ONE;
+    out->alpha_b = 0;
+    if (!preset) return;
+    p = progress;
+    if (p < 0) p = 0;
+    if (p > AN_ONE) p = AN_ONE;
+    switch (preset->kind) {
+    case AN_KIND_FADE:
+        out->alpha = p;
+        out->alpha_a = p;
+        out->alpha_b = AN_ONE - p;
+        return;
+    case AN_KIND_POP:
+        /* Grows from 80% to 100%; out-back overshoots slightly at the end. */
+        out->alpha = p;
+        out->scale_pm = 800 + (200 * p) / AN_ONE;
+        return;
+    case AN_KIND_CROSSFADE:
+        out->alpha_a = AN_ONE - p;
+        out->alpha_b = p;
+        return;
+    case AN_KIND_SLIDE:
+    default:
+        remaining = AN_ONE - p;
+        extent = (preset->edge == AN_EDGE_LEFT || preset->edge == AN_EDGE_RIGHT) ? w : h;
+        if (extent <= 0 || preset->distance_pm <= 0) return;
+        /* distance_pm is a fraction of the element's own extent, so it is
+           already independent of the panel: the same fraction of the same
+           element gives the same visual move at 1x and at 4K. The compose flag
+           records that a preset is authored this way; it must not multiply the
+           offset again by the viewport scale. */
+        (void)viewport_scale_q16;
+        distance = (extent * preset->distance_pm) / 1000;
+        offset = (distance * remaining) / AN_ONE;
+        if (offset < 0) offset = 0;
+        switch (preset->edge) {
+        case AN_EDGE_LEFT:   out->dx = offset; break;
+        case AN_EDGE_RIGHT:  out->dx = -offset; break;
+        case AN_EDGE_TOP:    out->dy = offset; break;
+        case AN_EDGE_BOTTOM: out->dy = -offset; break;
+        default: break;
+        }
+        return;
+    }
+}
+
+int an_motion_clamp(struct an_motion *motion, int32_t x, int32_t y,
+                    int32_t w, int32_t h, int32_t viewport_w, int32_t viewport_h) {
+    int32_t min_dx, max_dx, min_dy, max_dy;
+    if (!motion) return -1;
+    min_dx = -x;
+    max_dx = viewport_w - (x + w);
+    min_dy = -y;
+    max_dy = viewport_h - (y + h);
+    if (max_dx < min_dx) max_dx = min_dx;
+    if (max_dy < min_dy) max_dy = min_dy;
+    if (motion->dx < min_dx) motion->dx = min_dx;
+    if (motion->dx > max_dx) motion->dx = max_dx;
+    if (motion->dy < min_dy) motion->dy = min_dy;
+    if (motion->dy > max_dy) motion->dy = max_dy;
+    return 0;
+}
+
+void an_crossfade_rect(struct ag_device *device, struct ag_surface *surface,
+                       int32_t x, int32_t y, int32_t w, int32_t h,
+                       uint32_t from_rgb, uint32_t to_rgb, int32_t progress) {
+    uint32_t alpha;
+    if (!surface || w <= 0 || h <= 0) return;
+    if (progress < 0) progress = 0;
+    if (progress > AN_ONE) progress = AN_ONE;
+    /* Opaque "from" screen, then the "to" screen blended over it: the
+       midpoint is the pixel mix of the two screens, not a hard swap. */
+    an_blend_rect(device, surface, x, y, w, h, from_rgb, 255u);
+    alpha = (uint32_t)((progress * 255) / AN_ONE);
+    if (alpha) an_blend_rect(device, surface, x, y, w, h, to_rgb, alpha);
 }

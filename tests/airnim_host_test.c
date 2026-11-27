@@ -143,6 +143,80 @@ int main(void) {
         CHECK(an_preset_play(c, "bogus") == -1);
         CHECK(an_preset_play_at(c, 0) == -1);
 
+        /* Direction, distance and viewport composition are preset data. */
+        {
+            struct an_motion m, n;
+            const struct an_preset *left = an_preset_lookup("slide-in-left");
+            const struct an_preset *right = an_preset_lookup("slide-in-right");
+            const struct an_preset *top = an_preset_lookup("slide-in-top");
+            const struct an_preset *bottom = an_preset_lookup("slide-in-bottom");
+            const struct an_preset *fade = an_preset_lookup("fade-in");
+            const struct an_preset *fadeout = an_preset_lookup("fade-out");
+            const struct an_preset *cross = an_preset_lookup("crossfade");
+            const struct an_preset *pop = an_preset_lookup("pop");
+            CHECK(left && right && top && bottom && fade && fadeout && cross && pop);
+            CHECK(left->edge == AN_EDGE_LEFT && right->edge == AN_EDGE_RIGHT);
+            CHECK(top->edge == AN_EDGE_TOP && bottom->edge == AN_EDGE_BOTTOM);
+            CHECK(left->distance_pm == 250 && (left->flags & AN_PRESET_COMPOSE_VIEWPORT));
+
+            /* Same fraction of the element on any panel. */
+            an_preset_motion(left, 0, 100, 50, 65536, &m);
+            CHECK(m.dx == 25 && m.dy == 0);
+            an_preset_motion(left, 0, 400, 200, 65536, &n);
+            CHECK(n.dx == 100 && n.dx == m.dx * 4);
+            /* The viewport scale must not multiply the fraction again. */
+            an_preset_motion(left, 0, 400, 200, 196608, &n);
+            CHECK(n.dx == 100);
+            an_preset_motion(right, 0, 100, 50, 65536, &m);
+            CHECK(m.dx == -25);
+            an_preset_motion(top, 0, 100, 50, 65536, &m);
+            CHECK(m.dy == 12 && m.dx == 0);
+            an_preset_motion(bottom, 0, 100, 50, 65536, &m);
+            CHECK(m.dy == -12);
+            an_preset_motion(left, 500, 100, 50, 65536, &m);
+            CHECK(m.dx > 0 && m.dx < 25);
+            an_preset_motion(left, 1000, 100, 50, 65536, &m);
+            CHECK(m.dx == 0 && m.alpha == AN_ONE);
+
+            /* Fade and cross-fade weights. */
+            an_preset_motion(fade, 0, 100, 50, 65536, &m);
+            CHECK(m.alpha == 0);
+            an_preset_motion(fade, 1000, 100, 50, 65536, &m);
+            CHECK(m.alpha == 1000);
+            an_preset_motion(fadeout, 0, 100, 50, 65536, &m);
+            CHECK(m.alpha == 0);
+            an_preset_motion(cross, 250, 100, 50, 65536, &m);
+            CHECK(m.alpha_a == 750 && m.alpha_b == 250);
+
+            /* Pop grows from 80% and ends at rest. */
+            an_preset_motion(pop, 0, 40, 40, 65536, &m);
+            CHECK(m.scale_pm == 800);
+            an_preset_motion(pop, 1000, 40, 40, 65536, &m);
+            CHECK(m.scale_pm == 1000);
+
+            /* Clamping keeps a sliding element inside the viewport. */
+            an_preset_motion(left, 0, 100, 50, 65536, &m);
+            CHECK(an_motion_clamp(&m, 0, 0, 100, 50, 100, 50) == 0);
+            CHECK(m.dx == 0 && m.dy == 0);
+            an_preset_motion(right, 0, 100, 50, 65536, &m);
+            CHECK(an_motion_clamp(&m, 0, 0, 100, 50, 100, 50) == 0);
+            CHECK(m.dx == 0);
+            an_preset_motion(bottom, 0, 100, 50, 65536, &m);
+            CHECK(an_motion_clamp(&m, 20, 10, 100, 50, 220, 150) == 0);
+            CHECK(m.dy == -10);
+        }
+
+        /* Cross-fade is a pixel mix at the midpoint, not a swap. */
+        {
+            uint32_t blend[4];
+            struct ag_surface bs;
+            CHECK(ag_surface_init(&bs, blend, 2, 2, 8, AG_PIXEL_XRGB8888) == 0);
+            an_crossfade_rect(0, &bs, 0, 0, 2, 2, 0x00000000u, 0x00FFFFFFu, 500);
+            CHECK(red_of(blend[0]) > 110 && red_of(blend[0]) < 145);
+            an_crossfade_rect(0, &bs, 0, 0, 2, 2, 0x00000000u, 0x00FFFFFFu, 1000);
+            CHECK(red_of(blend[0]) == 255);
+        }
+
         /* disabled animations snap to the preset's end state */
         an_set_enabled(0);
         CHECK(an_preset_play(c, "slide-out") == 0);

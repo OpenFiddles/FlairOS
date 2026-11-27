@@ -8,6 +8,9 @@
  * panel, so a 480x800 handset and a 1080x1920 phone read the same.
  */
 #include "shell_common.h"
+#ifndef FLAIROS_HOST_TEST
+#include "anim_demo.h"
+#endif
 #include "flair_browser.h"
 #include "../../graphics/compositor/glass_fx.h"
 #include "../../ui/theme/ios_macos_theme.h"
@@ -258,6 +261,9 @@ int shell_tick_at(uint32_t now_ticks, uint32_t ticks_per_second) {
         mob_slide_y = mob_anim ? (mob_slide_y > step ? mob_slide_y - step : 0) : 0;
         changed = 1;
     }
+#ifndef FLAIROS_HOST_TEST
+    if (shell_anim_demo_tick()) changed = 1;
+#endif
     return changed;
 }
 
@@ -656,4 +662,7 @@ void shell_render(struct ag_surface *s, const struct shell_boot_info *info, int 
     /* Home indicator */
     gfx_fill_round_rect(s, (w - px(130)) / 2, h - px(14), px(130), px(5), px(2),
                         THEME_TEXT_PRIMARY, 225u);
+#ifndef FLAIROS_HOST_TEST
+    shell_anim_demo_render(s);
+#endif
 }

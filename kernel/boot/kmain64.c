@@ -228,9 +228,13 @@ void kmain64(uint64_t arg0, uint64_t arg1) {
     uint32_t hz_freq = hal_timer_freq_hz();
     uint32_t frame_budget = hz_freq / PRESET_TARGET_HZ;
     uint32_t last_tick = hal_timer_ticks();
+    /* Airnimation durations are in 100 Hz ticks; the HAL counter runs in
+       microseconds (or another base), so publish the converted unit rather
+       than letting every preset elapse in microseconds. */
+    uint32_t an_ticks_per_unit = hz_freq >= 100u ? hz_freq / 100u : 1u;
     for (;;) {
         uint32_t now_tick = hal_timer_ticks();
-        ticks = now_tick;
+        ticks = now_tick / an_ticks_per_unit;
         input64_poll(&in);
         int ui_dirty = shell_handle_input(&in, back_surf.width, back_surf.height) |
                        shell_tick_at(now_tick, hz_freq);
