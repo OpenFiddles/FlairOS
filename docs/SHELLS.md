@@ -65,11 +65,11 @@ export PATH=$HOME/local/bin:$PATH
 export LD_LIBRARY_PATH=$HOME/local/usr/lib/x86_64-linux-gnu:$HOME/local/lib/x86_64-linux-gnu
 
 python3 tools/build_preset.py --preset tv --arch x86_64      # one preset
-make presets                                                 # desktop, mobile, tv (both arches)
-make verify-disk                                             # boots every preset from disk
+make presets                                                 # all six presets, both arches
+make verify-disk                                             # builds the presets, then boots every one
 ```
 
-Both commands **fail loudly** if the toolchain is absent: `build_preset.py`
+All three commands **fail loudly** if the toolchain is absent: `build_preset.py`
 names the missing binary and the packages it needs, and `verify_disk_boot.py`
 refuses to report a boot when QEMU is missing or unrunnable instead of quietly
 passing. x86_64 boots its raw BIOS disk image under KVM when available; aarch64
