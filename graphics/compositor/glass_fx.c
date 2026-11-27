@@ -15,7 +15,65 @@ static uint32_t lerp_rgb(uint32_t a, uint32_t b, uint32_t num, uint32_t den) {
     return (rr << 16) | (rg << 8) | rb;
 }
 
+/* One content transform at a time: the shell installs it around a window's
+   content and clears it before chrome, cursor or wallpaper. Identity means
+   zero branches beyond the flag check in every primitive. */
+static uint32_t tf_scale;
+static int32_t tf_ox, tf_oy;
+static int32_t tf_x0, tf_y0, tf_x1, tf_y1;
+static int tf_active;
+
+void gfx_transform_set(uint32_t scale_q16, int32_t ox, int32_t oy,
+                       int32_t clip_x, int32_t clip_y,
+                       int32_t clip_w, int32_t clip_h) {
+    if (scale_q16 == 0u) scale_q16 = AG_SCALE_ONE;
+    tf_scale = scale_q16;
+    tf_ox = ox;
+    tf_oy = oy;
+    tf_x0 = clip_x < 0 ? 0 : clip_x;
+    tf_y0 = clip_y < 0 ? 0 : clip_y;
+    tf_x1 = clip_w > 0 ? clip_x + clip_w : clip_x;
+    tf_y1 = clip_h > 0 ? clip_y + clip_h : clip_y;
+    tf_active = 1;
+}
+
+void gfx_transform_clear(void) { tf_active = 0; }
+int gfx_transform_active(void) { return tf_active; }
+
+static int32_t tf_map_x(int32_t x) {
+    return (int32_t)(((int64_t)x * tf_scale) >> 16) + tf_ox;
+}
+
+static int32_t tf_map_y(int32_t y) {
+    return (int32_t)(((int64_t)y * tf_scale) >> 16) + tf_oy;
+}
+
+/* Map and clip an inclusive-exclusive design rect into the client rect. */
+static int tf_rect(int32_t *x, int32_t *y, int32_t *w, int32_t *h) {
+    int32_t x0, y0, x1, y1;
+    if (!tf_active) return 1;
+    if (*w <= 0 || *h <= 0) return 0;
+    x0 = tf_map_x(*x);
+    y0 = tf_map_y(*y);
+    x1 = tf_map_x(*x + *w);
+    y1 = tf_map_y(*y + *h);
+    if (x0 < tf_x0) x0 = tf_x0;
+    if (y0 < tf_y0) y0 = tf_y0;
+    if (x1 > tf_x1) x1 = tf_x1;
+    if (y1 > tf_y1) y1 = tf_y1;
+    *x = x0;
+    *y = y0;
+    *w = x1 - x0;
+    *h = y1 - y0;
+    return *w > 0 && *h > 0;
+}
+
 void gfx_blend_pixel(struct ag_surface *s, int32_t x, int32_t y, uint32_t rgb, uint8_t alpha) {
+    if (tf_active) {
+        x = tf_map_x(x);
+        y = tf_map_y(y);
+        if (x < tf_x0 || y < tf_y0 || x >= tf_x1 || y >= tf_y1) return;
+    }
     if (!s || !s->pixels || x < 0 || y < 0 || x >= s->width || y >= s->height) return;
     uint32_t *row = (uint32_t *)((uint8_t *)s->pixels + (size_t)y * s->pitch);
     if (alpha == 255u) { row[x] = rgb & 0x00FFFFFFu; return; }
@@ -32,6 +90,7 @@ void gfx_blend_pixel(struct ag_surface *s, int32_t x, int32_t y, uint32_t rgb, u
 void gfx_fill_rect_alpha(struct ag_surface *s, int32_t x, int32_t y, int32_t w, int32_t h,
                          uint32_t rgb, uint8_t alpha) {
     if (!s || !s->pixels || w <= 0 || h <= 0 || alpha == 0u) return;
+    if (!tf_rect(&x, &y, &w, &h)) return;
     int32_t x0 = x < 0 ? 0 : x, y0 = y < 0 ? 0 : y;
     int32_t x1 = x + w > s->width ? s->width : x + w;
     int32_t y1 = y + h > s->height ? s->height : y + h;
@@ -62,6 +121,7 @@ void gfx_fill_rect_alpha(struct ag_surface *s, int32_t x, int32_t y, int32_t w, 
 void gfx_gradient_v(struct ag_surface *s, int32_t x, int32_t y, int32_t w, int32_t h,
                     uint32_t top_rgb, uint32_t bot_rgb) {
     if (!s || !s->pixels || w <= 0 || h <= 0) return;
+    if (!tf_rect(&x, &y, &w, &h)) return;
     int32_t x0 = x < 0 ? 0 : x;
     int32_t y0 = y < 0 ? 0 : y;
     int32_t x1 = x + w > s->width ? s->width : x + w;

@@ -165,6 +165,46 @@ int dw_end_drag(struct dw_state *st) {
     return was;
 }
 
+struct dw_client dw_client_rect(struct dw_state *st,
+                                const struct dw_window *win) {
+    struct dw_client c = {0, 0, 0, 0};
+    struct wd_metrics m;
+    int32_t border;
+    if (!st || !win) return c;
+    m = wd_chrome_metrics(&st->wd);
+    border = (st->active && m.inset / 2 > 0) ? m.inset / 2 : 1;
+    c.x = win->x + border;
+    c.y = win->y + m.title_h;
+    c.w = win->w - border * 2;
+    c.h = win->h - m.title_h - border;
+    if (c.w < 0) c.w = 0;
+    if (c.h < 0) c.h = 0;
+    return c;
+}
+
+int dw_dispatch_click(struct dw_state *st, struct dw_window *wins,
+                      const int *z_order, int count, int mx, int my,
+                      int *slot_out, enum dw_click *action_out) {
+    if (slot_out) *slot_out = -1;
+    if (action_out) *action_out = DW_CLICK_NONE;
+    if (!st || !wins || !z_order || count <= 0 || !st->active) return 0;
+    for (int i = count - 1; i >= 0; i--) {
+        int slot = z_order[i];
+        struct dw_window *w;
+        enum dw_click acted;
+        if (slot < 0 || slot >= DW_MAX_WINDOWS || slot >= count) continue;
+        w = &wins[slot];
+        if (!w->open || w->minimized) continue;
+        if (mx < w->x || my < w->y || mx >= w->x + w->w || my >= w->y + w->h)
+            continue;
+        acted = dw_click(st, w, slot, mx, my);
+        if (slot_out) *slot_out = slot;
+        if (action_out) *action_out = acted;
+        return acted != DW_CLICK_CLIENT;
+    }
+    return 0;
+}
+
 int dw_rescale(struct dw_state *st, struct dw_window *wins, int count,
                int old_w, int old_h, int new_w, int new_h) {
     uint32_t scale;

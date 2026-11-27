@@ -45,6 +45,11 @@ enum dw_click {
     DW_CLICK_CLIENT
 };
 
+/* The scaled client area a window's content may draw into. */
+struct dw_client {
+    int32_t x, y, w, h;
+};
+
 void dw_init(struct dw_state *st);
 /* Returns 1 when the panel changed (caller rescales its windows), 0 when it
    is unchanged, -1 for invalid sizes. */
@@ -73,6 +78,18 @@ enum dw_click dw_click(struct dw_state *st, struct dw_window *win, int slot,
 int dw_drag_to(struct dw_state *st, struct dw_window *win, int slot,
                int mx, int my);
 int dw_end_drag(struct dw_state *st);
+
+struct dw_client dw_client_rect(struct dw_state *st,
+                                const struct dw_window *win);
+
+/* The shell's window/chrome dispatch, callable by the headless harness.
+   Walks z-order top-down, and when density is on delegates to dw_click so a
+   scaled close click closes and a scaled title-bar click starts a drag.
+   Returns 1 when the click was consumed by chrome (caller must stop), 0 when
+   it lands on a client area or nothing. Outputs are optional. */
+int dw_dispatch_click(struct dw_state *st, struct dw_window *wins,
+                      const int *z_order, int count, int mx, int my,
+                      int *slot_out, enum dw_click *action_out);
 
 /* Scale every window (and its saved geometry) to a new panel, clamp it
    on-screen and adopt the new density. */

@@ -165,10 +165,14 @@ def build_one(preset_name, arch):
                  "kernel/gfx/airnim.c", "kernel/gfx/fb.c"]
     if cfg.get("session_package"):
         # A session shell (TV, mobile) reads its home screen from a packaged
-        # resource, so the container reader and the layout modules ship with it.
-        srcs += ["kernel/pkg/airp.c", "kernel/pkg/airjson.c",
-                 "kernel/ui/tv_layout.c", "kernel/ui/mobile_layout.c",
-                 "kernel/ui/shell_launcher.c"]
+        # resource, so the container reader, the layout modules and the shared
+        # AirGraph density helper ship with it.
+        for extra in ("kernel/pkg/airp.c", "kernel/pkg/airjson.c",
+                      "kernel/ui/tv_layout.c", "kernel/ui/mobile_layout.c",
+                      "kernel/ui/shell_launcher.c", "kernel/gfx/airgraph.c",
+                      "kernel/gfx/fb.c"):
+            if extra not in srcs:
+                srcs.append(extra)
         srcs.append(write_session_package(cfg["session_package"], out_dir))
         cflags.append("-DFLAIROS_SESSION_PACKAGE")
     objs = []

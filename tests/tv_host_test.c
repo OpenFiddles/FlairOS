@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "airjson.h"
+#include "airgraph.h"
 #include "airp.h"
 #include "ui/tv_layout.h"
 #include "ui/shell_launcher.h"
@@ -174,6 +175,11 @@ int main(void) {
     check(tv_layout_scale_q16(1920, 1080) == 98304, "1080p scales 1.5x");
     check(tv_layout_scale_q16(2560, 1440) == 131072, "1440p scales 2x");
     check(tv_layout_scale_q16(3840, 2160) == 196608, "4K scales 3x");
+    check(tv_layout_scale_q16(3840, 2160) ==
+          (int32_t)ag_scale_ratio_q16(3840, 2160, TV_LAYOUT_BASE_W, TV_LAYOUT_BASE_H),
+          "TV scale is the shared AirGraph ratio with the 3x session clamp");
+    check(tv_layout_px(48, 196608) == ag_px(48, 196608),
+          "TV design pixels use AirGraph snapping");
     check(tv_layout_scale_q16(4096, 2160) == 196608, "wider-than-16:9 4K clamps to 3x");
     check(tv_layout_scale_q16(5120, 2880) == 196608, "5K clamps to 3x");
     check(tv_layout_scale_q16(800, 600) == 65536, "sub-720p clamps to 1x");

@@ -94,7 +94,22 @@ int ag_get_resource_info(const struct ag_device *, struct ag_resource_info *);
 #define AG_SCALE_ONE 65536u      /* 1.0 in Q16 */
 #define AG_SCALE_MAX 262144u     /* 4.0 in Q16 */
 
-/* Q16 scale for a panel against a design size: the smaller ratio, clamped to
+/* The one implementation of panel/design ratio math. Session layouts (TV,
+   mobile) clamp the result differently from the desktop, so the ratio itself
+   lives here and each caller applies its own bounds. Returns 0 for invalid
+   sizes. */
+static inline uint32_t ag_scale_ratio_q16(int32_t panel_w, int32_t panel_h,
+                                          int32_t design_w, int32_t design_h) {
+    uint32_t sx, sy;
+    if (panel_w <= 0 || panel_h <= 0 || design_w <= 0 || design_h <= 0 ||
+        panel_w > 8192 || panel_h > 8192 || design_w > 8192 || design_h > 8192)
+        return 0u;
+    sx = ((uint32_t)panel_w << 16) / (uint32_t)design_w;
+    sy = ((uint32_t)panel_h << 16) / (uint32_t)design_h;
+    return sx < sy ? sx : sy;
+}
+
+/* Q16 scale for a panel against a design size: the shared ratio, clamped to
    [1.0, 4.0] so a large design never shrinks below its authored size and a 4K
    panel never scales past 4x. */
 int ag_scale_q16_for(int32_t panel_w, int32_t panel_h,

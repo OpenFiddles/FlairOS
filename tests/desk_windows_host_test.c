@@ -21,6 +21,7 @@
 #include "windown.h"
 #include "desk_windows.h"
 #include "fb.h"
+#include "glass_fx.h"
 
 volatile unsigned int ticks;
 
@@ -113,25 +114,68 @@ int main(void) {
     CHECK(at(win.x + win.w - m.inset / 2 - 1, win.y + win.h - m.inset / 2 - 1)
           == 0x00524E5Au);
 
-    /* A click at the scaled close-button centre closes the window. */
+    /* Window CONTENT uses the same density: design coordinates map into the
+       scaled client rectangle, clipped there, with proportional insets. */
     {
+        struct dw_client c = dw_client_rect(&st, &win);
+        CHECK(c.x == win.x + m.inset / 2);
+        CHECK(c.y == win.y + m.title_h);
+        CHECK(c.w == win.w - 2 * (m.inset / 2));
+        CHECK(c.h == win.h - m.title_h - m.inset / 2);
+        CHECK(gfx_transform_active() == 0);
+        gfx_transform_set(st.scale_q16,
+                          c.x - (int32_t)(((int64_t)win.x * st.scale_q16) >> 16),
+                          c.y - (int32_t)(((int64_t)win.y * st.scale_q16) >> 16),
+                          c.x, c.y, c.w, c.h);
+        CHECK(gfx_transform_active() == 1);
+        /* A 20x12 design inset lands 60x36 device pixels inside the client. */
+        gfx_fill_rect_alpha(&surface, win.x + 20, win.y + 40, 30, 12,
+                            0x00CC33AAu, 255);
+        CHECK(at(c.x + 60, c.y + 120) == 0x00CC33AAu);
+        CHECK(at(c.x + 60 + 89, c.y + 120 + 35) == 0x00CC33AAu);
+        /* Content drawn above the client top is clipped away by chrome. */
+        gfx_fill_rect_alpha(&surface, win.x + 200, win.y + 4, 60, 20,
+                            0x0011EE11u, 255);
+        CHECK(at(c.x + 200, win.y + 18) == 0x0034323Au);
+        gfx_transform_clear();
+        CHECK(gfx_transform_active() == 0);
+        /* Identity is byte-identical: the same draw lands on the same pixel. */
+        gfx_fill_rect_alpha(&surface, win.x + 20, win.y + 40, 2, 2,
+                            0x00FFFFFFu, 255);
+        CHECK(at(win.x + 20, win.y + 40) == 0x00FFFFFFu);
+    }
+
+    /* The shell's dispatch entry point, not just dw_click: a 4K close click
+       at the scaled button centre closes through it. */
+    {
+        int order[8] = {7, 6, 5, 4, 3, 2, 1, 0};
+        int hit_slot = -1;
         int32_t bx = win.x + m.inset;
         int32_t d = m.button_w;
         if (d > m.title_h - 2) d = m.title_h - 2;
-        acted = dw_click(&st, &win, slot, bx + d / 2, win.y + 18);
+        win.open = 1;
+        CHECK(dw_dispatch_click(&st, &win, order, 8, bx + d / 2, win.y + 18,
+                                &hit_slot, &acted) == 1);
         CHECK(acted == DW_CLICK_CLOSE);
+        CHECK(hit_slot == slot);
         CHECK(win.open == 0);
     }
 
-    /* A click on the scaled title bar starts a drag that moves the window. */
-    win.open = 1;
-    win.x = shell_windows[slot].x;
-    win.y = shell_windows[slot].y;
-    win.w = shell_windows[slot].w;
-    win.h = shell_windows[slot].h;
-    acted = dw_click(&st, &win, slot, win.x + win.w - 120, win.y + 10);
-    CHECK(acted == DW_CLICK_DRAG);
-    CHECK(st.drag_id == slot);
+    /* A click on the scaled title bar starts a drag through the same entry. */
+    {
+        int order[8] = {7, 6, 5, 4, 3, 2, 1, 0};
+        int hit_slot = -1;
+        win.open = 1;
+        win.x = shell_windows[slot].x;
+        win.y = shell_windows[slot].y;
+        win.w = shell_windows[slot].w;
+        win.h = shell_windows[slot].h;
+        CHECK(dw_dispatch_click(&st, &win, order, 8, win.x + win.w - 120,
+                                win.y + 10, &hit_slot, &acted) == 1);
+        CHECK(acted == DW_CLICK_DRAG);
+        CHECK(hit_slot == slot);
+        CHECK(st.drag_id == slot);
+    }
     {
         int32_t before_x = win.x, before_y = win.y;
         CHECK(dw_drag_to(&st, &win, slot, win.x + win.w - 120 + 60, win.y + 10 + 30) == 1);

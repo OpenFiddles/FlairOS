@@ -116,6 +116,32 @@ When the framebuffer size changes, the shell calls `dw_rescale()`: every window
 and its saved geometry scale with the panel, are clamped on-screen below the
 menu bar, and the compositor adopts the new metrics before the next frame.
 
+### Content, not just chrome
+
+Window content is authored in 720p coordinates. In density mode the shell asks
+`dw_client_rect()` for the scaled client area and installs one transform around
+that window's content:
+
+```c
+gfx_transform_set(scale_q16, ox, oy, client.x, client.y, client.w, client.h);
+/* existing content drawing, unchanged coordinates */
+gfx_transform_clear();
+```
+
+Every glass/AirGraph primitive maps design pixels into the client rectangle and
+clips there, so a 20 px inset becomes a 60 px inset at 4K, text scales with its
+glyph boxes, and content cannot paint over chrome. The transform is identity by
+default, which is why 720p output (and every other caller of these primitives)
+stays byte-identical; clicks are mapped back into the same design space before
+the content handlers see them.
+
+### One scale, three sessions
+
+The TV and phone layouts no longer carry their own ratio math: both call
+`ag_scale_ratio_q16()` from `airgraph.h` and apply their own 3x clamp. Their
+host tests assert the layout scale equals that shared ratio and that
+`*_layout_px()` equals `ag_px()`.
+
 `tests/desk_windows_host_test.c` renders that layer's chrome into a real
 3840x2160 surface and asserts the title bar height, traffic-light boxes, grip
 pixel, a close click at the scaled button centre, a title-bar drag, and a

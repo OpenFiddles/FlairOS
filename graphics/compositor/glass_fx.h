@@ -40,4 +40,18 @@ void gfx_draw_bmp_scaled(struct ag_surface *s, const uint8_t *bmp, uint32_t len,
                          int32_t dx, int32_t dy, int32_t dw, int32_t dh);
 void gfx_copy_fast(struct ag_surface *dst, const struct ag_surface *src);
 
+/* Window-content transform.
+
+   The desktop shell authors window content in 720p design coordinates. From
+   1080p up it installs one transform per window: every primitive maps design
+   pixels into the scaled client rectangle, clipped to that rectangle, so text
+   and spacing grow with the panel instead of staying 1x inside a 3x frame.
+   Identity by default, which is why 720p and every other caller stay
+   byte-identical. `clip_*` is in device pixels and inclusive of x/y only. */
+void gfx_transform_set(uint32_t scale_q16, int32_t ox, int32_t oy,
+                       int32_t clip_x, int32_t clip_y,
+                       int32_t clip_w, int32_t clip_h);
+void gfx_transform_clear(void);
+int gfx_transform_active(void);
+
 #endif

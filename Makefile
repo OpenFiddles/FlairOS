@@ -549,8 +549,8 @@ $(BUILD)/sprunkui_anim_host_test: tests/sprunkui_anim_host_test.c kernel/gfx/spr
 $(BUILD)/airnim_host_test: tests/airnim_host_test.c kernel/gfx/airnim.c kernel/gfx/airgraph.c kernel/gfx/fb.c include/airnim.h include/airgraph.h include/fb.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ -DFLAIROS_HOST_TEST tests/airnim_host_test.c kernel/gfx/airnim.c kernel/gfx/airgraph.c kernel/gfx/fb.c
 
-$(BUILD)/desk_windows_host_test: tests/desk_windows_host_test.c ui/shells/desk_windows.c ui/shells/desk_windows.h kernel/ui/windown.c kernel/ui/desktop_chrome.c kernel/gfx/airgraph.c kernel/gfx/airnim.c kernel/gfx/font5x7.c kernel/gfx/fb.c include/windown.h include/desktop_chrome.h | $(BUILD)
-	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -Iui/shells -DFLAIROS_HOST_TEST -o $@ tests/desk_windows_host_test.c ui/shells/desk_windows.c kernel/ui/windown.c kernel/ui/desktop_chrome.c kernel/gfx/airgraph.c kernel/gfx/airnim.c kernel/gfx/font5x7.c kernel/gfx/fb.c
+$(BUILD)/desk_windows_host_test: tests/desk_windows_host_test.c ui/shells/desk_windows.c ui/shells/desk_windows.h kernel/ui/windown.c kernel/ui/desktop_chrome.c kernel/gfx/airgraph.c kernel/gfx/airnim.c kernel/gfx/font5x7.c kernel/gfx/fb.c graphics/compositor/glass_fx.c include/windown.h include/desktop_chrome.h | $(BUILD)
+	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -Iui/shells -Igraphics/compositor -DFLAIROS_HOST_TEST -o $@ tests/desk_windows_host_test.c ui/shells/desk_windows.c kernel/ui/windown.c kernel/ui/desktop_chrome.c kernel/gfx/airgraph.c kernel/gfx/airnim.c kernel/gfx/font5x7.c kernel/gfx/fb.c kernel/gfx/bmp.c graphics/compositor/glass_fx.c
 
 # sprunkui.c is linked only for the real sp_theme_default fallback palette.
 # Section-level collection drops its AirGraph drawing code, which this test
@@ -564,13 +564,13 @@ $(BUILD)/tv_drawer_host_test: tests/tv_drawer_host_test.c ui/systemui/airstin_ui
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -DFLAIROS_HOST_TEST -Iinclude -Ikernel \
 		-o $@ tests/tv_drawer_host_test.c ui/systemui/airstin_ui.c kernel/ui/tv_layout.c kernel/ui/shell_launcher.c kernel/pkg/airp.c kernel/pkg/airjson.c graphics/compositor/glass_fx.c kernel/gfx/airgraph.c kernel/gfx/font5x7.c kernel/gfx/bmp.c kernel/gfx/fb.c
 
-$(BUILD)/tv_host_test: tests/tv_host_test.c kernel/ui/tv_layout.c kernel/ui/shell_launcher.c kernel/pkg/airp.c kernel/pkg/airjson.c kernel/ui/tv_layout.h kernel/ui/shell_launcher.h include/airp.h include/airjson.h | $(BUILD)
+$(BUILD)/tv_host_test: tests/tv_host_test.c kernel/ui/tv_layout.c kernel/ui/shell_launcher.c kernel/pkg/airp.c kernel/pkg/airjson.c kernel/ui/tv_layout.h kernel/ui/shell_launcher.h include/airp.h include/airjson.h kernel/gfx/airgraph.c kernel/gfx/fb.c | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -DFLAIROS_HOST_TEST -Iinclude -Ikernel \
-		-o $@ tests/tv_host_test.c kernel/ui/tv_layout.c kernel/ui/shell_launcher.c kernel/pkg/airp.c kernel/pkg/airjson.c
+		-o $@ tests/tv_host_test.c kernel/ui/tv_layout.c kernel/ui/shell_launcher.c kernel/pkg/airp.c kernel/pkg/airjson.c kernel/gfx/airgraph.c kernel/gfx/fb.c
 
-$(BUILD)/mobile_host_test: tests/mobile_host_test.c kernel/ui/mobile_layout.c kernel/ui/shell_launcher.c kernel/pkg/airp.c kernel/pkg/airjson.c kernel/ui/mobile_layout.h kernel/ui/shell_launcher.h include/airp.h include/airjson.h | $(BUILD)
+$(BUILD)/mobile_host_test: tests/mobile_host_test.c kernel/ui/mobile_layout.c kernel/ui/shell_launcher.c kernel/pkg/airp.c kernel/pkg/airjson.c kernel/ui/mobile_layout.h kernel/ui/shell_launcher.h include/airp.h include/airjson.h kernel/gfx/airgraph.c kernel/gfx/fb.c | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -DFLAIROS_HOST_TEST -Iinclude -Ikernel \
-		-o $@ tests/mobile_host_test.c kernel/ui/mobile_layout.c kernel/ui/shell_launcher.c kernel/pkg/airp.c kernel/pkg/airjson.c
+		-o $@ tests/mobile_host_test.c kernel/ui/mobile_layout.c kernel/ui/shell_launcher.c kernel/pkg/airp.c kernel/pkg/airjson.c kernel/gfx/airgraph.c kernel/gfx/fb.c
 
 # Runs the shipped .airp bytes through the real loader and the real phone draw
 # path, so `make test` covers the artifacts themselves and not a fixture.

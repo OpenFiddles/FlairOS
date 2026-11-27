@@ -484,13 +484,10 @@ void ag_alpha_blit(struct ag_surface *surface, int32_t x, int32_t y, int32_t w, 
 
 int ag_scale_q16_for(int32_t panel_w, int32_t panel_h,
                      int32_t design_w, int32_t design_h, uint32_t *out) {
-    uint32_t sx, sy, scale;
-    if (!out || panel_w <= 0 || panel_h <= 0 || design_w <= 0 || design_h <= 0 ||
-        panel_w > 8192 || panel_h > 8192 || design_w > 8192 || design_h > 8192)
-        return -1;
-    sx = ((uint32_t)panel_w << 16) / (uint32_t)design_w;
-    sy = ((uint32_t)panel_h << 16) / (uint32_t)design_h;
-    scale = sx < sy ? sx : sy;
+    uint32_t scale;
+    if (!out) return -1;
+    scale = ag_scale_ratio_q16(panel_w, panel_h, design_w, design_h);
+    if (scale == 0u) return -1;
     if (scale < AG_SCALE_ONE) scale = AG_SCALE_ONE;
     if (scale > AG_SCALE_MAX) scale = AG_SCALE_MAX;
     *out = scale;

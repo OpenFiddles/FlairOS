@@ -973,7 +973,15 @@ int shell_handle_input(const struct input64_state *in, int32_t w, int32_t h) {
             }
         }
 
-        /* 4. Windows top-to-bottom */
+        /* 4. Windows top-to-bottom. Density mode dispatches chrome first
+           through the same function the headless harness drives. */
+        if (dw_active(desk_dw())) {
+            int hit_slot = -1;
+            enum dw_click acted = DW_CLICK_NONE;
+            if (dw_dispatch_click(desk_dw(), wins, z_order, WIN_COUNT, mx, my,
+                                  &hit_slot, &acted))
+                return 1;
+        }
         for (int zi = WIN_COUNT - 1; zi >= 0; zi--) {
             int id = z_order[zi];
             struct dw_window *win = &wins[id];
@@ -981,10 +989,13 @@ int shell_handle_input(const struct input64_state *in, int32_t w, int32_t h) {
             if (!hit(mx, my, win->x, win->y, win->w, win->h)) continue;
             focus_win(id);
             if (dw_active(desk_dw())) {
-                /* Density mode: WinDown's metrics decide the region, so the
-                   scaled traffic lights and title bar are what get clicked. */
-                enum dw_click acted = dw_click(desk_dw(), win, id, mx, my);
-                if (acted != DW_CLICK_CLIENT) return 1;
+                /* Chrome was dispatched before this loop; what is left is a
+                   client click. Map it back into content design coordinates so
+                   the same handlers work at every density. */
+                struct dw_client c = dw_client_rect(desk_dw(), &wins[id]);
+                int32_t sc = desk_dw()->scale_q16;
+                mx = wins[id].x + (int32_t)(((int64_t)(mx - c.x) << 16) / sc);
+                my = wins[id].y + (int32_t)(((int64_t)(my - c.y) << 16) / sc);
             } else {
             /* Traffic lights */
             if (hit(mx, my, win->x + 12, win->y + 10, 14, 14)) { win->open = 0; return 1; }
@@ -1267,12 +1278,30 @@ void shell_render(struct ag_surface *s, const struct shell_boot_info *info, int 
         int id = z_order[zi];
         if (!wins[id].open || wins[id].minimized) continue;
         struct dw_window wdraw = wins[id];
-        wdraw.y += dw_open_offset(desk_dw(), id);
+        struct dw_state *dst = desk_dw();
+        int density = dw_active(dst);
+        wdraw.y += dw_open_offset(dst, id);
         const struct dw_window *win = &wdraw;
-        if (dw_active(desk_dw()))
-            dw_draw_chrome(desk_dw(), s, id, win, id == tw);
-        else
+        if (density) {
+            struct dw_client client;
+            struct dw_window design;
+            int32_t ox, oy;
+            dw_draw_chrome(dst, s, id, win, id == tw);
+            /* Content is authored in 720p coordinates. Map that space into the
+               scaled client rectangle so insets and text grow with the panel,
+               and clip it there so content cannot paint over chrome. */
+            client = dw_client_rect(dst, win);
+            design = wdraw;
+            design.w = (int32_t)(((int64_t)win->w << 16) / dst->scale_q16);
+            design.h = (int32_t)(((int64_t)win->h << 16) / dst->scale_q16);
+            ox = client.x - (int32_t)(((int64_t)win->x * dst->scale_q16) >> 16);
+            oy = client.y - (int32_t)(((int64_t)win->y * dst->scale_q16) >> 16);
+            gfx_transform_set(dst->scale_q16, ox, oy, client.x, client.y,
+                              client.w, client.h);
+            win = &design;
+        } else {
             draw_win_frame(s, win, id == tw);
+        }
 
         if (id == WIN_FINDER) {
             /* Left Places Sidebar */
@@ -1501,6 +1530,7 @@ void shell_render(struct ag_surface *s, const struct shell_boot_info *info, int 
                 }
             }
         }
+        if (density) gfx_transform_clear();
     }
 
     /* Dock: order, icons, glyphs and tooltips all come from the session package */

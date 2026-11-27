@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "airjson.h"
+#include "airgraph.h"
 #include "airp.h"
 #include "ui/mobile_layout.h"
 #include "ui/shell_launcher.h"
@@ -149,6 +150,11 @@ int main(void) {
     check(mobile_layout_scale_q16(720, 1280) == 98304, "720x1280 scales 1.5x");
     check(mobile_layout_scale_q16(1080, 1920) == 147456, "1080x1920 scales 2.25x");
     check(mobile_layout_scale_q16(1600, 2560) == 196608, "tall phones clamp at 3x");
+    check(mobile_layout_scale_q16(1440, 2560) ==
+          (int32_t)ag_scale_ratio_q16(1440, 2560, MOBILE_LAYOUT_BASE_W, MOBILE_LAYOUT_BASE_H),
+          "phone scale is the shared AirGraph ratio with the 3x session clamp");
+    check(mobile_layout_px(68, 147456) == ag_px(68, 147456),
+          "phone design pixels use AirGraph snapping");
     check(mobile_layout_scale_q16(320, 480) == 65536, "sub-design surfaces hold 1x");
     check(mobile_layout_scale_q16(0, 0) == 65536, "a degenerate surface holds 1x");
     check(mobile_layout_px(68, 98304) == 102, "design pixels scale");
