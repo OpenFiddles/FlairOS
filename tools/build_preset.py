@@ -156,6 +156,13 @@ def build_one(preset_name, arch):
         ld_emul = "aarch64elf"
 
     srcs = arch_srcs + COMMON_SRCS + [cfg["shell_source"]]
+    if cfg["shell_source"].endswith("shell_desktop.c"):
+        # The desktop session arranges windows through WinDown's density
+        # metrics, draws scaling chrome through AirGraph and animates window
+        # opens with an Airnimation preset, so those layers ship in the image.
+        srcs += ["ui/shells/desk_windows.c", "kernel/ui/windown.c",
+                 "kernel/ui/desktop_chrome.c", "kernel/gfx/airgraph.c",
+                 "kernel/gfx/airnim.c", "kernel/gfx/fb.c"]
     if cfg.get("session_package"):
         # A session shell (TV, mobile) reads its home screen from a packaged
         # resource, so the container reader and the layout modules ship with it.

@@ -114,6 +114,9 @@ struct wd_metrics wd_chrome_metrics(const struct wd_compositor *c);
    a 720p layout moves to 4K instead of becoming a stamp in the corner. */
 int wd_rescale_display(struct wd_compositor *c, int old_w, int old_h,
                        int new_w, int new_h);
+/* Scale one rectangle between two panel sizes, leaving it at least 1x1. */
+int wd_scale_rect(int *x, int *y, int *w, int *h,
+                  int old_w, int old_h, int new_w, int new_h);
 int wd_composite(struct wd_compositor *c, struct ag_device *device,
                  struct ag_surface *target, int grid_cols, int grid_rows);
 

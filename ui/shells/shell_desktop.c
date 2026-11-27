@@ -19,6 +19,7 @@
 #include "../../ported/python/flair_py.h"
 #include "../systemui/airstin_ui.h"
 #include "../../kernel/ui/shell_launcher.h"
+#include "desk_windows.h"
 
 enum win_id {
     WIN_FINDER = 0,
@@ -32,16 +33,10 @@ enum win_id {
     WIN_COUNT    = 8
 };
 
-struct mac_win {
-    int open;
-    int minimized;
-    int zoomed;
-    int32_t x, y, w, h;
-    int32_t sx, sy, sw, sh;
-    const char *title;
-};
+/* Window geometry lives in desk_windows.c so the headless harness exercises
+   the same table, density metrics and hit dispatch as the booted shell. */
 
-static struct mac_win wins[WIN_COUNT] = {
+static struct dw_window wins[WIN_COUNT] = {
     {1, 0, 0,  36,  52, 540, 360,  36,  52, 540, 360, "Finder"},
     {0, 0, 0, 524,  66, 460, 330, 524,  66, 460, 330, "Terminal"},
     {0, 0, 0, 140, 110, 480, 330, 140, 110, 480, 330, "Notes"},
@@ -142,6 +137,29 @@ static void desk_apply_titles(void) {
 }
 static int dragging_win = -1;
 static int32_t drag_ox = 0, drag_oy = 0;
+static struct dw_state g_dw;
+static int g_dw_ready = 0;
+
+static struct dw_state *desk_dw(void) {
+    if (!g_dw_ready) {
+        dw_init(&g_dw);
+        g_dw_ready = 1;
+    }
+    return &g_dw;
+}
+
+/* Configure density from the framebuffer we were handed. When the mode really
+   changes, open windows are rescaled before anything reads their geometry. */
+static int desk_density(int32_t w, int32_t h) {
+    int old_w, old_h, changed;
+    struct dw_state *st = desk_dw();
+    old_w = st->panel_w;
+    old_h = st->panel_h;
+    changed = dw_configure(st, w, h);
+    if (changed > 0 && old_w > 0 && old_h > 0)
+        (void)dw_rescale(st, wins, WIN_COUNT, old_w, old_h, w, h);
+    return changed > 0;
+}
 static int active_menu = -1; /* -1=none, 0=FlairOS, 1=Finder, 2=File, 3=Window, 4=View */
 static int theme_idx = 0;
 static int wifi_on = 1;
@@ -167,14 +185,14 @@ static int contains_icase(const char *hay, const char *ndl) {
     return 0;
 }
 static int cc_anim = 0;
-static int32_t win_anim_y[WIN_COUNT] = {0, 0, 0, 0, 0, 0, 0, 0};
+
 static int dock_hover = -1;
 static int dock_anim_tick = 0;
 static int dock_anim_frame = 0;
 static int32_t dock_pointer_x = -10000;
 static int32_t dock_scale[8] = {1000,1000,1000,1000,1000,1000,1000,1000};
 static int32_t dock_velocity[8] = {0,0,0,0,0,0,0,0};
-static int32_t win_anim_vy[WIN_COUNT] = {0,0,0,0,0,0,0,0};
+
 static int32_t cc_velocity = 0;
 static int32_t spotlight_anim_y = -24;
 static int32_t spotlight_anim_vy = 0;
@@ -379,7 +397,7 @@ static void focus_win(int id) {
     }
     wins[id].open = 1;
     wins[id].minimized = 0;
-    if (was_hidden) win_anim_y[id] = anim_on ? 24 : 0;
+    if (was_hidden) dw_open(desk_dw(), id);
 }
 
 static void finish_apk_install(void);
@@ -461,9 +479,6 @@ int shell_tick_at(uint32_t now_ticks, uint32_t ticks_per_second) {
         ac_power = ns->ac_power;
         wifi_on = ns->wifi_on;
         changed = 1;
-    }
-    for (int i = 0; i < WIN_COUNT; i++) {
-        if (spring_advance(&win_anim_y[i], &win_anim_vy[i], 0, dt_ms)) changed = 1;
     }
     if (spring_advance(&cc_anim, &cc_velocity, cc_open ? 24 : 0, dt_ms)) changed = 1;
     if (spring_advance(&spotlight_anim_y, &spotlight_anim_vy, spotlight_open ? 0 : -24, dt_ms)) changed = 1;
@@ -773,6 +788,7 @@ int shell_handle_input(const struct input64_state *in, int32_t w, int32_t h) {
     int32_t mx = in->mouse_x, my = in->mouse_y;
 
     desk_ensure(0);
+    if (desk_density(w, h)) dirty = 1;
 
     /* Track Dock hover for highlight + floating tooltip */
     {
@@ -793,7 +809,16 @@ int shell_handle_input(const struct input64_state *in, int32_t w, int32_t h) {
         dock_pointer_x = (nh >= 0) ? (mx - dx) : -10000;
     }
 
-    if (dragging_win >= 0 && (in->buttons & 1u)) {
+    if (dw_active(desk_dw())) {
+        struct dw_state *st = desk_dw();
+        if (st->drag_id >= 0 && (in->buttons & 1u)) {
+            if (dw_drag_to(st, &wins[st->drag_id], st->drag_id, mx, my)) dirty = 1;
+        } else if (st->drag_id >= 0) {
+            dw_end_drag(st);
+            dirty = 1;
+        }
+    }
+    if (!dw_active(desk_dw()) && dragging_win >= 0 && (in->buttons & 1u)) {
         int32_t nx = mx - drag_ox, ny = my - drag_oy;
         if (ny < 34) ny = 34;
         if (ny > h - 100) ny = h - 100;
@@ -951,10 +976,16 @@ int shell_handle_input(const struct input64_state *in, int32_t w, int32_t h) {
         /* 4. Windows top-to-bottom */
         for (int zi = WIN_COUNT - 1; zi >= 0; zi--) {
             int id = z_order[zi];
-            struct mac_win *win = &wins[id];
+            struct dw_window *win = &wins[id];
             if (!win->open || win->minimized) continue;
             if (!hit(mx, my, win->x, win->y, win->w, win->h)) continue;
             focus_win(id);
+            if (dw_active(desk_dw())) {
+                /* Density mode: WinDown's metrics decide the region, so the
+                   scaled traffic lights and title bar are what get clicked. */
+                enum dw_click acted = dw_click(desk_dw(), win, id, mx, my);
+                if (acted != DW_CLICK_CLIENT) return 1;
+            } else {
             /* Traffic lights */
             if (hit(mx, my, win->x + 12, win->y + 10, 14, 14)) { win->open = 0; return 1; }
             if (hit(mx, my, win->x + 28, win->y + 10, 14, 14)) { win->minimized = 1; return 1; }
@@ -971,6 +1002,7 @@ int shell_handle_input(const struct input64_state *in, int32_t w, int32_t h) {
             if (hit(mx, my, win->x, win->y, win->w, 36)) {
                 dragging_win = id; drag_ox = mx - win->x; drag_oy = my - win->y;
                 return 1;
+            }
             }
             /* Client clicks per window */
             if (id == WIN_FINDER) {
@@ -1188,7 +1220,7 @@ int shell_handle_input(const struct input64_state *in, int32_t w, int32_t h) {
     return dirty;
 }
 
-static void draw_win_frame(struct ag_surface *s, const struct mac_win *win, int focused) {
+static void draw_win_frame(struct ag_surface *s, const struct dw_window *win, int focused) {
     if (focused) gfx_fill_round_rect(s, win->x + 6, win->y + 8, win->w, win->h, 16, 0x0002040Au, 95u);
     gfx_glass_panel(s, win->x, win->y, win->w, win->h, 14,
                     focused ? THEME_GLASS_DARK : THEME_GLASS_LIGHT, focused ? 232u : 205u);
@@ -1204,6 +1236,7 @@ void shell_render(struct ag_surface *s, const struct shell_boot_info *info, int 
     term_init_once();
     if (!notes_loaded) notes_load("/home/NOTE.TXT");
     int32_t w = s->width, h = s->height;
+    desk_density(w, h);
 
     uint32_t top_c = theme_idx == 1 ? 0x000D1E3Au : (theme_idx == 2 ? 0x002B1028u : THEME_BG_TOP);
     uint32_t bot_c = theme_idx == 1 ? 0x00163B5Cu : (theme_idx == 2 ? 0x0052193Au : THEME_BG_BOT);
@@ -1233,10 +1266,13 @@ void shell_render(struct ag_surface *s, const struct shell_boot_info *info, int 
     for (int zi = 0; zi < WIN_COUNT; zi++) {
         int id = z_order[zi];
         if (!wins[id].open || wins[id].minimized) continue;
-        struct mac_win wdraw = wins[id];
-        wdraw.y += win_anim_y[id];
-        const struct mac_win *win = &wdraw;
-        draw_win_frame(s, win, id == tw);
+        struct dw_window wdraw = wins[id];
+        wdraw.y += dw_open_offset(desk_dw(), id);
+        const struct dw_window *win = &wdraw;
+        if (dw_active(desk_dw()))
+            dw_draw_chrome(desk_dw(), s, id, win, id == tw);
+        else
+            draw_win_frame(s, win, id == tw);
 
         if (id == WIN_FINDER) {
             /* Left Places Sidebar */

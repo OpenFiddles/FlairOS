@@ -549,6 +549,9 @@ $(BUILD)/sprunkui_anim_host_test: tests/sprunkui_anim_host_test.c kernel/gfx/spr
 $(BUILD)/airnim_host_test: tests/airnim_host_test.c kernel/gfx/airnim.c kernel/gfx/airgraph.c kernel/gfx/fb.c include/airnim.h include/airgraph.h include/fb.h | $(BUILD)
 	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -o $@ -DFLAIROS_HOST_TEST tests/airnim_host_test.c kernel/gfx/airnim.c kernel/gfx/airgraph.c kernel/gfx/fb.c
 
+$(BUILD)/desk_windows_host_test: tests/desk_windows_host_test.c ui/shells/desk_windows.c ui/shells/desk_windows.h kernel/ui/windown.c kernel/ui/desktop_chrome.c kernel/gfx/airgraph.c kernel/gfx/airnim.c kernel/gfx/font5x7.c kernel/gfx/fb.c include/windown.h include/desktop_chrome.h | $(BUILD)
+	$(HOSTCC) -std=gnu99 -Wall -Wextra -Iinclude -Iui/shells -DFLAIROS_HOST_TEST -o $@ tests/desk_windows_host_test.c ui/shells/desk_windows.c kernel/ui/windown.c kernel/ui/desktop_chrome.c kernel/gfx/airgraph.c kernel/gfx/airnim.c kernel/gfx/font5x7.c kernel/gfx/fb.c
+
 # sprunkui.c is linked only for the real sp_theme_default fallback palette.
 # Section-level collection drops its AirGraph drawing code, which this test
 # never calls and which has no host implementation.
@@ -628,7 +631,7 @@ $(BUILD)/cursor_host_test: tests/cursor_host_test.c kernel/gfx/cursor.c kernel/g
 
 # Host tests build kernel sources with the host compiler, so they describe the
 # shared code rather than either target's boot path. They gate CI.
-test: $(BUILD)/airgraph_host_test $(BUILD)/driver_host_test $(BUILD)/io_host_test $(BUILD)/fb_host_test $(BUILD)/ata_identify_host_test $(BUILD)/pmm_host_test $(BUILD)/vm_region_host_test $(BUILD)/desktop_render_host_test $(BUILD)/desktop_chrome_host_test $(BUILD)/windown_host_test $(BUILD)/task_host_test $(BUILD)/elf_host_test $(BUILD)/vfs_host_test $(BUILD)/bmp_host_test $(BUILD)/image_host_test $(BUILD)/cursor_host_test $(BUILD)/fat32_host_test $(BUILD)/airnim_host_test $(BUILD)/status_host_test $(BUILD)/sprunkui_anim_host_test $(BUILD)/airjson_host_test $(BUILD)/desktop_theme_host_test $(BUILD)/airp_host_test $(BUILD)/bt_host_test $(BUILD)/wifi_host_test $(BUILD)/wifi_join_host_test $(BUILD)/tv_host_test $(BUILD)/tv_drawer_host_test $(BUILD)/mobile_host_test $(BUILD)/session_pkg_host_test $(BUILD)/FlairTV.airp $(BUILD)/FlairMobile.airp $(BUILD)/FlairDesktop.airp
+test: $(BUILD)/airgraph_host_test $(BUILD)/driver_host_test $(BUILD)/io_host_test $(BUILD)/fb_host_test $(BUILD)/ata_identify_host_test $(BUILD)/pmm_host_test $(BUILD)/vm_region_host_test $(BUILD)/desktop_render_host_test $(BUILD)/desktop_chrome_host_test $(BUILD)/windown_host_test $(BUILD)/task_host_test $(BUILD)/elf_host_test $(BUILD)/vfs_host_test $(BUILD)/bmp_host_test $(BUILD)/image_host_test $(BUILD)/cursor_host_test $(BUILD)/fat32_host_test $(BUILD)/airnim_host_test $(BUILD)/desk_windows_host_test $(BUILD)/status_host_test $(BUILD)/sprunkui_anim_host_test $(BUILD)/airjson_host_test $(BUILD)/desktop_theme_host_test $(BUILD)/airp_host_test $(BUILD)/bt_host_test $(BUILD)/wifi_host_test $(BUILD)/wifi_join_host_test $(BUILD)/tv_host_test $(BUILD)/tv_drawer_host_test $(BUILD)/mobile_host_test $(BUILD)/session_pkg_host_test $(BUILD)/FlairTV.airp $(BUILD)/FlairMobile.airp $(BUILD)/FlairDesktop.airp
 	$(BUILD)/airgraph_host_test
 	$(BUILD)/fb_host_test
 	$(BUILD)/driver_host_test
@@ -643,6 +646,7 @@ test: $(BUILD)/airgraph_host_test $(BUILD)/driver_host_test $(BUILD)/io_host_tes
 	$(BUILD)/desktop_theme_host_test
 	$(BUILD)/airp_host_test
 	$(BUILD)/airnim_host_test
+	$(BUILD)/desk_windows_host_test
 	$(BUILD)/status_host_test
 	$(BUILD)/sprunkui_anim_host_test
 	$(BUILD)/task_host_test

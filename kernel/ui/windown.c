@@ -272,6 +272,20 @@ static int wd_scale_coord(int v, int from, int to) {
     return (int32_t)out;
 }
 
+int wd_scale_rect(int *x, int *y, int *w, int *h,
+                  int old_w, int old_h, int new_w, int new_h) {
+    if (!x || !y || !w || !h || old_w <= 0 || old_h <= 0 ||
+        new_w <= 0 || new_h <= 0)
+        return -1;
+    *x = wd_scale_coord(*x, old_w, new_w);
+    *y = wd_scale_coord(*y, old_h, new_h);
+    *w = wd_scale_coord(*w, old_w, new_w);
+    *h = wd_scale_coord(*h, old_h, new_h);
+    if (*w < 1) *w = 1;
+    if (*h < 1) *h = 1;
+    return 0;
+}
+
 int wd_rescale_display(struct wd_compositor *c, int old_w, int old_h,
                        int new_w, int new_h) {
     if (!c || old_w <= 0 || old_h <= 0 || new_w <= 0 || new_h <= 0)
@@ -279,16 +293,12 @@ int wd_rescale_display(struct wd_compositor *c, int old_w, int old_h,
     for (int i = 0; i < WINDOWN_MAX_WINDOWS; i++) {
         struct wd_window *w = &c->windows[i];
         if (!(w->flags & WD_FLAG_USED)) continue;
-        w->x = wd_scale_coord(w->x, old_w, new_w);
-        w->y = wd_scale_coord(w->y, old_h, new_h);
-        w->w = wd_scale_coord(w->w, old_w, new_w);
-        w->h = wd_scale_coord(w->h, old_h, new_h);
-        w->saved_x = wd_scale_coord(w->saved_x, old_w, new_w);
-        w->saved_y = wd_scale_coord(w->saved_y, old_h, new_h);
-        w->saved_w = wd_scale_coord(w->saved_w, old_w, new_w);
-        w->saved_h = wd_scale_coord(w->saved_h, old_h, new_h);
-        if (w->w < 1) w->w = 1;
-        if (w->h < 1) w->h = 1;
+        if (wd_scale_rect(&w->x, &w->y, &w->w, &w->h,
+                          old_w, old_h, new_w, new_h) != 0)
+            return -1;
+        if (wd_scale_rect(&w->saved_x, &w->saved_y, &w->saved_w, &w->saved_h,
+                          old_w, old_h, new_w, new_h) != 0)
+            return -1;
     }
     return wd_set_display(c, new_w, new_h);
 }

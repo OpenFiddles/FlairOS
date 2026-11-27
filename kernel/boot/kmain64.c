@@ -12,6 +12,9 @@
 #include "../../net/airp/airp_net.h"
 #include "../../ui/shells/shell_common.h"
 
+/* Airnimation reads kernel ticks; the main loop publishes the timer here. */
+volatile unsigned int ticks;
+
 int kbd_read(void) { return -1; }
 void putc(char c) { hal_serial_putc(c); }
 void kernel_panic(const char *msg) {
@@ -227,6 +230,7 @@ void kmain64(uint64_t arg0, uint64_t arg1) {
     uint32_t last_tick = hal_timer_ticks();
     for (;;) {
         uint32_t now_tick = hal_timer_ticks();
+        ticks = now_tick;
         input64_poll(&in);
         int ui_dirty = shell_handle_input(&in, back_surf.width, back_surf.height) |
                        shell_tick_at(now_tick, hz_freq);

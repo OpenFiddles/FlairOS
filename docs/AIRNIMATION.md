@@ -101,6 +101,26 @@ int32_t offset = an_preset_offset(an_id_str("drawer"),
 Add a preset to `kernel/gfx/airnim.c` and extend `tests/airnim_host_test.c`
 rather than teaching a shell a new curve.
 
+## Wired into the shipping desktop
+
+`ui/shells/desk_windows.c` is the desktop shell's window layer and the headless
+harness's subject. It configures density from the framebuffer the shell is
+handed (`dw_configure`), draws chrome with `desktop_chrome_draw_scaled()` when
+the panel is above 720p, routes close/minimize/zoom/title-bar input through
+`wd_hit_chrome()`, and plays the `slide-in` preset for a window open. At 720p
+and below `dw_active()` is false, so the shell keeps its original 1 px chrome
+and pixel hit regions; the i386 reference compositor never configures density
+at all.
+
+When the framebuffer size changes, the shell calls `dw_rescale()`: every window
+and its saved geometry scale with the panel, are clamped on-screen below the
+menu bar, and the compositor adopts the new metrics before the next frame.
+
+`tests/desk_windows_host_test.c` renders that layer's chrome into a real
+3840x2160 surface and asserts the title bar height, traffic-light boxes, grip
+pixel, a close click at the scaled button centre, a title-bar drag, and a
+720p→4K rescale that keeps all eight windows on-screen and 3x proportional.
+
 ## Where each piece is tested
 
 | Area | Host test |
@@ -109,6 +129,7 @@ rather than teaching a shell a new curve.
 | Legacy and 4K chrome metrics, hit regions, scaled composite, display adoption | `tests/windown_host_test.c` |
 | Preset table, lookup, play, disabled snap, offsets | `tests/airnim_host_test.c` |
 | Animated widgets on top of the engine | `tests/sprunkui_anim_host_test.c` |
+| Shipping desktop density, scaled clicks, preset open, 4K rescale | `tests/desk_windows_host_test.c` |
 
 All of these run under `make test`; `make verify-disk` still gates the twelve
 preset images, so a rendering regression that changes a booted frame fails the
