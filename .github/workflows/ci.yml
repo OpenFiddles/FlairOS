@@ -77,17 +77,40 @@ jobs:
       # and asserts the captured framebuffer, so a regression of the disk path
       # fails CI instead of passing on a log line. Runners have no /dev/kvm, so
       # this runs under TCG on both architectures.
+      # The results are echoed into the job summary as well as the log, so what
+      # the gate saw is readable without digging through the whole build log.
+      # pipefail keeps a failing verifier a failing step.
       - name: Disk boot to render=ok with framebuffer assertion
         env:
           FLAIROS_QEMU_ACCEL: tcg
-        run: python3 tools/verify_disk_boot.py
+        run: |
+          set -o pipefail
+          status=0
+          python3 tools/verify_disk_boot.py | tee disk-boot.log || status=$?
+          {
+            echo '### Disk boots (packaged QEMU, TCG, no -kernel)'
+            echo '```'
+            cat disk-boot.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit $status
 
       # A gate that cannot fail is not a gate: damaged media and a render that
       # never completes must all make the verifier exit nonzero.
       - name: Prove the disk gate rejects broken images
         env:
           FLAIROS_QEMU_ACCEL: tcg
-        run: python3 tests/disk_boot_gate_test.py
+        run: |
+          set -o pipefail
+          status=0
+          python3 tests/disk_boot_gate_test.py | tee disk-gate.log || status=$?
+          {
+            echo '### Gate failure proofs'
+            echo '```'
+            cat disk-gate.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit $status
 
       - name: Upload 64-bit preset images
         if: always()
