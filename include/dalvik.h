@@ -13,7 +13,7 @@
  * guessing.
  */
 
-#define DVM_MAX_REGISTERS 32
+#define DVM_MAX_REGISTERS 256
 #define DVM_MAX_FRAMES    24
 #define DVM_MAX_OBJECTS   256
 #define DVM_MAX_FIELDS    16

@@ -499,8 +499,16 @@ static int dvm_exec(struct dvm *vm, uint32_t method_idx, const int32_t *args,
     memset(fr, 0, sizeof *fr);
     fr->method_idx = method_idx;
     fr->regs_size = regs_size;
+    if (ins_size > regs_size) {
+        snprintf(vm->trap, sizeof vm->trap, "code_item ins=%u > regs=%u", ins_size, regs_size);
+        return DVM_ERR_TRAP;
+    }
+    if (nargs > (int)ins_size) {
+        snprintf(vm->trap, sizeof vm->trap, "call passes %d args, method takes %u", nargs, ins_size);
+        return DVM_ERR_TRAP;
+    }
     uint32_t base = regs_size - ins_size;
-    for (int i = 0; i < nargs && (uint32_t)i < ins_size; i++)
+    for (int i = 0; i < nargs; i++)
         fr->regs[base + (uint32_t)i] = args[i];
 
     uint32_t pc = 0;
@@ -548,7 +556,7 @@ static int dvm_exec(struct dvm *vm, uint32_t method_idx, const int32_t *args,
             }
             return DVM_OK;
         case 0x12:                                         /* const/4 */
-            fr->regs[aa] = (int32_t)((int8_t)((insns[pc] >> 12) << 4)) >> 4;
+            fr->regs[(insns[pc] >> 8) & 0xf] = (int32_t)((int8_t)((insns[pc] >> 12) << 4)) >> 4;
             pc++; break;
         case 0x13:                                         /* const/16 */
             fr->regs[aa] = (int16_t)insns[pc + 1]; pc += 2; break;
@@ -572,15 +580,15 @@ static int dvm_exec(struct dvm *vm, uint32_t method_idx, const int32_t *args,
         case 0x1f:                                         /* check-cast */
             pc += 2; break;
         case 0x20: {                                       /* instance-of */
-            uint8_t a = (uint8_t)(insns[pc] >> 8);
-            uint8_t b = (uint8_t)(insns[pc] >> 12);
+            uint8_t a = (uint8_t)((insns[pc] >> 8) & 0xf);
+            uint8_t b = (uint8_t)((insns[pc] >> 12) & 0xf);
             uint16_t type_idx = insns[pc + 1];
             struct dvm_object *o = object_at(vm, fr->regs[b]);
             fr->regs[a] = (o && o->class_idx == type_idx) ? 1 : 0;
             pc += 2; break;
         }
         case 0x21: {                                       /* array-length */
-            uint8_t a = (uint8_t)(insns[pc] >> 8);
+            uint8_t a = (uint8_t)((insns[pc] >> 8) & 0xf);
             fr->regs[a] = 0;
             trap(vm, "array-length (no array model)", pc, op);
             return DVM_ERR_TRAP;
@@ -616,7 +624,8 @@ static int dvm_exec(struct dvm *vm, uint32_t method_idx, const int32_t *args,
             break;
         }
         case 0x32: case 0x33: case 0x34: case 0x35: case 0x36: case 0x37: {
-            uint8_t a = (uint8_t)(insns[pc] >> 8), b = (uint8_t)(insns[pc] >> 12);
+            uint8_t a = (uint8_t)((insns[pc] >> 8) & 0xf);
+            uint8_t b = (uint8_t)(insns[pc] >> 12);
             int16_t off = (int16_t)insns[pc + 1];
             int32_t x = fr->regs[a], y = fr->regs[b];
             int take = 0;
@@ -649,13 +658,15 @@ static int dvm_exec(struct dvm *vm, uint32_t method_idx, const int32_t *args,
         }
         case 0x52: case 0x53: case 0x54: case 0x55: case 0x56: case 0x57: case 0x58: {
             /* iget / iget-object / iget-boolean ... : 22c */
-            uint8_t a = (uint8_t)(insns[pc] >> 8), b = (uint8_t)(insns[pc] >> 12);
+            uint8_t a = (uint8_t)((insns[pc] >> 8) & 0xf);
+            uint8_t b = (uint8_t)(insns[pc] >> 12);
             uint16_t field_idx = insns[pc + 1];
             fr->regs[a] = obj_field_get(vm, fr->regs[b], field_idx);
             pc += 2; break;
         }
         case 0x59: case 0x5a: case 0x5b: case 0x5c: case 0x5d: case 0x5e: case 0x5f: {
-            uint8_t a = (uint8_t)(insns[pc] >> 8), b = (uint8_t)(insns[pc] >> 12);
+            uint8_t a = (uint8_t)((insns[pc] >> 8) & 0xf);
+            uint8_t b = (uint8_t)(insns[pc] >> 12);
             uint16_t field_idx = insns[pc + 1];
             obj_field_set(vm, fr->regs[b], field_idx, fr->regs[a]);
             pc += 2; break;
@@ -667,18 +678,25 @@ static int dvm_exec(struct dvm *vm, uint32_t method_idx, const int32_t *args,
             static_set(vm, insns[pc + 1], fr->regs[aa]);
             pc += 2; break;
         case 0x6e: case 0x6f: case 0x70: case 0x71: case 0x72: {
-            /* invoke-* 35c: A|G|op BBBB F|E|D|C */
+            /* invoke-* 35c: A|G|op BBBB F|E|D|C.
+             * The argument count A and the fifth register G live in the high
+             * byte of the first code unit; C..F are nibbles of the last unit. */
             uint16_t midx = insns[pc + 1];
             uint16_t regs = insns[pc + 2];
-            int n = (regs >> 12) & 0xf;
+            int n = (aa >> 4) & 0xf;
+            uint8_t g_reg = aa & 0xf;
             int32_t argv[8];
             int argc = 0;
-            static const int shifts[5] = { 0, 4, 8, 12, 0 };
-            for (int i = 0; i < n && argc < 8; i++) {
-                uint8_t reg = (uint8_t)((regs >> shifts[i]) & 0xf);
-                if (i == 4) reg = (uint8_t)(regs & 0xf);
-                argv[argc++] = fr->regs[reg];
+            const uint8_t arg_regs[5] = {
+                (uint8_t)(regs & 0xf), (uint8_t)((regs >> 4) & 0xf),
+                (uint8_t)((regs >> 8) & 0xf), (uint8_t)((regs >> 12) & 0xf), g_reg
+            };
+            if (n > 5) {
+                snprintf(vm->trap, sizeof vm->trap, "invoke 35c with %d args", n);
+                return DVM_ERR_TRAP;
             }
+            for (int i = 0; i < n; i++)
+                argv[argc++] = fr->regs[arg_regs[i]];
             char cls[96], name[64], sig[160];
             if (method_class(vm, midx, cls, sizeof cls) != 0 ||
                 method_name(vm, midx, name, sizeof name) != 0) {
@@ -726,7 +744,12 @@ static int dvm_exec(struct dvm *vm, uint32_t method_idx, const int32_t *args,
             uint16_t first = insns[pc + 2];
             uint8_t count = aa;
             int32_t argv[8];
-            for (int i = 0; i < count && i < 8; i++) argv[i] = fr->regs[first + i];
+            if (count > 8u || (uint32_t)first + count > regs_size) {
+                snprintf(vm->trap, sizeof vm->trap,
+                         "invoke-range with %u args from v%u (regs=%u)", count, first, regs_size);
+                return DVM_ERR_TRAP;
+            }
+            for (int i = 0; i < count; i++) argv[i] = fr->regs[first + i];
             char cls[96], name[64], sig[160];
             if (method_class(vm, midx, cls, sizeof cls) != 0 ||
                 method_name(vm, midx, name, sizeof name) != 0) {
@@ -816,7 +839,8 @@ static int dvm_exec(struct dvm *vm, uint32_t method_idx, const int32_t *args,
         }
         case 0xb0: case 0xb1: case 0xb2: case 0xb3: case 0xb4:
         case 0xb5: case 0xb6: case 0xb7: case 0xb8: case 0xb9: case 0xba: {
-            uint8_t a = (uint8_t)(insns[pc] >> 8), b = (uint8_t)(insns[pc] >> 12);
+            uint8_t a = (uint8_t)((insns[pc] >> 8) & 0xf);
+            uint8_t b = (uint8_t)(insns[pc] >> 12);
             int32_t x = fr->regs[a], y = fr->regs[b];
             int32_t r = 0;
             switch (op) {
@@ -847,7 +871,8 @@ static int dvm_exec(struct dvm *vm, uint32_t method_idx, const int32_t *args,
         }
         case 0xd0: case 0xd1: case 0xd2: case 0xd3: case 0xd4:
         case 0xd5: case 0xd6: case 0xd7: {
-            uint8_t a = (uint8_t)(insns[pc] >> 8), b = (uint8_t)(insns[pc] >> 12);
+            uint8_t a = (uint8_t)((insns[pc] >> 8) & 0xf);
+            uint8_t b = (uint8_t)(insns[pc] >> 12);
             int32_t x = fr->regs[b], y = (int16_t)insns[pc + 1];
             int32_t r = 0;
             switch (op) {

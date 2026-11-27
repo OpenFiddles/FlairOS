@@ -121,6 +121,71 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  # The APK path, exercised on real third-party packages on a clean runner.
+  # Nothing here is committed (Fennec alone is 130 MB): the packages are fetched
+  # from F-Droid, which publishes redistributable APKs, and the log this job
+  # prints is the evidence that the binary manifest and the DEX interpreter work
+  # outside one developer's session.
+  real-apks:
+    name: Real APKs (binary manifest + real bytecode)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Build the host probe
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq build-essential python3 curl > /dev/null
+          cc --version | head -1
+          make build/apk_probe
+          ls -l build/apk_probe
+
+      # F-Droid's index gives the current versionCode per package, so this keeps
+      # working as the packages update instead of pinning a URL that 404s.
+      - name: Fetch real, redistributable packages from F-Droid
+        run: |
+          set -euo pipefail
+          mkdir -p apks
+          fetch() {
+            pkg="$1"
+            vc=$(curl -fsSL "https://f-droid.org/api/v1/packages/$pkg" \
+                 | python3 -c 'import json,sys; print(json.load(sys.stdin)["suggestedVersionCode"])')
+            curl -fsSL -o "apks/$pkg.apk" "https://f-droid.org/repo/${pkg}_${vc}.apk"
+            test -s "apks/$pkg.apk"
+            echo "$pkg versionCode $vc, $(stat -c %s "apks/$pkg.apk") bytes"
+          }
+          fetch org.mozilla.fennec_fdroid
+          fetch org.fdroid.fdroid
+          fetch com.termux
+          fetch org.schabi.newpipe
+
+      - name: Read the binary manifests and run real bytecode
+        run: |
+          set -o pipefail
+          : > apk-probe.log
+          for f in apks/*.apk; do
+            echo "=== $f" >> apk-probe.log
+            ./build/apk_probe "$f" >> apk-probe.log 2>&1 || echo "probe exited $? for $f" >> apk-probe.log
+          done
+          cat apk-probe.log
+          {
+            echo '### Real APK probe (binary AXML manifest and Dalvik interpretation)'
+            echo '```'
+            cat apk-probe.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Fails on <unparsed>, a missing label/launcher, a failed AXML walk, or a
+      # report with no string return, object allocation or caught exception.
+      - name: Gate the measured values and the bytecode runs
+        run: python3 tests/apk_probe_gate_test.py apk-probe.log
+
+      # A gate that cannot fail is not a gate.
+      - name: Prove the gate rejects a damaged report
+        run: python3 tests/apk_probe_gate_test.py --self-test
+
   # The i386 reference build. It still builds and boots, but it is opt-in and
   # never blocks a pull request: nothing the product depends on lives here.
   legacy-i386:

@@ -128,6 +128,7 @@ int main(int argc, char **argv) {
 
     /* Every classesN.dex, in install order: classes.dex, classes2.dex, ... */
     int executables = 0, readable = 0;
+    int dex_with_runs = 0, methods_returned = 0, caught_exceptions = 0;
     for (int n = 1; n <= 32; n++) {
         char name[32];
         if (n == 1) snprintf(name, sizeof name, "classes.dex");
@@ -193,6 +194,9 @@ int main(int argc, char **argv) {
                     printf("%-15s   run %s -> %d (%u insns)\n", name,
                            st.hit[i].name, (int)r->value, r->insns);
             }
+            if (st.executed > 0) dex_with_runs++;
+            methods_returned += st.executed;
+            caught_exceptions += st.caught_hits;
             for (int i = 0; i < st.nstr; i++)
                 printf("%-15s   string %s -> \"%s\" (%u insns)\n", name,
                        st.str[i].name, st.str[i].res.string, st.str[i].res.insns);
@@ -224,8 +228,9 @@ int main(int argc, char **argv) {
         free(dex);
     }
 
-    printf("summary         = %d readable dex, %d executed by this runtime\n",
-           readable, executables);
+    printf("summary         = %d readable dex; %d dex ran bytecode, %d methods returned, "
+           "%d thrown-and-caught exceptions; %d reached the legacy dex_run_buffer entry\n",
+           readable, dex_with_runs, methods_returned, caught_exceptions, executables);
     free(apk);
     return readable > 0 ? 0 : 1;
 }
