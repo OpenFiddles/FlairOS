@@ -57,8 +57,9 @@ def main():
             failures += 1
             print("    " + out.replace("\n", "\n    ")[:1500])
 
-    # 0. control: the untouched image must pass
-    code, out = run_verifier(src, preset, dims, 60)
+    # 0. control: the untouched image must pass (generous, since CI runs TCG
+    # on a shared runner; the broken images below must still never pass)
+    code, out = run_verifier(src, preset, dims, 180)
     check("intact image", True, code, out)
 
     # 1. missing image

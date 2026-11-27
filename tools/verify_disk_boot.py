@@ -329,7 +329,7 @@ def main(argv):
             return 2
         w, h = (int(x) for x in dims.lower().split("x"))
         arch = archs[0]
-        limit = timeout if timeout is not None else (240 if arch == "aarch64" else 120)
+        limit = timeout if timeout is not None else (240 if arch == "aarch64" else 180)
         ok, message = verify(image, arch, name, w, h, limit)
         print(("[ok]   " if ok else "[FAIL] ") + message)
         return 0 if ok else 1
@@ -340,7 +340,7 @@ def main(argv):
                 print(f"unknown preset: {preset}")
                 return 2
             width, height = preset_dims(preset)
-            limit = timeout if timeout is not None else (240 if arch == "aarch64" else 120)
+            limit = timeout if timeout is not None else (240 if arch == "aarch64" else 180)
             ok, message = verify(image_for(preset, arch), arch, preset, width, height, limit)
             print(("[ok]   " if ok else "[FAIL] ") + message)
             results.append(ok)

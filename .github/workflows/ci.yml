@@ -24,10 +24,17 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v4
 
+      # nasm assembles the x86_64 BIOS boot sector and loader that
+      # tools/make_bootdisk.py links into the preset image, so the disk images
+      # are built here exactly as `make presets` builds them locally.
       - name: Install 64-bit toolchain
         run: |
           sudo apt-get update -qq
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq clang lld llvm binutils make python3 > /dev/null
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+            clang lld llvm binutils make python3 nasm > /dev/null
+          clang --version | head -1
+          ld.lld --version
+          nasm -v
 
       - name: Build desktop, mobile and tv for x86_64 and aarch64
         run: python3 tools/build_preset.py --all
@@ -44,12 +51,18 @@ jobs:
       - name: Host tests over the shared kernel sources
         run: make test
 
+      # Only packaged tools: no QEMU_MODULE_DIR, no custom PATH, no /dev/kvm.
+      # seabios/vgabios are listed explicitly because x86_64 boots with
+      # -vga std and needs its option ROM; qemu-efi-aarch64 is the real AAVMF
+      # firmware aarch64 boots through.
       - name: Install QEMU and aarch64 UEFI firmware for the disk-boot assertion
         run: |
           sudo apt-get update -qq
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
-            qemu-system-x86 qemu-system-arm qemu-efi-aarch64 > /dev/null
+            qemu-system-x86 qemu-system-arm qemu-efi-aarch64 seabios vgabios > /dev/null
+          command -v qemu-system-x86_64 qemu-system-aarch64
           ls -l /usr/share/AAVMF/AAVMF_CODE.fd
+          test ! -e /dev/kvm && echo 'no /dev/kvm: the boots below run under TCG'
 
       # Boots each preset from its own disk image (no -kernel, no floppy, no ISO)
       # and asserts the captured framebuffer, so a regression of the disk path
