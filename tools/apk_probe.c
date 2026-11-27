@@ -22,8 +22,10 @@
 #include <string.h>
 
 #include "apk.h"
+#include "axml.h"
 #include "dex.h"
 #include "flair_zlib.h"
+#include "dalvik.h"
 
 static uint8_t *read_file(const char *path, long *size_out) {
     FILE *f = fopen(path, "rb");
@@ -90,11 +92,39 @@ int main(int argc, char **argv) {
 
     struct apk_info info;
     int rc = apk_inspect(apk, (uint32_t)size, &info);
-    printf("apk_inspect     = %d (manifest=%d dex=%d x86_so=%d package=%s label=%s)\n",
-           rc, info.has_manifest, info.has_dex, info.has_x86_so,
-           info.package_name[0] ? info.package_name : "<unparsed>",
-           info.app_label[0] ? info.app_label : "<unparsed>");
+    printf("apk_inspect     = %d (manifest=%d dex=%d x86_so=%d) [text-manifest path]\n",
+           rc, info.has_manifest, info.has_dex, info.has_x86_so);
     if (rc != 0) { free(apk); return 1; }
+
+    /* The binary AXML manifest: real package/version/SDK/label/launcher. */
+    struct apk_entry mf;
+    if (apk_find_entry(apk, (uint32_t)size, "AndroidManifest.xml", &mf) == 0) {
+        uint32_t cap = mf.uncomp_size ? mf.uncomp_size + 64u : mf.comp_size + 64u;
+        uint8_t *scratch = (uint8_t *)malloc(cap);
+        struct apk_manifest m;
+        int mrc = scratch ? apk_read_manifest(apk, (uint32_t)size, &m, scratch, cap,
+                                              flair_inflate_raw) : -9;
+        printf("axml_manifest   = rc=%d elements=%u attributes=%u unknown_chunks=%u\n",
+               mrc, mrc == 0 ? m.element_count : 0,
+               mrc == 0 ? m.attribute_count : 0,
+               mrc == 0 ? m.unknown_chunks : 0);
+        if (mrc == 0) {
+            printf("package_name    = %s\n", m.package_name);
+            printf("version         = %s (code %u)\n",
+                   m.version_name[0] ? m.version_name : "<none>", m.version_code);
+            printf("sdk             = min %u, target %u\n", m.min_sdk, m.target_sdk);
+            printf("label           = %s%s\n", m.label[0] ? m.label : "<none>",
+                   m.label_resolved ? " (from resources.arsc)" :
+                   (m.label_res_id ? " (unresolved @string)" : ""));
+            printf("launchers       = %d\n", m.launch_count);
+            for (int i = 0; i < m.launch_count; i++)
+                printf("launch_activity = %s\n", m.launch_activity[i]);
+            printf("label_res_id    = 0x%08x\n", m.label_res_id);
+            printf("application     = %s\n",
+                   m.app_class[0] ? m.app_class : "<none>");
+        }
+        free(scratch);
+    }
 
     /* Every classesN.dex, in install order: classes.dex, classes2.dex, ... */
     int executables = 0, readable = 0;
@@ -140,6 +170,44 @@ int main(int argc, char **argv) {
             char first[80];
             if (dex_read_string(dex, (uint32_t)dlen, 0, first, sizeof first) > 0)
                 printf("%-15s   string[0] = \"%s\"\n", name, first);
+        }
+
+        /* Real bytecode: build the interpreter over this dex and run methods. */
+        struct dvm *vm = dvm_create(dex, (uint32_t)dlen);
+        if (vm) {
+            uint32_t classes = 0, mwc = 0, tries = 0;
+            (void)dvm_stats(vm, &classes, &mwc, &tries);
+            struct dvm_scan_stats st;
+            (void)dvm_scan(vm, &st);
+            printf("%-15s   dalvik tables: classes=%u methods_with_code=%u try_blocks=%u\n",
+                   name, classes, mwc, tries);
+            printf("%-15s   dalvik scan: static_no_arg returned=%d trapped=%d, "
+                   "static(String) tried=%d returned=%d\n",
+                   name, st.executed, st.trapped, st.strparam_tried, st.strparam_ok);
+            for (int i = 0; i < st.hits; i++) {
+                struct dvm_result *r = &st.hit[i].res;
+                if (r->string[0])
+                    printf("%-15s   run %s -> \"%s\" (%u insns)\n", name,
+                           st.hit[i].name, r->string, r->insns);
+                else
+                    printf("%-15s   run %s -> %d (%u insns)\n", name,
+                           st.hit[i].name, (int)r->value, r->insns);
+            }
+            for (int i = 0; i < st.nstr; i++)
+                printf("%-15s   string %s -> \"%s\" (%u insns)\n", name,
+                       st.str[i].name, st.str[i].res.string, st.str[i].res.insns);
+            for (int i = 0; i < st.nobj; i++)
+                printf("%-15s   object %s (%u insns)\n", name, st.obj[i].name,
+                       st.obj[i].res.insns);
+            for (int i = 0; i < st.caught_hits; i++) {
+                struct dvm_result *r = &st.caught[i].res;
+                printf("%-15s   exception %s(\"12x\") -> threw %s, caught by DEX "
+                       "handler, returned %d\n",
+                       name, st.caught[i].name,
+                       r->exception_class[0] ? r->exception_class : "?",
+                       (int)r->value);
+            }
+            dvm_destroy(vm);
         }
 
         struct dex_ui_ctx ui;

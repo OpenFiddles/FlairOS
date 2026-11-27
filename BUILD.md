@@ -40,21 +40,92 @@ Linux host with clang 18; the Termux run itself has not been done on a phone.
 ## APK support: what is real today
 
 `make apk-probe APK=path/to/app.apk` runs a real package through the same code
-the kernel runs: the ZIP walk in `kernel/pkg/apk.c`, the raw-DEFLATE decoder in
-`ported/developer/libs/flair_zlib`, and the DEX reader in `kernel/pkg/dex.c`.
+the kernel runs (the ZIP walk in `kernel/pkg/apk.c`, the raw-DEFLATE decoder in
+`ported/developer/libs/flair_zlib`, the DEX reader in `kernel/pkg/dex.c`) plus
+two host-side pieces: the binary-manifest reader in `kernel/pkg/apk_manifest.c`
+and the Dalvik interpreter in `runtime/art/dalvik_vm.c`.
 
-What it really does today, measured on two real packages:
+### The binary manifest (AXML + resources.arsc)
 
-- 12.9 MB F-Droid client: 1227 ZIP entries, `classes.dex` + `classes2.dex` both
-  deflated, both extracted and inflated to 10,566,820 and 10,330,144 bytes, both
-  validated as `dex\n035`, 9138 and 9491 class definitions.
-- 124 MB Firefox for Android (Fennec 160.0.1): 3995 entries, three dex files
-  inflated (13.5 MB, 8.7 MB, 9.9 MB), all `dex\n038`, 15,363 / 11,424 / 14,513
-  class definitions.
+Real packages ship `AndroidManifest.xml` as compiled AXML (chunked, string pool,
+resource-id map), not text, and it is DEFLATE-compressed inside the ZIP. The
+reader inflates it into a caller-supplied scratch buffer, walks every chunk
+(unknown chunk types are counted and skipped), resolves `android:` attribute
+names through the resource map, and resolves `android:label` through
+`resources.arsc`, following resource-to-resource references. Launcher aliases
+are kept only when `android:enabled` is not `false`, which is what a real icon
+picker needs.
 
-What it does not do: run them. `dex_run_buffer` returns -4 for every real dex
-because it starts at the first `class_def` and that class carries no `code_off`;
-it is also not a Dalvik VM (no objects, strings, exceptions, JNI, JIT or native
-`.so` loading). Chrome and Firefox additionally depend on their own native
-browsers and WebView. So: packages are readable, not executable. The probe
-prints exactly which stage a package reaches instead of implying more.
+Measured on Fennec 160.0.1 (`org.mozilla.fennec_fdroid_1600120.apk`, 129,832,312
+bytes) and the F-Droid client 1.19.1 (`org.fdroid.fdroid_1019051.apk`, 12,930,505
+bytes):
+
+| | Fennec | F-Droid |
+|---|---|---|
+| package | `org.mozilla.fennec_fdroid` | `org.fdroid.fdroid` |
+| version | 160.0.1 (code 1600120) | 1.19.1 (code 1019051) |
+| SDK | min 26, target 37 | min 23, target 28 |
+| label | `Fennec` (via `resources.arsc`) | `F-Droid` (via a resource reference chain) |
+| launcher | `org.mozilla.fennec_fdroid.App` | `org.fdroid.fdroid.views.main.MainActivity` |
+| application | `org.mozilla.fenix.FenixApplication` | `org.fdroid.fdroid.FDroidApp` |
+| AXML walk | 559 elements, 1278 attributes, 0 unknown chunks | 311 elements, 488 attributes, 0 unknown chunks |
+| native ABIs | arm64-v8a: 15 `lib/*.so` | none |
+
+Both manifests were cross-checked against an independent parser (`androguard`
+4.1.4): package, version, SDK, label and launcher activity agree. Fennec
+declares 24 `MAIN`/`LAUNCHER` aliases, one per icon theme, 23 of them
+`android:enabled="false"`; only the enabled one is reported. F-Droid's
+`panic.CalculatorActivity` is a disguise launcher that is disabled in the
+shipped manifest, so it is filtered out too.
+
+### Running real bytecode
+
+`runtime/art/dalvik_vm.c` decodes the real DEX tables (strings, types, protos,
+methods, `class_data`, `code_item`, `try_item` / `encoded_catch_handler_list`)
+and interprets instructions: moves, `const`/`const-string`, arithmetic (including
+the `/2addr`, `/lit16` and `/lit8` forms), comparisons and branches,
+`iget`/`iput`, `sget`/`sput`, `new-instance` (a real heap object with field
+slots), `check-cast`, `instance-of`, `invoke-*` (both 35c and 3rc) with
+interpreted calls into methods of the same DEX, `return*`, `move-result*`,
+`move-exception`, and `throw` with real handler lookup. Calls into `java.lang`
+land in a small host library (`Object`, `String`, `StringBuilder`, `Integer`,
+`Math`); calls to anything else stop the run with a diagnostic naming the
+missing method, and unimplemented opcodes stop it naming the opcode and pc.
+Nothing is invented silently.
+
+What the probe reports per dex, measured on both packages:
+
+- Fennec `classes.dex`: 15,363 classes, 54,646 methods with code, 5,372 try
+  blocks; 158 static no-argument methods returned a value; string results such
+  as `FocusDirection.toString-impl -> "Invalid FocusDirection"` and
+  `BlendMode.toString-impl -> "Unknown"`;
+  `BasicMarqueeKt.basicMarquee-1Mj1MLw$default` allocates an
+  `androidx.compose.ui.Modifier` object and writes 4 fields into it; and a real
+  caught exception:
+  `Landroidx/media3/extractor/text/ssa/SsaStyle;->parseBooleanValue("12x")`
+  throws `java/lang/NullPointerException`, a DEX `encoded_catch_handler` takes
+  it, and the call returns 0.
+- F-Droid `classes.dex`: 9,138 classes, 50,791 methods with code, 3,264 try
+  blocks; 827 static no-argument methods returned; `FabPosition.toString-impl ->
+  "FabPosition.End"`; `ComplexColorCompat.from` allocates an object with 3
+  fields set. `classes2.dex`: 486 returned, and
+  `Lorg/bouncycastle/util/IPAddress;->isMaskValue("12x")` throws
+  `java/lang/NumberFormatException`, is caught by the DEX handler, and returns 0.
+
+### Limits (stated, not implied)
+
+- There is no Activity launch and no Android framework: no `Activity`, no
+  `Context`, `Binder`, `View` or `Window`. What runs is individual methods, not
+  an app. Wiring a real Activity launch is out of reach today.
+- No arrays (`aget`/`aput`, `new-array`, `array-length` trap), no `wide` types
+  (long/double), no floats, no `const-class`, no `packed-switch` /
+  `sparse-switch`, no JNI, no JIT, no native `.so` loading, and only exact-type
+  `instance-of`. Each of those stops the run with a diagnostic instead of
+  guessing.
+- The host class library is deliberately tiny; a method that calls
+  `ConcurrentHashMap`, `Class.forName` or any other framework type stops there.
+  This is why the probe reports returned vs trapped counts.
+- Chrome is proprietary and not redistributable, so no Chrome APK is included
+  or tested here; nothing in this repo substitutes another package for it.
+- `tools/build-termux.sh` is run here on x86_64 Linux, not on a phone.
+  On-device Termux remains unverified without hardware.
