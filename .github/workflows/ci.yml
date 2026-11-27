@@ -51,29 +51,42 @@ jobs:
       - name: Host tests over the shared kernel sources
         run: make test
 
-      # Only packaged tools: no QEMU_MODULE_DIR, no custom PATH, no /dev/kvm.
-      # seabios/vgabios are listed explicitly because x86_64 boots with
-      # -vga std and needs its option ROM; qemu-efi-aarch64 is the real AAVMF
-      # firmware aarch64 boots through.
+      # Only packaged tools: no QEMU_MODULE_DIR and no custom PATH.
+      # seabios/vgabios are listed explicitly because x86_64 boots with -vga std
+      # and qemu-system-data on jammy ships no VGA ROM; qemu-efi-aarch64 is the
+      # real AAVMF firmware aarch64 boots through.
       - name: Install QEMU and aarch64 UEFI firmware for the disk-boot assertion
         run: |
+          set -x
           sudo apt-get update -qq
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
-            qemu-system-x86 qemu-system-arm qemu-efi-aarch64 seabios vgabios > /dev/null
-          command -v qemu-system-x86_64 qemu-system-aarch64
-          ls -l /usr/share/AAVMF/AAVMF_CODE.fd
-          test ! -e /dev/kvm && echo 'no /dev/kvm: the boots below run under TCG'
+            qemu-system-x86 qemu-system-arm qemu-efi-aarch64
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq seabios vgabios
+          qemu-system-x86_64 --version | head -1
+          qemu-system-aarch64 --version | head -1
+          ls -l /usr/share/AAVMF/AAVMF_CODE.fd /usr/share/AAVMF/AAVMF_VARS.fd
+          ls -l /usr/share/vgabios/vgabios-stdvga.bin
+          ls -l /usr/lib/x86_64-linux-gnu/qemu/accel-tcg-x86_64.so 2>/dev/null || true
+          if [ -e /dev/kvm ]; then
+            echo 'runner exposes /dev/kvm; the boots below still force TCG'
+          else
+            echo 'no /dev/kvm: the boots below run under TCG'
+          fi
 
       # Boots each preset from its own disk image (no -kernel, no floppy, no ISO)
       # and asserts the captured framebuffer, so a regression of the disk path
       # fails CI instead of passing on a log line. Runners have no /dev/kvm, so
       # this runs under TCG on both architectures.
       - name: Disk boot to render=ok with framebuffer assertion
+        env:
+          FLAIROS_QEMU_ACCEL: tcg
         run: python3 tools/verify_disk_boot.py
 
       # A gate that cannot fail is not a gate: damaged media and a render that
       # never completes must all make the verifier exit nonzero.
       - name: Prove the disk gate rejects broken images
+        env:
+          FLAIROS_QEMU_ACCEL: tcg
         run: python3 tests/disk_boot_gate_test.py
 
       - name: Upload 64-bit preset images
