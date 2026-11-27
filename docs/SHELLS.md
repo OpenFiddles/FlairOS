@@ -66,7 +66,7 @@ export LD_LIBRARY_PATH=$HOME/local/usr/lib/x86_64-linux-gnu:$HOME/local/lib/x86_
 
 python3 tools/build_preset.py --preset tv --arch x86_64      # one preset
 make presets                                                 # all six presets, both arches
-make verify-disk                                             # builds the presets, then boots every one
+make verify-disk                                             # boots and gates every one
 ```
 
 All three commands **fail loudly** if the toolchain is absent: `build_preset.py`
@@ -107,6 +107,8 @@ renders the phone home screen from the shipped bytes (not a fixture).
 
 `make presets` builds every preset directory for every arch it declares — six
 presets, twelve images (an x86_64 preset also gets its Multiboot ELF and a
-raw disk image). `make verify-disk` depends on it, so the gate always boots the
-images the current tree produces; a missing image is still reported as a failure
-naming the preset rather than passed over.
+raw disk image). `make verify-disk` deliberately does not build or repair them:
+an image that is missing, or older than `preset.json`, the shell source, the
+packaged resources or the loader, is reported as a failure naming the preset
+and the newer input, and the gate exits non-zero. Run `make presets` first; a
+run then describes exactly the artifacts that existed.

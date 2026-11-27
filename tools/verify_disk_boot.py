@@ -264,10 +264,58 @@ def qemu_command(arch, image, log, sock, vars_copy):
     return cmd
 
 
-def verify(image, arch, preset, width, height, timeout):
+# Inputs that make a preset image what it is. The gate compares an image's mtime
+# against these so an image left over from older sources is reported as stale
+# instead of being booted and trusted.
+IMAGE_INPUTS = (
+    "tools/build_preset.py",
+    "kernel/boot/kmain64.c",
+    "kernel/ui/shell_launcher.c",
+    "kernel/ui/tv_layout.c",
+    "kernel/ui/mobile_layout.c",
+)
+
+
+def newest_input(preset):
+    """(mtime, repo-relative path) of the newest input that image depends on."""
+    cfg = json.load(open(os.path.join(ROOT, "presets", preset, "preset.json")))
+    paths = [f"presets/{preset}/preset.json", cfg["shell_source"]] + list(IMAGE_INPUTS)
+    package = cfg.get("session_package")
+    if package:
+        base = os.path.join(ROOT, package)
+        for dirpath, _dirnames, filenames in os.walk(base):
+            for name in filenames:
+                full = os.path.join(dirpath, name)
+                paths.append(os.path.relpath(full, ROOT))
+    newest, newest_path = 0.0, ""
+    for rel in paths:
+        full = os.path.join(ROOT, rel)
+        try:
+            mtime = os.path.getmtime(full)
+        except OSError:
+            continue
+        if mtime > newest:
+            newest, newest_path = mtime, rel
+    return newest, newest_path
+
+
+def image_problem(preset, arch, image):
+    """Why an image cannot be gated, or None when it is present and current."""
     if not os.path.exists(image):
-        return False, (f"{preset}/{arch}: missing disk image {image} "
-                       "(run `make presets`; the gate refuses to pass over an ungated preset)")
+        return (f"{preset}/{arch}: missing disk image {image} (run `make presets`; "
+                "the gate does not build or skip a preset it was asked to gate)")
+    newest, newest_path = newest_input(preset)
+    if os.path.getmtime(image) < newest:
+        return (f"{preset}/{arch}: stale disk image {image} is older than "
+                f"{newest_path} (run `make presets`; the gate refuses to boot an "
+                "image that does not match the tree)")
+    return None
+
+
+def verify(image, arch, preset, width, height, timeout):
+    problem = image_problem(preset, arch, image)
+    if problem:
+        return False, problem
 
     work = os.path.dirname(os.path.abspath(image))
     log = os.path.join(work, f"disk-boot-{arch}.log")
@@ -360,11 +408,18 @@ def verify(image, arch, preset, width, height, timeout):
 
     pw, ph, pixels = read_ppm(shot)
     if (pw, ph) != (width, height):
-        return False, f"{preset}/{arch}: screendump is {pw}x{ph}, preset is {width}x{height}"
+        detail = ""
+        if width > 2560 or height > 1600:
+            detail = (" — the requested mode does not fit the video memory QEMU gave the "
+                      "display, so the capture was truncated. A 4K preset needs the "
+                      "-global VGA.vgamem_mb=64 argument qemu_command supplies")
+        return False, (f"{preset}/{arch}: unusable capture, screendump is {pw}x{ph}, "
+                       f"preset is {width}x{height}{detail}")
     colours, varied = framebuffer_report(pixels, pw, ph)
     if colours < 32 or varied < 0.02:
-        return False, (f"{preset}/{arch}: framebuffer looks blank "
-                       f"({colours} colours, {varied * 100:.1f}% non-modal pixels)")
+        return False, (f"{preset}/{arch}: unusable capture, framebuffer looks blank "
+                       f"({colours} colours, {varied * 100:.1f}% non-modal pixels); "
+                       "the preset was accepted only if its own resolution renders")
 
     return True, (f"{preset}/{arch}: disk boot -> render=ok {width}x{height}, "
                   f"screendump {pw}x{ph}, {colours} colours, "
