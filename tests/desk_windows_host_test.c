@@ -239,6 +239,15 @@ int main(void) {
         }
     }
 
+    /* The pointer uses the same panel density: at 4K its 12x16 art becomes a
+       36x48 pointer, and its restore footprint follows that size. */
+    CHECK(gfx_cursor_scale(PANEL_W, PANEL_H) == 3);
+    fill_background();
+    gfx_draw_cursor(&surface, 3700, 2000);
+    CHECK(at(3700, 2000) == 0x00FFFFFFu);
+    CHECK(at(3702, 2002) == 0x00FFFFFFu);
+    CHECK(at(3703, 2000) == 0x00101828u);
+
     ag_device_shutdown(&device);
     free(pixels);
     if (failures) {

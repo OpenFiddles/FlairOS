@@ -70,6 +70,12 @@ preserves aspect ratio and crops overflow, and Stretch fills the display.
 Point and rectangle mapping lets a UI keep its logical layout while targeting
 different physical screen sizes, including portrait emulator screens.
 
+Density is also available as a whole-pixel step:
+`ag_scale_step_for(panel_w, panel_h, design_w, design_h)` rounds the same
+panel/design ratio to 1x–4x. The pointer uses it, so its 12x16 art is 24x32 at
+1080p and 36x48 at 4K rather than staying thumbnail-sized; the shell restores
+the matching scaled footprint when the pointer moves.
+
 The resource query reports the active renderer, advertised backend
 capabilities, CPU software fallback availability, and whether an initialized
 backend explicitly identifies itself as a GPU backend. The CPU renderer is

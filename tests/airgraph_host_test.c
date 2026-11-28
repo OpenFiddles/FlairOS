@@ -185,6 +185,13 @@ int main(void) {
         CHECK(ag_px(10, 98304u) == 15);
         CHECK(ag_px(0, 196608u) == 0);
         CHECK(ag_px(1, 0u) == 1);
+        /* Pixel art needs whole steps: 720p=1x, 1080p=2x, 4K=3x, 8K=4x. */
+        CHECK(ag_scale_step_for(1280, 720, 1280, 720) == 1);
+        CHECK(ag_scale_step_for(1920, 1080, 1280, 720) == 2);
+        CHECK(ag_scale_step_for(3840, 2160, 1280, 720) == 3);
+        CHECK(ag_scale_step_for(7680, 4320, 1280, 720) == 4);
+        CHECK(ag_scale_step_for(800, 600, 1280, 720) == 1);
+        CHECK(ag_scale_step_for(0, 2160, 1280, 720) == 0);
     }
     ag_clear(&s, 0);
     ag_stroke_rect(0, &s, 0, 0, 8, 6, 1, 0x0000FF);

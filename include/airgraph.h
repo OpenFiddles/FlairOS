@@ -114,6 +114,11 @@ static inline uint32_t ag_scale_ratio_q16(int32_t panel_w, int32_t panel_h,
    panel never scales past 4x. */
 int ag_scale_q16_for(int32_t panel_w, int32_t panel_h,
                      int32_t design_w, int32_t design_h, uint32_t *out);
+/* The same ratio rounded to a whole 1x..4x step, for pixel art such as the
+   pointer that must scale by whole pixels instead of a fractional transform.
+   Returns 0 for invalid sizes. */
+int ag_scale_step_for(int32_t panel_w, int32_t panel_h,
+                      int32_t design_w, int32_t design_h);
 /* Design pixels to device pixels, rounded to the nearest whole pixel; a
    positive design length never becomes 0. scale_q16 == 0 means 1.0. */
 int32_t ag_px(int32_t design_px, uint32_t scale_q16);

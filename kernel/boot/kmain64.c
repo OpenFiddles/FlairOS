@@ -224,6 +224,9 @@ void kmain64(uint64_t arg0, uint64_t arg1) {
     int32_t last_mx = -1, last_my = -1;
     uint8_t last_btn = 0;
     int first = 1, frame = 0;
+    /* The pointer is pixel art, so it scales by whole pixels with the same
+       panel density as WinDown's chrome instead of staying 12x16 at 4K. */
+    const int32_t cursor_scale = gfx_cursor_scale(back_surf.width, back_surf.height);
 
     uint32_t hz_freq = hal_timer_freq_hz();
     uint32_t frame_budget = hz_freq / PRESET_TARGET_HZ;
@@ -278,10 +281,13 @@ void kmain64(uint64_t arg0, uint64_t arg1) {
                 first = 0;
             }
         } else if (in.mouse_x != last_mx || in.mouse_y != last_my || in.buttons != last_btn) {
-            restore_rect(&back_surf, &layer_surf, last_mx, last_my, 12, 16);
-            copy_rect_to_lfb(hw_lfb, hw_pitch, &back_surf, last_mx, last_my, 12, 16);
+            restore_rect(&back_surf, &layer_surf, last_mx, last_my,
+                         12 * cursor_scale, 16 * cursor_scale);
+            copy_rect_to_lfb(hw_lfb, hw_pitch, &back_surf, last_mx, last_my,
+                             12 * cursor_scale, 16 * cursor_scale);
             gfx_draw_cursor(&back_surf, in.mouse_x, in.mouse_y);
-            copy_rect_to_lfb(hw_lfb, hw_pitch, &back_surf, in.mouse_x, in.mouse_y, 12, 16);
+            copy_rect_to_lfb(hw_lfb, hw_pitch, &back_surf, in.mouse_x, in.mouse_y,
+                             12 * cursor_scale, 16 * cursor_scale);
             last_mx = in.mouse_x;
             last_my = in.mouse_y;
             last_btn = in.buttons;

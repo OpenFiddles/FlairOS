@@ -494,6 +494,18 @@ int ag_scale_q16_for(int32_t panel_w, int32_t panel_h,
     return 0;
 }
 
+int ag_scale_step_for(int32_t panel_w, int32_t panel_h,
+                      int32_t design_w, int32_t design_h) {
+    uint32_t q16;
+    int step;
+    if (ag_scale_q16_for(panel_w, panel_h, design_w, design_h, &q16) != 0)
+        return 0;
+    step = (int)((q16 + AG_SCALE_ONE / 2u) / AG_SCALE_ONE);
+    if (step < 1) step = 1;
+    if (step > (int)(AG_SCALE_MAX / AG_SCALE_ONE)) step = (int)(AG_SCALE_MAX / AG_SCALE_ONE);
+    return step;
+}
+
 int32_t ag_px(int32_t design_px, uint32_t scale_q16) {
     int64_t scaled;
     if (design_px <= 0) return 0;

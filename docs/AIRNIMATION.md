@@ -213,6 +213,6 @@ pixel, a close click at the scaled button centre, a title-bar drag, and a
 | Animated widgets on top of the engine | `tests/sprunkui_anim_host_test.c` |
 | Shipping desktop density, scaled clicks, preset open, 4K rescale | `tests/desk_windows_host_test.c` |
 
-All of these run under `make test`; `make verify-disk` still gates the twelve
-preset images, so a rendering regression that changes a booted frame fails the
-gate rather than passing quietly.
+All of these run under `make test`; `make verify-disk` still gates the eighteen
+64-bit preset images, so a rendering regression that changes a booted frame
+fails the gate rather than passing quietly.

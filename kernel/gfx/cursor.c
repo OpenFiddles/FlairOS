@@ -150,7 +150,8 @@ static void put(struct ag_device *d, struct ag_surface *surf, int x, int y, int 
 void cursor_draw(struct ag_device *device, struct ag_surface *surface, int x, int y) {
     int scale, hot_x, hot_y, w, h;
     if (!surface || !surface->pixels) return;
-    scale = surface->width >= 1920 ? 2 : 1;
+    scale = ag_scale_step_for(surface->width, surface->height, 1280, 720);
+    if (scale < 1) scale = 1;
 
     if (custom_loaded && current_shape == CURSOR_ARROW) {
         w = custom_w; h = custom_h; hot_x = 0; hot_y = 0;

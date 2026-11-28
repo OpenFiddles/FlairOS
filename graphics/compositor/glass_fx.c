@@ -326,6 +326,11 @@ void gfx_app_icon(struct ag_surface *s, int32_t x, int32_t y, int32_t size,
     }
 }
 
+int32_t gfx_cursor_scale(int32_t panel_w, int32_t panel_h) {
+    int step = ag_scale_step_for(panel_w, panel_h, 1280, 720);
+    return step > 0 ? step : 1;
+}
+
 void gfx_draw_cursor(struct ag_surface *s, int32_t x, int32_t y) {
     static const char *rows[16] = {
         "W...........",
@@ -345,11 +350,16 @@ void gfx_draw_cursor(struct ag_surface *s, int32_t x, int32_t y) {
         "W....WW.....",
         "............"
     };
+    int32_t scale = gfx_cursor_scale(s->width, s->height);
     for (int ry = 0; ry < 16; ry++) {
         for (int rx = 0; rx < 12; rx++) {
             char ch = rows[ry][rx];
-            if (ch == 'W') gfx_blend_pixel(s, x + rx, y + ry, 0x00FFFFFFu, 255u);
-            else if (ch == 'B') gfx_blend_pixel(s, x + rx, y + ry, 0x00101218u, 255u);
+            uint32_t color;
+            if (ch == 'W') color = 0x00FFFFFFu;
+            else if (ch == 'B') color = 0x00101218u;
+            else continue;
+            ag_fill_rect(0, s, x + rx * scale, y + ry * scale,
+                         scale, scale, color);
         }
     }
 }

@@ -26,6 +26,11 @@ void gfx_pill_badge(struct ag_surface *s, int32_t x, int32_t y, const char *text
 void gfx_app_icon(struct ag_surface *s, int32_t x, int32_t y, int32_t size,
                   uint32_t top_rgb, uint32_t bot_rgb, const char *glyph);
 
+/* Whole-pixel cursor scale for a panel: 1x at 720p and below, 2x at 1080p,
+   3x at 4K, clamped by AirGraph's density scale. */
+int32_t gfx_cursor_scale(int32_t panel_w, int32_t panel_h);
+/* Draw the pointer at the panel's density. The sprite footprint is
+   12*scale x 16*scale pixels. */
 void gfx_draw_cursor(struct ag_surface *s, int32_t x, int32_t y);
 
 void gfx_draw_wifi_icon(struct ag_surface *s, int32_t x, int32_t y, int bars, uint32_t rgb);
